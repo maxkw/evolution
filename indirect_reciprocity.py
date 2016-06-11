@@ -29,6 +29,10 @@ sns.set_context('paper', font_scale=1.5)
 class StageGame(object):
     """
     base class for all games, initialized with a payoff dict
+    TODO: Build a game generator that can capture an ultimatum game by stringing together simple games. For instance,
+    GAME 1: P1 gets 10 and can share X [0 through 10] with P2
+    GAME 2: P2 can do nothing and keep X, or lose -X and have P1 lose 10-X
+    
     """
     def __init__(self, payoffs):
         self.N_players = len(payoffs.values()[0])
@@ -107,7 +111,7 @@ class Agent(object):
         # game. Can/Should use the belief distribution. May need to do
         # a logit response for simultaneous move games.
 
-        Us = np.zeros(len(game.actions))
+        Us = np.zeros(len(game.actions)) # Utilities for each action
         for a in game.actions:
             a_id = game.action_lookup[a]
             for payoff, agent_id in zip(game.payoffs[a], agent_ids):
@@ -116,7 +120,9 @@ class Agent(object):
         return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
 
     def decide(self, game, agent_ids):
-        ps = self.decide_likelihood(self, game, agent_ids)
+        # Tremble is always 0 for decisions since tremble happens in
+        # the world, not the agent
+        ps = self.decide_likelihood(self, game, agent_ids, tremble = 0)
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         return game.actions[action_id]
 
@@ -131,6 +137,8 @@ class SelfishAgent(Agent):
         else:
             return 0
 
+
+        
 class ReciprocalAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(ReciprocalAgent, self).__init__(genome, world_id)
@@ -395,15 +403,42 @@ class World(object):
 discount_stop_condition = lambda x: lambda n: not flip(x)
 constant_stop_condition = lambda x: lambda n: n >= x
 
+# adding multistep games and games that depend on the outcome of previosu games (e.g., ultimatum game)
+# TODO: This currently expects a single game instance. TODO: Make this accept a list of games or a game generator function. 
+
 def default_params():
     """
     generates clean dict containing rules that determine agent qualities
     this dict provides a simple way to change conditions of experiments
 
-    NEEDS DOCUMENTATION OR REFERENCE PAPER
+    `games`: Instance of a StageGame object to be used as the default if no game is specified. 
+
+    `stop_condition`: The current `World` matches players together for either a single or a repeated interaction. This expects a reference to a function that takes in the number of rounds played (`n`). The function returns True if the interaction should stop and false if the interaction should continue. 
+
+    `constant_stop_condition`: means that each dyad plays a fixed number of round together up to X. 
+
+    `discount_stop condition`: randomly terminates the interaction with probability `x` and hence does not depend on the round number. 
+
+    `agent_types`: Default agent types which will be initialized through `generate_random_genomes`.
+
+    `beta`: is the beta in the softmax function for the agent decision making. When beta is Inf the agents always select the option that maximizes utility when beta is 0, the agents choose actions randomly. 
+
+    `moran_beta`: is the beta in the evolutionary selection. When moran_beta is 0 the next generation randomly copies from the previous generation. When moran_beta is Inf, all agents in the next generation copy the best agent in the previous generation. 
+
+    I've been using the `RA_` prefix to denote parameters that are special to the reciprocal agent time. 
+
+    `RA_prior`: The prior probability that a ReciprocalAgent has on another agent also being a ReciprocalAgent. The higher this value, the more likely the ReciprocalAgent is to believe the other agent is also ReciprocalAgent without observing any of their actions. 
+    TODO: This will probability need to be generalized a bit to handle other Agent types.
+
+    `RA_prior_precision`: This is how confident the agent is in its prior (its like a hyperprior). If it is 0, there is no uncertainty and the prior never changes. If this is non-zero, then `RA_prior` is just the mean of a distribution. The agent will learn the `RA_prior` as it interacts with more and more agents. 
+
+    `p_tremble`: probability of noise in between forming a decision and making an action. 
+
+    `RA_K`: is the number of theory-of-mind recursions to carry out. When RA_K is 0 the agent just tries to infer the type directly, when it is 1, you first infer what each agent knows and then infer what you know based on those agents and so on. 
+
     """
     return {
-        'games': BinaryDictator(0, 1, 2),
+        'games': BinaryDictator(0, 1, 2), 
         'stop_condition': constant_stop_condition(10),
         'agent_types' : [
             SelfishAgent,
@@ -418,6 +453,14 @@ def default_params():
     }
 
 def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
+    """
+    When two reciprocal agents interact, how likely are they to figure out that they are both reciprocal agent types?
+    This will depend on the RA_prior. 
+
+    Compare with something like TFT which if it gets off on the wrong foot will never recover. There are forgiving versions of TFT but they are not context sensitive. Experiments here should explore how the ReciprocalAgent is a more robust cooperator since it can reason about types. 
+
+    TODO: This could be an interesting place to explore p_tremble, and show that agents can recover. 
+    """
     print 'Running Forgiveness Experiment'
     if os.path.isfile(path) and not overwrite: 
         print path, 'exists. Delete or set the overwrite flag.'
@@ -435,7 +478,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
         print 'running prior', RA_prior
 
         for r_id in range(N_runs):
-            np.random.seed(r_id) #does seeding in each round with the same seed not produce the same sequence of random numbers?
+            np.random.seed(r_id) # Increment a new seed for each run
             w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'], params['RA_prior_precision'], params['beta']))
             fitness, history = w.run()
             for nround in range(len(history)):
@@ -459,15 +502,18 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
 def forgiveness_plot(in_path = 'sims/forgiveness.pkl', out_path='writing/evol_utility/figures/forgiveness.pdf'):
     df = pd.read_pickle(in_path)
 
-    sns.factorplot('round', 'avg_beliefs', hue='RA_prior', data=df)
+    sns.factorplot(x='round', y='avg_beliefs', hue='RA_prior', data=df)
     sns.despine()
     plt.ylim([0,1.05])
-    plt.ylabel('P(Other is reciprocal | Round)')
-    plt.xlabel('Round')
+    plt.ylabel('P(Other is reciprocal | Round)'); plt.xlabel('Round')
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
 
 def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
+    """
+    If a ReciprocalAgent and a Selfish agent are paired together. How quickly will the ReicprocalAgent detect it. Look at how fast this is learned as a function of the prior. 
+    """
+    
     print 'Running Protection Experiment'
     if os.path.isfile(path) and not overwrite: 
         print path, 'exists. Delete or set the overwrite flag.'
@@ -512,12 +558,15 @@ def protection_plot(in_path = 'sims/protection.pkl', out_path='writing/evol_util
     sns.factorplot('round', 'belief', hue='RA_prior', data=df, ci=68)
     sns.despine()
     plt.ylim([0,1])
-    plt.ylabel('P(Other is reciprocal | Interactions)')
-    plt.xlabel('Round #')
+    plt.ylabel('P(Other is reciprocal | Interactions)'); plt.xlabel('Round #')
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
 def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = False):
+    """
+    Repetition supports cooperation. Look at how the number of rounds each dyad plays together and the average fitness of the difference agent types. 
+    """
+    
     print 'Running Fitness Rounds Experiment'
     if os.path.isfile(path) and not overwrite: 
         print path, 'exists. Delete or set the overwrite flag.'
@@ -533,8 +582,11 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
 
     for rounds in np.linspace(1, 8, 8, dtype=int):
         print rounds
-        for _ in range(N_runs):
+        for r_id in range(N_runs):
+            np.random.seed(r_id)
+
             params['stop_condition'] = constant_stop_condition(rounds)
+            
             w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'], params['beta']))
             fitness, history = w.run()
 
@@ -565,11 +617,9 @@ def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/e
     sns.factorplot('rounds', 'fitness', hue='genome', data=df,)
     sns.despine()
     plt.ylim([0,1.05])
-    plt.ylabel('Fitness ratio')
-    plt.xlabel('# of rounds')
+    plt.ylabel('Fitness ratio'); plt.xlabel('# of repetitions')
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
-
 
 params = default_params()
 
