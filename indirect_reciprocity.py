@@ -27,6 +27,9 @@ sns.set_context('paper', font_scale=1.5)
 
 
 class StageGame(object):
+    """
+    base class for all games, initialized with a payoff dict
+    """
     def __init__(self, payoffs):
         self.N_players = len(payoffs.values()[0])
 
@@ -36,6 +39,9 @@ class StageGame(object):
         self.payoffs = payoffs        
         
 class BinaryDictator(StageGame):
+    """
+    dictator game in which cooperation produces more rewards in total
+    """
     def __init__(self, endowment = 0, cost = 1, benefit = 2):
         payoffs = {
             "keep": (endowment, 0),
@@ -44,6 +50,9 @@ class BinaryDictator(StageGame):
         super(BinaryDictator, self).__init__(payoffs)
 
 class CostlyAllocationGame(StageGame):
+    """
+    Three player version of dictator
+    """
     def __init__(self, endowment = 0, cost = 1, benefit = 2):
         payoffs = {
             "give 1": (endowment-cost, benefit, 0),
@@ -54,6 +63,9 @@ class CostlyAllocationGame(StageGame):
 
         
 class AllocationGame(StageGame):
+    """
+    Three player game, first player must give to one of two others
+    """
     def __init__(self, endowment = 0, cost = 1, benefit = 2):
         payoffs = {
             "give 1": (endowment-cost, benefit, 0),
@@ -77,6 +89,11 @@ class Agent(object):
 
     @staticmethod
     def decide_likelihood(deciding_agent, game, agent_ids, tremble = 0):
+        """
+        !!!
+        decide likelihood of what? other player's actions?
+        am I implicitly inferring agent "types" here?
+        """
         # The first agent is always the deciding agent
         
         # Only have one action so just pick it
@@ -379,6 +396,12 @@ discount_stop_condition = lambda x: lambda n: not flip(x)
 constant_stop_condition = lambda x: lambda n: n >= x
 
 def default_params():
+    """
+    generates clean dict containing rules that determine agent qualities
+    this dict provides a simple way to change conditions of experiments
+
+    NEEDS DOCUMENTATION OR REFERENCE PAPER
+    """
     return {
         'games': BinaryDictator(0, 1, 2),
         'stop_condition': constant_stop_condition(10),
@@ -412,7 +435,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
         print 'running prior', RA_prior
 
         for r_id in range(N_runs):
-            np.random.seed(r_id)
+            np.random.seed(r_id) #does seeding in each round with the same seed not produce the same sequence of random numbers?
             w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'], params['RA_prior_precision'], params['beta']))
             fitness, history = w.run()
             for nround in range(len(history)):
