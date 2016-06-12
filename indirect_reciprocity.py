@@ -94,9 +94,11 @@ class Agent(object):
     @staticmethod
     def decide_likelihood(deciding_agent, game, agent_ids, tremble = 0):
         """
-        !!!
-        decide likelihood of what? other player's actions?
-        am I implicitly inferring agent "types" here?
+        recieves:
+        1)deciding_agent, an agent of a particular type
+
+        returns:
+        a probability vector representing what I think the deciding agent would do in this game?
         """
         # The first agent is always the deciding agent
         
@@ -137,6 +139,12 @@ class SelfishAgent(Agent):
         else:
             return 0
 
+class AltruisticAgent(Agent):
+    def __init__(self, genome, world_id=None):
+        super(AltruisticAgent, self).__init__(genome, world_id)
+
+    def utility(self, payoff, agent_id):
+        return payoff
 
         
 class ReciprocalAgent(Agent):
@@ -176,6 +184,13 @@ class ReciprocalAgent(Agent):
         return belief
 
     def observe_k(self, observations, K, tremble = 0):
+        """
+        takes in
+        observations = [(game, agent_ids, observer_ids, action), ...]
+        k = an integer. (function has special behavior for k =,<,> 0)
+        
+        
+        """
         # Key assumption: everyone who observes the action, observes
         # who observes the action. Thus observation of action is
         # common-knowledge among those who observe the action. First
@@ -197,11 +212,14 @@ class ReciprocalAgent(Agent):
             # for pair in list(itertools.permutations(observer_ids,K+1)):
             for a_id in observer_ids:
                 # Can't have a belief about what I think about what I think. Beliefs about others are first order beliefs.
+                #continue skips the remainder of this looping instance
                 if a_id == self.world_id: continue
 
                 # Initialize the level-2 agents
                 if a_id not in self.agents:
+                    #assume the agent is reciprocal
                     self.agents[a_id] = ReciprocalAgent(self.genome, world_id = a_id)
+                    #for every observer, initialize their beliefs about the new agent to their prior
                     for o_id in observer_ids:
                         self.agents[a_id].belief[o_id] = self.agents[a_id].initialize_prior()
 
@@ -212,7 +230,10 @@ class ReciprocalAgent(Agent):
             game, agent_ids, observer_ids, action = observation
 
             # Can't have a belief about what I think about what I think. Beliefs about others are first order beliefs.
+            #so if i'm considering myself, skip to the next round of the loop
             if agent_ids[0] == self.world_id: continue
+            
+            #if im not one of the observers this round, skip to the next round
             if self.world_id not in observer_ids: continue
 
             action_indx = game.action_lookup[action]
@@ -362,6 +383,11 @@ class World(object):
                     # Intention -> Trembling Hand -> Action
                     intentions = agents[0].decide(self.game, agent_ids)
                     actions = copy(intentions)
+
+                    #does this assume that everyone has the same actions?
+                    #does everyone tremble independently?
+                    #are these joint actions?
+                    
                     for i in range(len(intentions)):
                         if flip(params['p_tremble']):
                             actions = np.random.choice(self.game.actions)
