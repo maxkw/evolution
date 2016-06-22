@@ -749,7 +749,7 @@ params = default_params()
 
     
 typesClassic = agent_types = [ReciprocalAgent,SelfishAgent]
-typesAll = [ReciprocalAgent,AltruisticAgent,SelfishAgent]
+typesAll =[ReciprocalAgent,AltruisticAgent,SelfishAgent]
 
 agent_types = tuple(agent_types)
                                                     
