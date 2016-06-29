@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import math
 # import dirichlet
-from utils import softmax, sample_softmax, softmax_utility, flip, 
+from utils import softmax, sample_softmax, softmax_utility, flip, namedArrayConstructor, normalized
 from copy import deepcopy
 from pprint import pprint
 from scipy.spatial.distance import cosine
@@ -117,7 +117,7 @@ class Agent(object):
 
         
     def utility(self, payoffs, agent_ids):
-        return map(self.__utility__, izip(payoffs,agent_ids))
+        return sum(self.__utility__(payoff,id) for payoff,id in itertools.izip(payoffs,agent_ids))
 
     def __utility__(self, payoffs, afent_ids):
         raise NotImplementedError
@@ -153,13 +153,15 @@ class Agent(object):
         # game. Can/Should use the belief distribution. May need to do
         # a logit response for simultaneous move games.
 
-        Us = np.zeros(len(game.actions)) # Utilities for each action
-        for action in game.actions:
-            action_index = game.action_lookup[action]
-            for payoff, agent in zip(game.payoffs[action], agents):
-                Us[action_index] += deciding_agent.utility(payoff, agent)
-
-        Us = array(deciding_agent.utility(game.payoffs[action], agents) for action in game.actions)
+        # OBSOLETE?
+        #Us = np.zeros(len(game.actions)) # Utilities for each action
+        #for action in game.actions:
+        #    action_index = game.action_lookup[action]
+        #    Us[action_index] += deciding_agent.utility(game.payoffs[action], agents)
+        #    print Us[action_index]
+        
+        Us = np.array([deciding_agent.utility(game.payoffs[action], agents)
+                       for action in game.actions])
         
         return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
 
@@ -170,12 +172,14 @@ class Agent(object):
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         return game.actions[action_id]
 
-
+def printing(x):
+    print x
+    return x
 class SelfishAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(SelfishAgent, self).__init__(genome, world_id)
         
-    def __utility__(self, payoffs, agent_ids):
+    def __utility__(self, payoff, agent_id):
         if agent_id == self.world_id:
             return payoff
         else:
@@ -212,7 +216,8 @@ class ReciprocalAgent(Agent):
         self.belief = defaultdict(self.initialize_prior)
 
         #basically the same as belief
-        self.initial_likelihood = lambda: namedArrayConstructor(genome['agent_types'])(np.ones(len(genome['agent_types'])))
+        
+        self.initial_likelihood = lambda: namedArrayConstructor(tuple(genome['agent_types']))(np.ones(len(genome['agent_types'])))
         self.likelihood = defaultdict(self.initial_likelihood)
 
     def purge_models(self, ids):
@@ -456,7 +461,7 @@ class World(object):
         self.params = params
 
     def add_agents(self, genomes):
-        for genome, world_id in izip(genomes,self.counter):
+        for genome, world_id in itertools.izip(genomes,self.counter):
             agent = genome['type'](genome,world_id)
             self.agents.append(agent)
             self.id_to_agent[world_id] = agent
@@ -732,17 +737,30 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
     if os.path.isfile(path) and not overwrite: 
         print path, 'exists. Delete or set the overwrite flag.'
         return
-            params = default_params()
-            
+
+
+    params = default_params()
+    params.update({
+        "N_agents":50,
+        "RA_K": 1
+    })
+
+    for rounds in np.linspace(1, 8, 8, dtype=int):
+        print rounds
+        for r_id in range(N_runs):
+            np.random.seed(r_id)
+
+            params['stop_condition'] = constant_stop_condition(rounds)
+                  
             w = World(params, generate_random_genomes(**params))
             fitness, history = w.run()
-
+            
             genome_fitness = Counter()
             genome_count = Counter()
 
             for a_id, a in enumerate(w.agents):
-                genome_fitness[a.__class__.__name__] += fitness[a_id]
-                genome_count[a.__class__.__name__] += 1
+                genome_fitness[type(a)] += fitness[a_id]
+                genome_count[type(a)] += 1
 
             average_fitness = {a:genome_fitness[a]/genome_count[a] for a in genome_fitness}
 
@@ -790,7 +808,7 @@ params['stop_condition'] = constant_stop_condition(10)
 params['p_tremble'] = 0
 params['RA_prior'] = 0.8
 params['RA_prior_precision'] = 0
-prior = prior_generator(agent_types,para
+prior = prior_generator(agent_types,params['RA_prior'])
 
 w = World(params, [
     {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},

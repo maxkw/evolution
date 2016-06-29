@@ -47,13 +47,14 @@ def memoized(f):
     """ Memoization decorator for a function taking one or more arguments. """
     class memodict(dict):
         def __getitem__(self, *key):
+            key = tuple(key)
             return dict.__getitem__(self, key)
 
         def __missing__(self, key):
             ret = self[key] = f(*key)
             return ret
             
-    return memodict().__getitem_
+    return memodict().__getitem__
 
 @memoized
 def namedArrayConstructor(fields, className = "NamedArray"):
@@ -67,7 +68,7 @@ def namedArrayConstructor(fields, className = "NamedArray"):
    
     Note: This constructor should always be memoized to avoid creation of functionally identical classes
     """
-
+    fields = tuple(fields)
     assert len(fields) == len(set(fields))
     
     reference = dict(map(reversed,enumerate(fields)))
@@ -87,8 +88,10 @@ def namedArrayConstructor(fields, className = "NamedArray"):
         default_name = className
         def __new__(self, seq, array_name = default_name):
             self.array_name = array_name
-            self.__reset_repr_expr__()
+
             return np.asarray(seq).view(self)
+        def __init__(self,seq,array_name = default_name):
+            self.__reset_repr_expr__()
 
         def __reset_repr_expr__(self):
             self.repr_expr = '{name}[{seq}]'.format(
