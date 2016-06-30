@@ -70,8 +70,12 @@ def namedArrayConstructor(fields, className = "NamedArray"):
     """
     fields = tuple(fields)
     assert len(fields) == len(set(fields))
-    
+
+    fields_error_msg = "\nThe following are also valid indices: "+", ".join(str(field) for field in fields)
     reference = dict(map(reversed,enumerate(fields)))
+    repr_expr = '{name}[{seq}]'.format(
+        name = className,
+        seq = ", ".join("{}={{:.2f}}".format(field) for field in fields))
     class NamedArray(np.ndarray):
         """
         these arrays function exactly the same as normal np.arrays
@@ -86,41 +90,56 @@ def namedArrayConstructor(fields, className = "NamedArray"):
         """
         
         default_name = className
-        def __new__(self, seq, array_name = default_name):
-            self.array_name = array_name
-
+        def __new__(self, seq):            
             return np.asarray(seq).view(self)
-        def __init__(self,seq,array_name = default_name):
-            self.__reset_repr_expr__()
+        
+        #def __init__(self,seq,array_name = default_name):
+        #    self.__reset_repr_expr__()
 
         def __reset_repr_expr__(self):
-            self.repr_expr = '{name}[{seq}]'.format(
+            repr_expr = '{name}[{seq}]'.format(
                 name = self.array_name,
                 seq = ", ".join("{}={{:.2f}}".format(field) for field in fields))
-        
-        def __getitem__(self,*keys):
-            try:
-                return super(NamedArray,self).__getitem__(*keys)
-            except IndexError:
-                if not all(key in reference for key in keys):
-                    raise
-                else:
-                    keys = (reference[key] for key in keys)
-                    return super(NamedArray,self).__getitem__(*keys)#reference[keys[0]])
-            
-        def __repr__(self):
-            return self.repr_expr.format(*self)
 
         def __str__(self):
-            return self.__repr__()
-
-        def __setitem__(self,*keys,**vals):
+            return repr_expr.format(*self)
             try:
-                super(NamedArray,self).__setitem__(*keys,**vals)
-            except IndexError:
-                keys = (reference[keys[0]],)+keys[1:]
-                super(NamedArray,self).__setitem__(*keys,**vals)
+                return repr_expr.format(*self)
+            except (TypeError,IndexError):
+                return super(NamedArray,self).__str__()
+        
+        def __getitem__(self,*args,**kwargs):
+            try:
+                return super(NamedArray,self).__getitem__(*args,**kwargs)
+            except IndexError as indexError:
+                try:
+                    [keys] = args
+                    try:
+                        keys = reference[keys]
+                    except TypeError:
+                        keys = [reference[key] for key in keys]
+                        
+                    return super(NamedArray,self).__getitem__(keys)
                 
+                except KeyError:
+                    indexError = type(indexError)(indexError.message+fields_error_msg) 
+                    raise indexError
+
+        def __setitem__(self,*args,**kwargs):
+            try:
+                super(NamedArray,self).__setitem__(*args,**kwargs)
+            except IndexError as indexError:
+                keys,vals = args
+                try:
+                    keys = reference[keys]
+                except TypeError:
+                    keys = [reference[key] for key in keys]
+                
+                super(NamedArray,self).__setitem__(keys,vals,**kwargs)
+            except KeyError:
+                indexError = type(indexError)(indexError.message+fields_error_msg) 
+                raise indexError
+                                
         def rename(self,name):
             self.array_name = name
             self.__reset_repr_expr__()
