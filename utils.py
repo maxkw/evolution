@@ -89,7 +89,6 @@ def namedArrayConstructor(fields, className = "NamedArray"):
         array[fields.index(field)] == array[field]
         """
         
-        default_name = className
         def __new__(self, seq):            
             return np.asarray(seq).view(self)
         
@@ -102,10 +101,9 @@ def namedArrayConstructor(fields, className = "NamedArray"):
                 seq = ", ".join("{}={{:.2f}}".format(field) for field in fields))
 
         def __str__(self):
-            return repr_expr.format(*self)
             try:
                 return repr_expr.format(*self)
-            except (TypeError,IndexError):
+            except:
                 return super(NamedArray,self).__str__()
         
         def __getitem__(self,*args,**kwargs):
@@ -118,7 +116,6 @@ def namedArrayConstructor(fields, className = "NamedArray"):
                         keys = reference[keys]
                     except TypeError:
                         keys = [reference[key] for key in keys]
-                        
                     return super(NamedArray,self).__getitem__(keys)
                 
                 except KeyError:
@@ -129,16 +126,17 @@ def namedArrayConstructor(fields, className = "NamedArray"):
             try:
                 super(NamedArray,self).__setitem__(*args,**kwargs)
             except IndexError as indexError:
-                keys,vals = args
                 try:
-                    keys = reference[keys]
-                except TypeError:
-                    keys = [reference[key] for key in keys]
+                    keys,vals = args
+                    try:
+                        keys = reference[keys]
+                    except TypeError:
+                        keys = [reference[key] for key in keys]  
+                    super(NamedArray,self).__setitem__(keys,vals,**kwargs)
                 
-                super(NamedArray,self).__setitem__(keys,vals,**kwargs)
-            except KeyError:
-                indexError = type(indexError)(indexError.message+fields_error_msg) 
-                raise indexError
+                except KeyError:
+                    indexError = type(indexError)(indexError.message+fields_error_msg) 
+                    raise indexError
                                 
         def rename(self,name):
             self.array_name = name
