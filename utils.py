@@ -147,3 +147,13 @@ def namedArrayConstructor(fields, className = "NamedArray"):
 def normalized(array):
     return array/np.sum(array)
 assert np.sum(normalized(np.array([.2,.3]))) ==1
+
+def constraint_min(f,x):
+    out = sp.optimize.minimize(f, x,
+                               constraints={'type':'eq', 'fun': lambda x: 1-sum(x)},
+                               bounds = [(0.01, 0.99) for _ in range(len(x))],
+                               # options={'ftol':10e-40},
+                               # tol = 10e-10
+    )
+    return out
+

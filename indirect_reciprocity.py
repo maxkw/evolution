@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import math
 # import dirichlet
-from utils import softmax, sample_softmax, softmax_utility, flip, namedArrayConstructor, normalized
+from utils import softmax, sample_softmax, softmax_utility, flip, namedArrayConstructor, normalized, constraint_min
 from copy import deepcopy
 from pprint import pprint
 from scipy.spatial.distance import cosine
@@ -302,8 +302,7 @@ class ReciprocalAgent(Agent):
             
             self.likelihood[deciding_agent] = normalized(self.likelihood[deciding_agent])
             
-            marginal = np.dot(self.pop_prior,self.likelihood[deciding_agent])
-            self.belief[deciding_agent] = (self.pop_prior*self.likelihood[deciding_agent])/marginal
+            self.belief[deciding_agent] = (self.pop_prior*self.likelihood[deciding_agent]) / np.dot(self.pop_prior,self.likelihood[deciding_agent])
 
         # Observe the other person, when this code runs at K=0
         # nothing will happen because of the return at the top
@@ -312,52 +311,48 @@ class ReciprocalAgent(Agent):
             self.agentModels[agent].observe_k(observations, K-1, tremble)
 
             
-        if K>0:
-            self.update_prior()
+        # if K>0:
+        #     self.update_prior()
 
     def update_prior(self):
-        if self.genome['RA_prior_precision'] == 0: return
+        if self.genome['prior_precision'] == 0: return
         
         D = list()
-        length = len(self.genome['agent_types'])
-        namedArray = namedArrayConstructor(self.genome['agent_types'])
-
-        for agent, likelihood in self.likelihood.iteritems():
-            p = likelihood[ReciprocalAgent]
-
-            n = np.linalg.norm(p)
-            d = sqrt(len(p))
-
-            w = (n*d-1)/(d-1)
-            
-            uniform = (1.0-p)/(length-1)
-            array = namedArray(np.ones(length))*uniform
-            array[ReciprocalAgent] = p
-            
-            D.append(array*w)
-
-        if not len(D): return # No observations
-
-        D = np.array(D)
+        n_agent_types = len(self.genome['agent_types'])
+        NamedArray = namedArrayConstructor(self.genome['agent_types'])
         
-        prior = self.genome['prior'] * self.genome['RA_prior_precision']
+        prior = self.genome['prior'] * self.genome['prior_precision']
 
         def ll(p):
-            # Beta Prior on Mean
-            logprior = sum((prior-1) * np.log([p[0], 1-p[0]]))
+            p[-1] = 1-sum(p[0:-1])
+            like = 0
+            for order in itertools.product(range(n_agent_types), repeat=len(self.likelihood)):
+                agent_counts = NamedArray([sum(np.array(order)==t) for t in range(n_agent_types)])
+                counts = np.array(prior + agent_counts)
 
-            # Binomial likelihood
-            RA, S = D.sum(axis=0)
-            return -(
-                RA * np.log(p[0]) + S * np.log(1-p[0]) 
-                + logprior)
+            #     # lnB = np.sum(gammaln(counts)) - gammaln(np.sum(counts))
+            #     # pdf = np.exp( - lnB + np.sum((np.log(p.T) * (counts - 1)).T, 0) )
+            #     # term = np.array(pdf) #FIXME: Shouldn't need this... named array issue
+            
+                term = sp.stats.dirichlet.pdf(p, counts)
+                for a_id, agent_type in zip(self.likelihood.keys(), order):
+                    belief = (self.likelihood[a_id][agent_type]*p[agent_type]) / np.dot(p, self.likelihood[a_id])
+                    term *= belief
+
+                like += term
+
+            return -(np.log(like))
+
+        out = constraint_min(ll, np.ones(n_agent_types)/n_agent_types)
         
-        out = sp.optimize.minimize(ll, D.sum(axis=0)[0], bounds = [(.001, .999)])
+        print out
+        print NamedArray(out.x)
+        # FIXME: Need to save these out to the pop_prior and then update the belief of all the agents by using the new prior when combining the likelihood and prior. 
         
-        self.pop_prior = {
-            ReciprocalAgent.__name__: out.x[0],
-            SelfishAgent.__name__ : 1-out.x[0]
-        }
+        # self.pop_prior = {
+            # ReciprocalAgent.__name__: out.x[0],
+            # SelfishAgent.__name__ : 1-out.x[0]
+        # }
 
 def default_params():
     """
@@ -383,7 +378,7 @@ def default_params():
     `RA_prior`: The prior probability that a ReciprocalAgent has on another agent also being a ReciprocalAgent. The higher this value, the more likely the ReciprocalAgent is to believe the other agent is also ReciprocalAgent without observing any of their actions. 
     TODO: This will probability need to be generalized a bit to handle other Agent types.
 
-    `RA_prior_precision`: This is how confident the agent is in its prior (its like a hyperprior). If it is 0, there is no uncertainty and the prior never changes. If this is non-zero, then `RA_prior` is just the mean of a distribution. The agent will learn the `RA_prior` as it interacts with more and more agents. 
+    `prior_precision`: This is how confident the agent is in its prior (its like a hyperprior). If it is 0, there is no uncertainty and the prior never changes. If this is non-zero, then `RA_prior` is just the mean of a distribution. The agent will learn the `RA_prior` as it interacts with more and more agents. 
 
     `p_tremble`: probability of noise in between forming a decision and making an action. 
 
@@ -403,7 +398,7 @@ def default_params():
         'beta': 3,
         'moran_beta': .1,
         'RA_prior': .8,
-        'RA_prior_precision': 0, # setting this to 0 turns off updating the prior
+        'prior_precision': 0, # setting this to 0 turns off updating the prior
         'p_tremble': 0.0,
         'RA_K': 1,
         'agent_types_world': agent_types
@@ -426,7 +421,7 @@ def prior_generator(agent_types,RA_prior=None):
             else RA_prior for agentType in agent_types
         ])
 
-def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, RA_prior_precision,
+def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, prior_precision,
                             beta, **keys):
     genomes = []
     
@@ -437,7 +432,7 @@ def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, 
             'agent_types': agent_types,
             'prior': prior,
             'RA_prior': RA_prior,
-            'RA_prior_precision': RA_prior_precision,
+            'prior_precision': prior_precision,
             'beta': beta,
         })
         
@@ -510,8 +505,8 @@ class World(object):
     def run(self):
         # take in a sampling function
         fitness = np.zeros(len(self.agents))
-        history = []
-
+        history = [
+]
         #Get all matchups (sets of players)
         #players are represented by their position in the list of agents
         matchups = list(itertools.combinations(xrange(self.population), self.game.N_players))
@@ -626,7 +621,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
                                                       params['agent_types_world'],
                                                       params['agent_types_model'],
                                                       params['RA_prior'],
-                                                      params['RA_prior_precision'],
+                                                      params['prior_precision'],
                                                       params['beta']))
             fitness, history = w.run()
             for nround in range(len(history)):
@@ -693,7 +688,7 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
                  'agent_types_world':[ReciprocalAgent,SelfishAgent],
                  'prior':generate_prior(agent_types,params['RA_prior']),
                  'agent_types_model':[RecpirocalAgent,SelfishAgent],
-                 'RA_prior_precision': params['RA_prior_precision'],
+                 'prior_precision': params['prior_precision'],
                  'beta': params['beta']
                 },
                 {'type': SelfishAgent, 'beta': params['beta']},
@@ -794,8 +789,8 @@ def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/e
 params = default_params()
 
     
-typesClassic = agent_types = [ReciprocalAgent,SelfishAgent]
-typesAll = [ReciprocalAgent,AltruisticAgent,SelfishAgent]
+typesClassic = agent_types = (ReciprocalAgent,SelfishAgent)
+typesAll = (ReciprocalAgent,AltruisticAgent,SelfishAgent)
 
 
 
@@ -807,32 +802,45 @@ typesAll = [ReciprocalAgent,AltruisticAgent,SelfishAgent]
 params['stop_condition'] = constant_stop_condition(10)
 params['p_tremble'] = 0
 params['RA_prior'] = 0.8
-params['RA_prior_precision'] = 0
+params['prior_precision'] = 100
 prior = prior_generator(agent_types,params['RA_prior'])
 
 w = World(params, [
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
     
 ])
 
 
 observations= [
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [1, 2], range(len(w.agents)), 'give'),
-    (w.game, [1, 2], range(len(w.agents)), 'give'),
+    (w.game, [0, 1], range(len(w.agents)), 'give'),
+    (w.game, [0, 1], range(len(w.agents)), 'give'),
+    (w.game, [0, 1], range(len(w.agents)), 'give'),
+    (w.game, [0, 1], range(len(w.agents)), 'give'),
+    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+    (w.game, [1, 2], range(len(w.agents)), 'keep'),
+    (w.game, [1, 2], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [1, 0], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [1, 0], range(len(w.agents)), 'keep'),
-    #(w.game, [1, 2], range(len(w.agents)), 'give'),
-    #(w.game, [2, 1], range(len(w.agents)), 'give'),
     # (w.game, [1, 2], range(len(w.agents)), 'give'),
+    (w.game, [2, 1], range(len(w.agents)), 'keep'),
+    (w.game, [2, 1], range(len(w.agents)), 'keep'),
+    (w.game, [4, 1], range(len(w.agents)), 'keep'),
+    (w.game, [5, 1], range(len(w.agents)), 'keep'),
+    (w.game, [6, 1], range(len(w.agents)), 'keep'),
+    (w.game, [7, 1], range(len(w.agents)), 'keep'),
+
+    # (w.game, [2, 1], range(len(w.agents)), 'give'),
 
     
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
@@ -845,14 +853,17 @@ K = 1
 i = 3
 
 
-print "prior: %s" % prior
-w.agents[i].belief[0]
-print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
+# print "prior: %s" % prior
+# w.agents[i].belief[0]
+# print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
+
 w.agents[i].observe_k(observations[:], 1)
-print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
-print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
+# print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
+# print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
 
-
+w.agents[i].update_prior()
+for aid,l in w.agents[i].likelihood.iteritems():
+    print aid,l
 
 
 # for i in range(len(w.agents)):
