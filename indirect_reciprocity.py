@@ -30,6 +30,10 @@ from collections import MutableMapping
 import warnings
 warnings.filterwarnings("ignore",category=np.VisibleDeprecationWarning)
 
+def printing(obj):
+    print obj
+    return obj
+
 class SerialGame(object):
     def __init__(self, *decisions):
         self.decisions = decisions
@@ -359,6 +363,15 @@ class ReciprocalAgent(Agent):
             # SelfishAgent.__name__ : 1-out.x[0]
         # }
 
+class NiceReciprocalAgent(ReciprocalAgent):
+    def __utility__(self, payoff, agent_id):
+        if agent_id == self.world_id:
+            return payoff
+        else:
+            alpha = self.sample_alpha(self.belief[agent_id][NiceReciprocalAgent]+
+                                      self.belief[agent_id][AltruisticAgent])
+            return alpha * payoff
+
 def default_params():
     """
     generates clean dict containing rules that determine agent qualities
@@ -518,6 +531,7 @@ class World(object):
         np.random.shuffle(matchups)
 
         for players in matchups:
+            players= list(players)
             rounds = 0
                       
             while True:
@@ -533,28 +547,30 @@ class World(object):
                 #We assume that:
                 #the order of non-deciding players doesn't matter
                 #games only have a single deciding player
-                player_orderings = [[players[n]]+players[:n]+players[n+1:]
-                                    for n in len(players)]
+                player_orderings = [players[n:n+1]+players[:n]+players[n+1:]
+                                    for n in range(len(players))]
                 
                 for player_order in player_orderings:
-
+                    
                     agents, agent_ids = [], []
                     for nth in player_order:
                         agents.append(self.agents[nth])
                         agent_ids.append(self.agents[nth].world_id)
 
-                    decider = agents[0]
+                    deciders = agents[:1]
                     
                     # Intention -> Trembling Hand -> Action
-                    intentions = decider.decide(self.game, agent_ids)
+                    intentions = [decider.decide(self.game, agent_ids)
+                                  for decider in deciders]
 
                     # translate intentions into actions applying tremble
                     actions = [np.random.choice(self.game.actions)
                                if flip(params['p_tremble']) else intention
                                for intention in intentions]
-
+                    
                     #accumulate the payoff
-                    payoff[player_order] += self.game.payoffs[actions]
+                    for action in actions:
+                        payoff[list(player_order)] += self.game.payoffs[action]
 
                     # Determine who gets to observe this action. 
                     
@@ -564,7 +580,7 @@ class World(object):
                     observer_ids = players
 
                     # Record observations
-                    observations.append((self.game, agent_ids, observer_ids, actions))
+                    observations.append((self.game, agent_ids, observer_ids, actions[0]))
 
                 # Update fitness
                 fitness += payoff
@@ -577,10 +593,10 @@ class World(object):
                     
                 history.append({
                     'round': rounds,
-                    'players': (self.agents[player] for player in players),
-                    'actions': (observation[2][0] for observation in observations),
+                    'players': tuple(self.agents[player] for player in players),
+                    'actions': tuple(observation[2][0] for observation in observations),
                     'payoff': payoff,
-                    'belief': (copy(self.agent[player].belief) for player in players)
+                    'belief': tuple(copy(self.agents[player].belief) for player in players)
                 })
 
                 if self.stop_condition(rounds): break
@@ -632,9 +648,10 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
             for nround in range(len(history)):
                 avg_beliefs = np.mean([history[nround]['belief'][0][w.agents[1].world_id][ReciprocalAgent],
                                        history[nround]['belief'][1][w.agents[0].world_id][ReciprocalAgent]])
+                print avg_beliefs.dtype
                 data.append({
                     'RA_prior': RA_prior,
-                    'avg_beliefs': avg_beliefs,
+                    'avg_beliefs': list(avg_beliefs),
                     'round': nround+1
                 })
 
@@ -673,10 +690,6 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
 
     params = default_params()
     params['agent_types_world'] = agent_types =  [ReciprocalAgent, SelfishAgent]
-    if ReciprocalAgent in agent_types:
-        uniform = (1.0-RA_prior)/(len(agent_types)-1)
-    else:
-        uniform = 1.0/len(agent_types)
         
     params['stop_condition'] = constant_stop_condition(10)
     data = []
@@ -690,9 +703,10 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
             w = World(params, [
                 {'type': ReciprocalAgent,
                  'RA_prior': params['RA_prior'],
+                 'agent_types':[ReciprocalAgent,SelfishAgent],
                  'agent_types_world':[ReciprocalAgent,SelfishAgent],
-                 'prior':generate_prior(agent_types,params['RA_prior']),
-                 'agent_types_model':[RecpirocalAgent,SelfishAgent],
+                 'prior':prior_generator(agent_types,params['RA_prior']),
+                 'agent_types_model':[ReciprocalAgent,SelfishAgent],
                  'prior_precision': params['prior_precision'],
                  'beta': params['beta']
                 },
@@ -704,7 +718,7 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
                 data.append({
                     'round': h['round'],
                     'RA_prior': RA_prior,
-                    'belief': h['belief'][0][h['players'][1]],
+                    'belief': tuple(printing(h['belief'][0][h['players'][1]])),
                 })
 
             data.append({
@@ -744,7 +758,7 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
         "N_agents":50,
         "RA_K": 1
     })
-
+    N_runs = 10
     for rounds in np.linspace(1, 8, 8, dtype=int):
         print rounds
         for r_id in range(N_runs):
@@ -884,9 +898,9 @@ for aid,l in w.agents[i].likelihood.iteritems():
 #forgiveness_experiment(overwrite=True)
 #forgiveness_plot() 
 
-# protection_experiment(overwrite=True)
-# protection_plot()
+#protection_experiment(overwrite=True)
+#protection_plot()
 
-# fitness_rounds_experiment(overwrite=True)
-# fitness_rounds_plot()
+fitness_rounds_experiment(overwrite=True)
+fitness_rounds_plot()
 
