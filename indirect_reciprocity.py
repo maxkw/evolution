@@ -336,7 +336,12 @@ class ReciprocalAgent(Agent):
             
                 term = sp.stats.dirichlet.pdf(p, counts)
                 for a_id, agent_type in zip(self.likelihood.keys(), order):
-                    belief = (self.likelihood[a_id][agent_type]*p[agent_type]) / np.dot(p, self.likelihood[a_id])
+                    # wrong not a dependence on p (theta) a dependence on alpha which is the prior
+                    # belief = (self.likelihood[a_id][agent_type]*p[agent_type]) / np.dot(p, self.likelihood[a_id])
+
+                    # still wrong since this just using the mean and not doing the full integration
+                    belief = (self.likelihood[a_id][agent_type]*prior[agent_type]) / np.dot(prior, self.likelihood[a_id])
+
                     term *= belief
 
                 like += term
@@ -802,7 +807,7 @@ typesAll = (ReciprocalAgent,AltruisticAgent,SelfishAgent)
 params['stop_condition'] = constant_stop_condition(10)
 params['p_tremble'] = 0
 params['RA_prior'] = 0.8
-params['prior_precision'] = 100
+params['prior_precision'] = 10
 prior = prior_generator(agent_types,params['RA_prior'])
 
 w = World(params, [
@@ -820,9 +825,9 @@ w = World(params, [
 
 observations= [
     (w.game, [0, 1], range(len(w.agents)), 'give'),
-    (w.game, [0, 1], range(len(w.agents)), 'give'),
-    (w.game, [0, 1], range(len(w.agents)), 'give'),
-    (w.game, [0, 1], range(len(w.agents)), 'give'),
+    (w.game, [0, 1], range(len(w.agents)), 'keep'),
+    (w.game, [0, 1], range(len(w.agents)), 'keep'),
+    (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
