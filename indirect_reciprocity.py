@@ -121,9 +121,9 @@ class Agent(object):
 
         
     def utility(self, payoffs, agent_ids):
-        return sum(self.__utility__(payoff,id) for payoff,id in itertools.izip(payoffs,agent_ids))
+        return sum(self._utility(payoff,id) for payoff,id in itertools.izip(payoffs,agent_ids))
 
-    def __utility__(self, payoffs, afent_ids):
+    def _utility(self, payoffs, afent_ids):
         raise NotImplementedError
 
     def observe_k(self, observations, k, tremble = 0):
@@ -183,7 +183,7 @@ class SelfishAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(SelfishAgent, self).__init__(genome, world_id)
         
-    def __utility__(self, payoff, agent_id):
+    def _utility(self, payoff, agent_id):
         if agent_id == self.world_id:
             return payoff
         else:
@@ -235,7 +235,7 @@ class ReciprocalAgent(Agent):
         # This needs to initialize the data structure that is used for the online update
         return self.pop_prior
     
-    def __utility__(self, payoff, agent_id):
+    def _utility(self, payoff, agent_id):
         if agent_id == self.world_id:
             return payoff
         else:
@@ -366,7 +366,7 @@ class ReciprocalAgent(Agent):
         # }
 
 class NiceReciprocalAgent(ReciprocalAgent):
-    def __utility__(self, payoff, agent_id):
+    def _utility(self, payoff, agent_id):
         if agent_id == self.world_id:
             return payoff
         else:
