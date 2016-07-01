@@ -123,7 +123,7 @@ class Agent(object):
     def utility(self, payoffs, agent_ids):
         return sum(self._utility(payoff,id) for payoff,id in itertools.izip(payoffs,agent_ids))
 
-    def _utility(self, payoffs, afent_ids):
+    def _utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
     def observe_k(self, observations, k, tremble = 0):
