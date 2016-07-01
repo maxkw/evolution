@@ -281,10 +281,11 @@ class ReciprocalAgent(Agent):
             # Can't have a belief about what I think about what I think. Beliefs about others are first order beliefs.
             #so if i'm considering myself, skip to the next round of the loop
             if deciding_agent == self.world_id: continue
+
             
             #if im not one of the observers this round, skip to the next round
             if self.world_id not in observers: continue
-
+            
             action_index = game.action_lookup[action]
 
             #make a model for every agent type
@@ -307,6 +308,7 @@ class ReciprocalAgent(Agent):
             self.likelihood[deciding_agent] = normalized(self.likelihood[deciding_agent])
             
             self.belief[deciding_agent] = (self.pop_prior*self.likelihood[deciding_agent]) / np.dot(self.pop_prior,self.likelihood[deciding_agent])
+
 
         # Observe the other person, when this code runs at K=0
         # nothing will happen because of the return at the top
@@ -422,10 +424,10 @@ def default_params():
         'agent_types_world': agent_types
     }
 
-def prior_generator(agent_types,RA_prior=None):
+def prior_generator(agent_types,RA_prior=False):
     agent_types = tuple(agent_types)
                                            
-    if ReciprocalAgent in agent_types and RA_prior:
+    if ReciprocalAgent in agent_types:
         uniform = (1.0-RA_prior)/(len(agent_types)-1)
     else:
         uniform = 1.0/len(agent_types)
@@ -433,7 +435,7 @@ def prior_generator(agent_types,RA_prior=None):
     if not RA_prior:
         RA_prior = uniform
         
-    return namedArrayConstructor(agent_types)(
+    return namedArrayConstructor(tuple(agent_types))(
         [
             uniform if agentType is not ReciprocalAgent
             else RA_prior for agentType in agent_types
@@ -523,8 +525,8 @@ class World(object):
     def run(self):
         # take in a sampling function
         fitness = np.zeros(len(self.agents))
-        history = [
-]
+        history = []
+        
         #Get all matchups (sets of players)
         #players are represented by their position in the list of agents
         matchups = list(itertools.combinations(xrange(self.population), self.game.N_players))
@@ -549,7 +551,7 @@ class World(object):
                 #games only have a single deciding player
                 player_orderings = [players[n:n+1]+players[:n]+players[n+1:]
                                     for n in range(len(players))]
-                
+
                 for player_order in player_orderings:
                     
                     agents, agent_ids = [], []
@@ -580,7 +582,8 @@ class World(object):
                     observer_ids = players
 
                     # Record observations
-                    observations.append((self.game, agent_ids, observer_ids, actions[0]))
+                    observation = (self.game, agent_ids, observer_ids, actions[0])
+                    observations.append(observation)
 
                 # Update fitness
                 fitness += payoff
@@ -588,9 +591,26 @@ class World(object):
                 # All observers see who observed the action. 
                 # for o in observations:
                     # Iterate over all of the observers
+                prior = self.agents[0].belief
                 for agent in self.agents:
+                    prior1 = agent.belief
                     agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
+                    posterior2 = agent.belief
+                    print prior1
+                    print posterior2
+
+                    if prior1 == posterior2:
+                        print self.params['RA_K']
+                        print self.params['p_tremble']
+                        print observations
+                    assert prior1 != posterior2
                     
+                posterior = self.agents[0].belief
+
+                print prior
+                print posterior
+                assert prior != posterior
+                
                 history.append({
                     'round': rounds,
                     'players': tuple(self.agents[player] for player in players),
@@ -648,7 +668,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
             for nround in range(len(history)):
                 avg_beliefs = np.mean([history[nround]['belief'][0][w.agents[1].world_id][ReciprocalAgent],
                                        history[nround]['belief'][1][w.agents[0].world_id][ReciprocalAgent]])
-                print avg_beliefs.dtype
+                #print avg_beliefs.dtype
                 data.append({
                     'RA_prior': RA_prior,
                     'avg_beliefs': list(avg_beliefs),
@@ -702,23 +722,24 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
             np.random.seed(r_id)
             w = World(params, [
                 {'type': ReciprocalAgent,
-                 'RA_prior': params['RA_prior'],
+                 'RA_prior': RA_prior,
                  'agent_types':[ReciprocalAgent,SelfishAgent],
                  'agent_types_world':[ReciprocalAgent,SelfishAgent],
-                 'prior':prior_generator(agent_types,params['RA_prior']),
+                 'prior':prior_generator(agent_types,RA_prior),
                  'agent_types_model':[ReciprocalAgent,SelfishAgent],
                  'prior_precision': params['prior_precision'],
                  'beta': params['beta']
                 },
                 {'type': SelfishAgent, 'beta': params['beta']},
             ])
+            #print RA_prior,"\n"
             
             fitness, history = w.run()
             for h in history:
                 data.append({
                     'round': h['round'],
                     'RA_prior': RA_prior,
-                    'belief': tuple(printing(h['belief'][0][h['players'][1]])),
+                    'belief': printing(h['belief'][0][h['players'][1]][ReciprocalAgent]),
                 })
 
             data.append({
@@ -821,7 +842,7 @@ typesAll = (ReciprocalAgent,AltruisticAgent,SelfishAgent)
 params['stop_condition'] = constant_stop_condition(10)
 params['p_tremble'] = 0
 params['RA_prior'] = 0.8
-params['prior_precision'] = 10
+params['prior_precision'] = 0
 prior = prior_generator(agent_types,params['RA_prior'])
 
 w = World(params, [
@@ -838,26 +859,30 @@ w = World(params, [
 
 
 observations= [
-    (w.game, [0, 1], range(len(w.agents)), 'give'),
+    #(w.game, [0, 1], range(len(w.agents)), 'give'),
     (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [1, 2], range(len(w.agents)), 'keep'),
-    (w.game, [1, 2], range(len(w.agents)), 'keep'),
+    #(w.game, [1, 2], range(len(w.agents)), 'keep'),
+    #(w.game, [1, 2], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [1, 0], range(len(w.agents)), 'keep'),
     # (w.game, [0, 1], range(len(w.agents)), 'keep'),
     # (w.game, [1, 0], range(len(w.agents)), 'keep'),
     # (w.game, [1, 2], range(len(w.agents)), 'give'),
-    (w.game, [2, 1], range(len(w.agents)), 'keep'),
-    (w.game, [2, 1], range(len(w.agents)), 'keep'),
-    (w.game, [4, 1], range(len(w.agents)), 'keep'),
-    (w.game, [5, 1], range(len(w.agents)), 'keep'),
-    (w.game, [6, 1], range(len(w.agents)), 'keep'),
-    (w.game, [7, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [2, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [2, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [4, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [5, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [6, 1], range(len(w.agents)), 'keep'),
+    #(w.game, [7, 1], range(len(w.agents)), 'keep'),
 
     # (w.game, [2, 1], range(len(w.agents)), 'give'),
 
@@ -872,13 +897,13 @@ K = 1
 i = 3
 
 
-# print "prior: %s" % prior
-# w.agents[i].belief[0]
-# print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
+print "prior: %s" % prior
+w.agents[i].belief[0]
+print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
 
 w.agents[i].observe_k(observations[:], 1)
-# print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
-# print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
+print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
+print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
 
 w.agents[i].update_prior()
 for aid,l in w.agents[i].likelihood.iteritems():
@@ -898,8 +923,8 @@ for aid,l in w.agents[i].likelihood.iteritems():
 #forgiveness_experiment(overwrite=True)
 #forgiveness_plot() 
 
-#protection_experiment(overwrite=True)
-#protection_plot()
+protection_experiment(overwrite=True)
+protection_plot()
 
 fitness_rounds_experiment(overwrite=True)
 fitness_rounds_plot()
