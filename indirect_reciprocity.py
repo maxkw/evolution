@@ -591,26 +591,10 @@ class World(object):
                 # All observers see who observed the action. 
                 # for o in observations:
                     # Iterate over all of the observers
-                prior = self.agents[0].belief
+
                 for agent in self.agents:
-                    prior1 = agent.belief
                     agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
-                    posterior2 = agent.belief
-                    print prior1
-                    print posterior2
 
-                    if prior1 == posterior2:
-                        print self.params['RA_K']
-                        print self.params['p_tremble']
-                        print observations
-                    assert prior1 != posterior2
-                    
-                posterior = self.agents[0].belief
-
-                print prior
-                print posterior
-                assert prior != posterior
-                
                 history.append({
                     'round': rounds,
                     'players': tuple(self.agents[player] for player in players),
@@ -732,14 +716,13 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
                 },
                 {'type': SelfishAgent, 'beta': params['beta']},
             ])
-            #print RA_prior,"\n"
             
             fitness, history = w.run()
             for h in history:
                 data.append({
                     'round': h['round'],
                     'RA_prior': RA_prior,
-                    'belief': printing(h['belief'][0][h['players'][1]][ReciprocalAgent]),
+                    'belief': h['belief'][0][1][ReciprocalAgent],
                 })
 
             data.append({
