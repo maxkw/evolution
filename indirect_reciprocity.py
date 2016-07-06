@@ -5,7 +5,7 @@ import pandas as pd
 import networkx as nx
 import itertools
 import random
-from collections import Counter,defaultdict
+from collections import Counter,defaultdict,Iterable
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
@@ -30,6 +30,18 @@ from collections import MutableMapping
 import warnings
 warnings.filterwarnings("ignore",category=np.VisibleDeprecationWarning)
 
+from itertools import ifilterfalse
+def without(source,*blacklists):
+    try:
+        [blacklist] = blacklists
+        if isinstance(blacklist,Iterable):
+            blacklist = list(blacklist)
+            return ifilterfalse(lambda x: x in blacklist, source)
+        else:
+            return ifilterfalse(lambda x: x is blacklist, source)
+    except ValueError:
+        return without(without(source,blacklists[0]),blacklists[1:])
+
 def printing(obj):
     print obj
     return obj
@@ -44,8 +56,9 @@ class SerialGame(object):
     def play(self,action):
         decision,stage = self.decisions[stage]
         
-class MatrixGame(object):
-    pass
+class Game(object):
+    def __init__(self, payoffs):
+        pass
 
 class StageGame(object):
     """
@@ -118,7 +131,6 @@ class Agent(object):
         self.beta = self.genome['beta']
         self.world_id = world_id
         self.belief = dict()
-
         
     def utility(self, payoffs, agent_ids):
         return sum(self._utility(payoff,id) for payoff,id in itertools.izip(payoffs,agent_ids))
@@ -163,12 +175,16 @@ class Agent(object):
         #    action_index = game.action_lookup[action]
         #    Us[action_index] += deciding_agent.utility(game.payoffs[action], agents)
         #    print Us[action_index]
-        
+
         Us = np.array([deciding_agent.utility(game.payoffs[action], agents)
                        for action in game.actions])
+        try:
+            return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
+        except ValueError:
+            print "Us",Us
+            print "beta",deciding_agent.beta
+            raise
         
-        return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
-
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
         # the world, not the agent
@@ -176,9 +192,6 @@ class Agent(object):
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         return game.actions[action_id]
 
-def printing(x):
-    print x
-    return x
 class SelfishAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(SelfishAgent, self).__init__(genome, world_id)
@@ -195,22 +208,66 @@ class AltruisticAgent(Agent):
         super(AltruisticAgent, self).__init__(genome, world_id)
 
     def utility(self, payoffs, agent_ids):
-        return payoffs
+        return sum(payoffs)
     
-class ReciprocalAgent(Agent):
+class RationalAgent(Agent):
     def __init__(self, genome, world_id=None):
-        super(ReciprocalAgent, self).__init__(genome, world_id)
-
-        self._repr = "ReciprocalAgent"
+        super(RationalAgent, self).__init__(genome, world_id)
+        
         #NamedArray mapping agent_type to odds that an arbitrary agent is of that type
         self.pop_prior = self.genome['prior']
+        
+        self.uniform_likelihood = normalized(self.pop_prior*0+1)
+        
+        self.agentModels = {}
+        self.likelihood = {}
+        self.belief = {}
+        
 
+    def initialize_models(self, agent_ids):
+        for agent_id in without(agent_ids, self.world_id, self.agentModels):
+            self.agentModels[agent_id] = type(self)(self.genome, world_id = agent_id)
+
+    def get_models(self, agent_id):
+        models = []
+        for agent_type in self.genome['agent_types']:
+            if agent_type is type(self):
+                try:
+                    models.append(self.agentModels[agent_id])
+                except KeyError:
+                    self.agentModels[agent_id] = agent_type(self.genome, world_id = agent_id)
+                    models.append(self.agentModels[agent_id])
+            else:
+                models.append(agent_type(self.genome, world_id = agent_id))
+        return models
+        
+    def purge_models(self, ids):
+        #must explicitly use .keys() below because mutation
+        for id in (id for id in ids if id in set(self.agentModels.keys())): 
+            del self.agentModels[id]
+            del self.belief[id]
+            del self.likelihood[id]
+        for model in agentModels.itervalues():
+            model.purge_models(ids)
+
+    def use_default_dicts(self):
+        """
+        adding this function to __init__(self) makes all internal representations default-dicts
+        this is guaranteed to not fail throughout and renders initializations redundant
+        """
         #modelDict stores this agent's models of other agents
         #it maps agent ids to a model of that agent
         #will initialize any unseen agents to a new ReciprocalAgent
         class modelDict(dict):
             def __missing__(agentModels,agent_id):
-                agentModels[agent_id] = ReciprocalAgent(self.genome,world_id = agent_id)
+                typeDict = {}
+                for agent_type in self.genome['agent_types']:
+                    if issubclass(agent_type,RationalAgent):
+                        typeDict[agent_type] = agent_type(self.genome, world_id = agent_id)
+                    else:
+                        typeDict[agent_type] = self.genome['generic_models'][agent_type]
+                        
+                agentModels[agent_id] = type(self)(self.genome,world_id = agent_id)
                 return agentModels[agent_id]
             
         self.agentModels = modelDict()
@@ -220,27 +277,27 @@ class ReciprocalAgent(Agent):
         self.belief = defaultdict(self.initialize_prior)
 
         #basically the same as belief
-        
-        self.initial_likelihood = lambda: namedArrayConstructor(tuple(genome['agent_types']))(np.ones(len(genome['agent_types'])))
-        self.likelihood = defaultdict(self.initial_likelihood)
-
-    def purge_models(self, ids):
-        for id in ids:
-            if id in self.agentModels.keys(): #must explicitly use .keys() because mutation
-                del self.agentModels[id]
-        for model in agentModels.itervalues():
-            model.purge_models(ids)
+        self.likelihood = defaultdict(self.initialize_likelihood) 
         
     def initialize_prior(self):
         # This needs to initialize the data structure that is used for the online update
         return self.pop_prior
     
-    def _utility(self, payoff, agent_id):
-        if agent_id == self.world_id:
-            return payoff
-        else:
-            alpha = self.sample_alpha(self.belief[agent_id][ReciprocalAgent])
-            return alpha * payoff
+    def initialize_likelihood(self):
+        return self.uniform_likelihood
+
+    def utility(self, payoffs, agent_ids):
+        return sum(itertools.imap(self.utility_try,payoffs,agent_ids))
+    
+    def utility_try(self,payoff,agent_id):
+        #tries to return the defined utility
+        #if it fails it initializes belief and tries again
+        try:
+            return self._utility(payoff,agent_id)
+        except KeyError:
+            self.belief[agent_id] = self.initialize_prior()
+            return self._utility(payoff,agent_id)
+            
 
     def sample_alpha(self, belief):
         # TODO: Decide what to do here? Should this be sampling and
@@ -276,6 +333,7 @@ class ReciprocalAgent(Agent):
         for observation in observations:
             game, participants, observers, action = observation
 
+
             deciding_agent = participants[0]
 
             # Can't have a belief about what I think about what I think. Beliefs about others are first order beliefs.
@@ -285,22 +343,26 @@ class ReciprocalAgent(Agent):
             
             #if im not one of the observers this round, skip to the next round
             if self.world_id not in observers: continue
-            
-            action_index = game.action_lookup[action]
 
-            #make a model for every agent type
-            models = [
-                agent_type(self.genome, deciding_agent)
-                if agent_type is not ReciprocalAgent
-                else self.agentModels[deciding_agent]
-                for agent_type in self.genome['agent_types']]
+
+            #initialize models for all observers
+            self.initialize_models(observers)
+
+            #generate a list of models for every type of agent
+            models = self.get_models(deciding_agent)
+
+            action_index = game.action_lookup[action]
             
             #calculate the normalized likelihood for each type
             likelihood = [
                 Agent.decide_likelihood(model, game, participants, tremble)[action_index]
                 for model in models]
 
-            self.likelihood[deciding_agent] *= likelihood
+            try:
+                self.likelihood[deciding_agent] *= likelihood
+            except KeyError:
+                self.likelihood[deciding_agent] = self.initialize_likelihood()
+                self.likelihood[deciding_agent] *= likelihood
 
             # Update the priors after getting the likelihood estimate for each agent
             # TODO: Should the K-1 agents also have priors that get updated?
@@ -365,11 +427,31 @@ class ReciprocalAgent(Agent):
             # SelfishAgent.__name__ : 1-out.x[0]
         # }
 
-class NiceReciprocalAgent(ReciprocalAgent):
+class ReciprocalAgent(RationalAgent):
     def _utility(self, payoff, agent_id):
         if agent_id == self.world_id:
             return payoff
         else:
+            alpha = self.sample_alpha(self.belief[agent_id][ReciprocalAgent])
+            return alpha * payoff
+
+class NiceReciprocalAgent(RationalAgent):
+    def _utility(self, payoff, agent_id):
+        if agent_id == self.world_id:
+            return payoff
+        else:
+            alpha = self.sample_alpha(self.belief[agent_id][NiceReciprocalAgent]+
+                                      self.belief[agent_id][AltruisticAgent])
+            return alpha * payoff
+
+class OpportunisticRA(RationalAgent):
+    def _utility(self, payoff, agent_id):
+        if agent_id == self.world_id:
+            return payoff
+        else:
+            beliefs = []
+            for agent_type in self.belief.fields:
+                agent_type(self.genome,world_id = agent_id)._utility(1,self.world_id)
             alpha = self.sample_alpha(self.belief[agent_id][NiceReciprocalAgent]+
                                       self.belief[agent_id][AltruisticAgent])
             return alpha * payoff
@@ -763,8 +845,9 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
         "RA_K": 1
     })
     N_runs = 10
+    data = []
     for rounds in np.linspace(1, 8, 8, dtype=int):
-        print rounds
+        print "Round:",rounds
         for r_id in range(N_runs):
             np.random.seed(r_id)
 
@@ -881,7 +964,7 @@ i = 3
 
 
 print "prior: %s" % prior
-w.agents[i].belief[0]
+w.agents[i].belief[0] = w.agents[i].pop_prior
 print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
 
 w.agents[i].observe_k(observations[:], 1)
@@ -906,9 +989,28 @@ for aid,l in w.agents[i].likelihood.iteritems():
 #forgiveness_experiment(overwrite=True)
 #forgiveness_plot() 
 
-protection_experiment(overwrite=True)
-protection_plot()
+#protection_experiment(overwrite=True)
+#protection_plot()
 
 fitness_rounds_experiment(overwrite=True)
 fitness_rounds_plot()
 
+
+"""
+added 
+
+class
+RationalAgent(Agent)
+ReciprocalAgent(RationalAgent)
+
+methods for RationalAgent
+
+initialize_models
+get_models
+initialize_likelihood
+use_default_dicts
+
+attributes
+
+uniform_likelihood
+"""
