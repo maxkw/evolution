@@ -718,8 +718,7 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
             np.random.seed(r_id)
 
             params['stop_condition'] = constant_stop_condition(rounds)
-            
-            w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'], params['beta']))
+            w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'],  params['RA_prior_precision'], params['beta']))
             fitness, history = w.run()
 
             genome_fitness = Counter()
@@ -817,6 +816,6 @@ print w.agents[i].belief
 # protection_experiment(overwrite=True)
 # protection_plot()
 
-# fitness_rounds_experiment(overwrite=True)
-# fitness_rounds_plot()
+fitness_rounds_experiment(overwrite=True)
+fitness_rounds_plot()
 
