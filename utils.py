@@ -47,9 +47,12 @@ def memoized(f):
     """ Memoization decorator for a function taking one or more arguments. """
     class memodict(dict):
         def __getitem__(self, *key):
-            key = tuple(key)
-            return dict.__getitem__(self, key)
-
+            try:
+                return dict.__getitem__(self, key)
+            except:
+                print self, key
+                raise
+            
         def __missing__(self, key):
             ret = self[key] = f(*key)
             return ret
@@ -88,7 +91,8 @@ def namedArrayConstructor(fields, className = "NamedArray"):
 
         array[fields.index(field)] == array[field]
         """
-        
+        #def __repr__(self):
+        #    return np.array(self).__repr__()
         def __new__(self, seq):            
             return np.asarray(seq).view(self)
         
@@ -143,6 +147,15 @@ def namedArrayConstructor(fields, className = "NamedArray"):
             self.__reset_repr_expr__()
 
     return NamedArray
+
+from pickle import load, dump
+def pickled(obj,path,mode = "w"):
+    with open(path,mode) as file:
+        dump(obj,file)
+        return obj
+def unpickled(path,mode = "r"):
+    with open(path,mode) as file:
+        return load(file)
 
 def normalized(array):
     return array/np.sum(array)
