@@ -20,6 +20,8 @@ import os.path
 from scipy.special import (psi, polygamma, gammaln)
 
 from copy import copy, deepcopy
+from functools import partial
+from utils import unpickled, pickled
 
 print
 sns.set_style('white')
@@ -121,7 +123,7 @@ class AllocationGame(StageGame):
         super(AllocationGame, self).__init__(payoffs)
 
 class AgentType(type):
-    def __repr__(cls):
+    def __str__(cls):
         return cls.__name__
     
 class Agent(object):
@@ -131,6 +133,7 @@ class Agent(object):
         self.beta = self.genome['beta']
         self.world_id = world_id
         self.belief = dict()
+        self.likelihood = dict()
         
     def utility(self, payoffs, agent_ids):
         return sum(self._utility(payoff,id) for payoff,id in itertools.izip(payoffs,agent_ids))
@@ -138,15 +141,6 @@ class Agent(object):
     def _utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
-    def observe_k(self, observations, k, tremble = 0):
-        pass
-
-    def __repr__(self):
-        return type(self).__name__
-
-    def __str__(self):
-        return type(self).__name__
-    
     @staticmethod
     def decide_likelihood(deciding_agent, game, agents, tremble = 0):
         """
@@ -178,12 +172,8 @@ class Agent(object):
 
         Us = np.array([deciding_agent.utility(game.payoffs[action], agents)
                        for action in game.actions])
-        try:
-            return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
-        except ValueError:
-            print "Us",Us
-            print "beta",deciding_agent.beta
-            raise
+        return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
+
         
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
@@ -192,6 +182,18 @@ class Agent(object):
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         return game.actions[action_id]
 
+    #For uniformity with Rational Agents
+    
+    def observe_k(self, observations, k, tremble = 0):
+        pass
+
+    def use_npArrays(self):
+        self.genome['prior'] = np.array(self.genome['prior'])
+        
+    def use_NamedArrays(self):
+        NamedArray = namedArrayConstructor(tuple(self.genome['agent_types']))
+        self.genome['prior'] = NamedArray(self.genome['prior'])
+    
 class SelfishAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(SelfishAgent, self).__init__(genome, world_id)
@@ -219,32 +221,35 @@ class RationalAgent(Agent):
         
         self.uniform_likelihood = normalized(self.pop_prior*0+1)
         
-        self.agentModels = {}
+        self.models = {}
         self.likelihood = {}
         self.belief = {}
         
 
     def initialize_models(self, agent_ids):
-        for agent_id in without(agent_ids, self.world_id, self.agentModels):
-            self.agentModels[agent_id] = type(self)(self.genome, world_id = agent_id)
+        for agent_id in without(agent_ids, self.world_id, self.models):
+            self.models[agent_id] = type(self)(self.genome, world_id = agent_id)
+            for id in agent_ids:
+                if id is not agent_id:
+                    self.models[agent_id].belief[id] = self.models[agent_id].initialize_prior()
 
     def get_models(self, agent_id):
         models = []
         for agent_type in self.genome['agent_types']:
             if agent_type is type(self):
                 try:
-                    models.append(self.agentModels[agent_id])
+                    models.append(self.models[agent_id])
                 except KeyError:
-                    self.agentModels[agent_id] = agent_type(self.genome, world_id = agent_id)
-                    models.append(self.agentModels[agent_id])
+                    self.models[agent_id] = agent_type(self.genome, world_id = agent_id)
+                    models.append(self.models[agent_id])
             else:
                 models.append(agent_type(self.genome, world_id = agent_id))
         return models
         
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
-        for id in (id for id in ids if id in set(self.agentModels.keys())): 
-            del self.agentModels[id]
+        for id in (id for id in ids if id in set(self.models.keys())): 
+            del self.models[id]
             del self.belief[id]
             del self.likelihood[id]
         for model in agentModels.itervalues():
@@ -270,7 +275,7 @@ class RationalAgent(Agent):
                 agentModels[agent_id] = type(self)(self.genome,world_id = agent_id)
                 return agentModels[agent_id]
             
-        self.agentModels = modelDict()
+        self.models = modelDict()
 
         #dict mapping a particular agent to the belief that they are of a given type
         #the belief is represented as a NamedArray
@@ -329,6 +334,10 @@ class RationalAgent(Agent):
         # observes who is unknown.
 
         if K < 0: return
+
+        for observation in observations:
+            g, p,observers,a = observation
+            self.initialize_models(observers)
                 
         for observation in observations:
             game, participants, observers, action = observation
@@ -343,10 +352,6 @@ class RationalAgent(Agent):
             
             #if im not one of the observers this round, skip to the next round
             if self.world_id not in observers: continue
-
-
-            #initialize models for all observers
-            self.initialize_models(observers)
 
             #generate a list of models for every type of agent
             models = self.get_models(deciding_agent)
@@ -375,8 +380,8 @@ class RationalAgent(Agent):
         # Observe the other person, when this code runs at K=0
         # nothing will happen because of the return at the top
         # of the function.
-        for agent in self.agentModels:
-            self.agentModels[agent].observe_k(observations, K-1, tremble)
+        for agent in self.models:
+            self.models[agent].observe_k(observations, K-1, tremble)
 
             
         # if K>0:
@@ -426,6 +431,30 @@ class RationalAgent(Agent):
             # ReciprocalAgent.__name__: out.x[0],
             # SelfishAgent.__name__ : 1-out.x[0]
         # }
+
+    def use_npArrays(self):
+        self.genome['prior'] = np.array(self.genome['prior'])
+        
+        self.uniform_likelihood = np.array(self.uniform_likelihood)
+        self.pop_prior = np.array(self.pop_prior)
+        for id in self.belief:
+            self.belief[id] = np.array(self.belief[id])
+        for id in self.likelihood:
+            self.likelihood[id] = np.array(self.likelihood[id])
+        for id, model in self.models.items():
+            model.use_npArrays()
+
+    def use_NamedArrays(self):
+        NamedArray = namedArrayConstructor(tuple(self.genome['agent_types']))
+        self.genome['prior'] = NamedArray(self.genome['prior'])
+        self.uniform_likelihood = NamedArray(self.uniform_likelihood)
+        self.pop_prior = NamedArray(self.pop_prior)
+        for id in self.belief:
+            self.belief[id] = NamedArray(self.belief[id])
+        for id in self.likelihood:
+            self.likelihood[id] = NamedArray(self.likelihood[id])
+        for id, model in self.models.items():
+            model.use_NamedArrays()
 
 class ReciprocalAgent(RationalAgent):
     def _utility(self, payoff, agent_id):
@@ -495,7 +524,7 @@ def default_params():
     return {
         'N_agents':2,
         'games': BinaryDictator(0, 1, 2), 
-        'stop_condition': constant_stop_condition(10),
+        'stop_condition': [constant_stop_condition,10],
         'agent_types' : agent_types,
         'beta': 3,
         'moran_beta': .1,
@@ -516,12 +545,15 @@ def prior_generator(agent_types,RA_prior=False):
 
     if not RA_prior:
         RA_prior = uniform
-        
-    return namedArrayConstructor(tuple(agent_types))(
-        [
-            uniform if agentType is not ReciprocalAgent
-            else RA_prior for agentType in agent_types
-        ])
+    try:
+        return namedArrayConstructor(tuple(agent_types))(
+            [
+                uniform if agentType is not ReciprocalAgent
+                else RA_prior for agentType in agent_types
+            ])
+    except:
+        print agent_types
+        raise
 
 def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, prior_precision,
                             beta, **keys):
@@ -551,11 +583,17 @@ class World(object):
         
         self.add_agents(genomes)
 
-        self.population = len(self.agents)
+        self.agent_types = self.agents[0].genome['agent_types']
+        
+        self.pop_size = len(self.agents)
         
         self.game = params['games']
-        self.stop_condition = params['stop_condition']
+        self._stop_condition = params['stop_condition']
+        self.stop_condition = partial(*params['stop_condition'])
         self.params = params
+        self.last_run_results = {}
+
+
 
     def add_agents(self, genomes):
         for genome, world_id in itertools.izip(genomes,self.counter):
@@ -575,8 +613,8 @@ class World(object):
         #problem solved?
         assert 0 # BROKEN (See above)
         
-        die = np.random.choice(range(len(self.agents)), int(p*len(self.agents)), replace=False)
-        random = np.random.choice(range(len(self.agents)), int(mu*len(self.agents)), replace=False)
+        die = np.random.choice(range(self.pop_size), int(p*self.pop_size), replace=False)
+        random = np.random.choice(range(self.pop_size), int(mu*self.pop_size), replace=False)
         for a in die:
             copy_id = sample_softmax(fitness, beta)
             self.agents[a] = self.agents[copy_id].__class__(self.agents[copy_id].genome)
@@ -606,14 +644,14 @@ class World(object):
     
     def run(self):
         # take in a sampling function
-        fitness = np.zeros(len(self.agents))
+        fitness = np.zeros(self.pop_size)
         history = []
         
         #Get all matchups (sets of players)
         #players are represented by their position in the list of agents
-        matchups = list(itertools.combinations(xrange(self.population), self.game.N_players))
+        matchups = list(itertools.combinations(xrange(self.pop_size), self.game.N_players))
         np.random.shuffle(matchups)
-
+        
         for players in matchups:
             players= list(players)
             rounds = 0
@@ -622,7 +660,7 @@ class World(object):
                 rounds += 1
                 
                 observations = []
-                payoff = np.zeros(len(self.agents))
+                payoff = np.zeros(self.pop_size)
 
 
                 #We want every possible significant matchup to happen
@@ -649,7 +687,7 @@ class World(object):
 
                     # translate intentions into actions applying tremble
                     actions = [np.random.choice(self.game.actions)
-                               if flip(params['p_tremble']) else intention
+                               if flip(self.params['p_tremble']) else intention
                                for intention in intentions]
                     
                     #accumulate the payoff
@@ -688,9 +726,58 @@ class World(object):
                 if self.stop_condition(rounds): break
                 
         return fitness, history
-                
-discount_stop_condition = lambda x: lambda n: not flip(x)
-constant_stop_condition = lambda x: lambda n: n >= x
+
+    def use_npArrays(self):
+        for agent in self.agents:
+            agent.use_npArrays()
+        if self.last_run_results:
+            for epoch in self.last_run_results['history']:
+                epoch['belief'] = tuple(np.array(belief) for belief in epoch['belief'])
+        return self
+    
+    def use_NamedArrays(self):
+        for agent in self.agents:
+            agent.use_NamedArrays()
+        if self.last_run_results:
+            NamedArray = namedArrayConstructor(self.params['agent_types'])
+            for epoch in self.last_run_results['history']:
+                epoch['belief'] = tuple(NamedArray(belief) for belief in epoch['belief'])
+        return self
+    
+    @staticmethod
+    def unpickle(path):
+        world = unpickled(path)
+        world.agents = [dict2agent(agent) for agent in world.agents]
+        world.use_NamedArrays()
+        world.id_to_agent = {agent.world_id:agent for agent in world.agents}
+        world.stop_condition = partial(*world._stop_condition)
+        return world.use_NamedArrays()
+
+    def pickle(self,path):
+        self.use_npArrays()
+        self.agents = [agent2dict(agent) for agent in self.agents]
+        self.id_to_agent = {}
+        self.stop_condition = None
+        return pickled(self,path)
+
+def agent2dict(agent):
+    if isinstance(agent, RationalAgent):
+        for id in agent.models:
+            agent.models[id] = agent2dict(agent.models[id])
+    return vars(agent)
+
+def dict2agent(agentDict):
+    agent = agentDict['genome']['type'](agentDict['genome'],agentDict['world_id'])
+    agent.__dict__.update(agentDict)
+    if isinstance(agent, RationalAgent):
+        for id in agent.models:
+            agent.models[id] = dict2agent(agent.models[id])
+    return agent
+
+def discount_stop_condition(x,n):
+    return not flip(x)
+def constant_stop_condition(x,n):
+    return n >= x
 
 # adding multistep games and games that depend on the outcome of previosu games (e.g., ultimatum game)
 # TODO: This currently expects a single game instance. TODO: Make this accept a list of games or a game generator function. 
@@ -715,7 +802,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
     params['agent_types_world'] = [ReciprocalAgent]
     params['agent_types_model'] = [ReciprocalAgent,SelfishAgent]
     N_round = 10
-    params['stop_condition'] = constant_stop_condition(N_round)
+    params['stop_condition'] = [constant_stop_condition,N_round]
     data = []
     N_runs = 500
     for RA_prior in np.linspace(0.5, 0.95, 4):
@@ -737,7 +824,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
                 #print avg_beliefs.dtype
                 data.append({
                     'RA_prior': RA_prior,
-                    'avg_beliefs': list(avg_beliefs),
+                    'avg_beliefs': avg_beliefs,
                     'round': nround+1
                 })
 
@@ -777,7 +864,7 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
     params = default_params()
     params['agent_types_world'] = agent_types =  [ReciprocalAgent, SelfishAgent]
         
-    params['stop_condition'] = constant_stop_condition(10)
+    params['stop_condition'] = [constant_stop_condition,10]
     data = []
     N_runs = 500
     for RA_prior in np.linspace(0.5, .95, 4):
@@ -800,6 +887,8 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
             ])
             
             fitness, history = w.run()
+
+            pickled(w,"sims/world_protection.pkl")
             for h in history:
                 data.append({
                     'round': h['round'],
@@ -827,7 +916,7 @@ def protection_plot(in_path = 'sims/protection.pkl',
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = False):
+def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', overwrite = False):
     """
     Repetition supports cooperation. Look at how the number of rounds each dyad plays together and 
     the average fitness of the difference agent types. 
@@ -838,20 +927,23 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
         print path, 'exists. Delete or set the overwrite flag.'
         return
 
-
+    agent_types = [ReciprocalAgent,SelfishAgent]
     params = default_params()
     params.update({
-        "N_agents":50,
-        "RA_K": 1
+        "N_agents":pop_size,
+        "RA_K": 1,
+        "agent_types": agent_types,
+        "agent_types_world": agent_types,
+        "RA_prior":.8
     })
     N_runs = 10
     data = []
     for rounds in np.linspace(1, 8, 8, dtype=int):
-        print "Round:",rounds
+        print "Rounds:",rounds
         for r_id in range(N_runs):
             np.random.seed(r_id)
 
-            params['stop_condition'] = constant_stop_condition(rounds)
+            params['stop_condition'] = [constant_stop_condition,rounds]
                   
             w = World(params, generate_random_genomes(**params))
             fitness, history = w.run()
@@ -859,8 +951,8 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
             genome_fitness = Counter()
             genome_count = Counter()
 
-            for a_id, a in enumerate(w.agents):
-                genome_fitness[type(a)] += fitness[a_id]
+            for a in w.agents:
+                genome_fitness[type(a)] += fitness[a.world_id]
                 genome_count[type(a)] += 1
 
             average_fitness = {a:genome_fitness[a]/genome_count[a] for a in genome_fitness}
@@ -876,6 +968,7 @@ def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = Fals
 
         df = pd.DataFrame(data)
         df.to_pickle(path)
+    return w
 
 def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/evol_utility/figures/fitness_rounds.pdf'):
 
@@ -890,13 +983,13 @@ def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/e
 
 
 
+def diagnostics():
 
-
-params = default_params()
+    params = default_params()
 
     
-typesClassic = agent_types = (ReciprocalAgent,SelfishAgent)
-typesAll = (ReciprocalAgent,AltruisticAgent,SelfishAgent)
+    typesClassic = agent_types = (ReciprocalAgent,SelfishAgent)
+    typesAll = (ReciprocalAgent,AltruisticAgent,SelfishAgent)
 
 
 
@@ -905,86 +998,74 @@ typesAll = (ReciprocalAgent,AltruisticAgent,SelfishAgent)
 
 
 
-params['stop_condition'] = constant_stop_condition(10)
-params['p_tremble'] = 0
-params['RA_prior'] = 0.8
-params['prior_precision'] = 0
-prior = prior_generator(agent_types,params['RA_prior'])
+    params['stop_condition'] = [constant_stop_condition,10]
+    params['p_tremble'] = 0
+    params['RA_prior'] = 0.8
+    params['prior_precision'] = 0
+    prior = prior_generator(agent_types,params['RA_prior'])
 
-w = World(params, [
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-    
+    w = World(params, [
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
 ])
 
 
-observations= [
-    #(w.game, [0, 1], range(len(w.agents)), 'give'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [1, 2], range(len(w.agents)), 'keep'),
-    #(w.game, [1, 2], range(len(w.agents)), 'keep'),
-    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    # (w.game, [1, 0], range(len(w.agents)), 'keep'),
-    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    # (w.game, [1, 0], range(len(w.agents)), 'keep'),
-    # (w.game, [1, 2], range(len(w.agents)), 'give'),
-    #(w.game, [2, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [2, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [4, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [5, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [6, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [7, 1], range(len(w.agents)), 'keep'),
+    observations= [
+        #(w.game, [0, 1], range(len(w.agents)), 'give'),
+        (w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
+        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [1, 2], range(len(w.agents)), 'keep'),
+        #(w.game, [1, 2], range(len(w.agents)), 'keep'),
+        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+        # (w.game, [1, 0], range(len(w.agents)), 'keep'),
+        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+        # (w.game, [1, 0], range(len(w.agents)), 'keep'),
+        # (w.game, [1, 2], range(len(w.agents)), 'give'),
+        #(w.game, [2, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [2, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [4, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [5, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [6, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [7, 1], range(len(w.agents)), 'keep'),
+        
+        # (w.game, [2, 1], range(len(w.agents)), 'give'),
+        
+        
+        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
+        #(w.game, [2, 3], range(len(w.agents)), 'give'),
+        # (AllocationGame(), [2, 0, 1], range(len(w.agents)), 'give 1'),
+    ]
 
-    # (w.game, [2, 1], range(len(w.agents)), 'give'),
 
+    K = 1
+    i = 3
     
-    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    #(w.game, [2, 3], range(len(w.agents)), 'give'),
-    # (AllocationGame(), [2, 0, 1], range(len(w.agents)), 'give 1'),
-]
-
-
-K = 1
-i = 3
-
-
-print "prior: %s" % prior
-w.agents[i].belief[0] = w.agents[i].pop_prior
-print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
-
-w.agents[i].observe_k(observations[:], 1)
-print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
-print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
-
-w.agents[i].update_prior()
-for aid,l in w.agents[i].likelihood.iteritems():
-    print aid,l
-
-
-# for i in range(len(w.agents)):
-#     w.agents[i].observe_k(observations, K)
-#     print i
-#     pprint(w.agents[i].belief)
-    # for k in w.agents[i].agents:
-    #     print k,
-    #     pprint( w.agents[i].agents[k].belief)
-
-
+    
+    print "prior: %s" % prior
+    w.agents[i].belief[0] = w.agents[i].pop_prior
+    print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
+    
+    w.agents[i].observe_k(observations[:], 1)
+    print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
+    print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
+    
+    w.agents[i].update_prior()
+    for aid,l in w.agents[i].likelihood.iteritems():
+        print aid,l
 
 #forgiveness_experiment(overwrite=True)
 #forgiveness_plot() 
@@ -992,25 +1073,5 @@ for aid,l in w.agents[i].likelihood.iteritems():
 #protection_experiment(overwrite=True)
 #protection_plot()
 
-fitness_rounds_experiment(overwrite=True)
-fitness_rounds_plot()
-
-
-"""
-added 
-
-class
-RationalAgent(Agent)
-ReciprocalAgent(RationalAgent)
-
-methods for RationalAgent
-
-initialize_models
-get_models
-initialize_likelihood
-use_default_dicts
-
-attributes
-
-uniform_likelihood
-"""
+#fitness_rounds_experiment(overwrite=True)
+#fitness_rounds_plot()
