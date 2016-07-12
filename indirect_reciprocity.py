@@ -693,6 +693,7 @@ class World(object):
                     intentions = [decider.decide(self.game,agent_ids)]
 
                     likelihoods.append(Agent.decide_likelihood(decider,self.game,agent_ids))
+                    
                     #[decider.decide(self.game, agent_ids) for decider in deciders]
                     
                     actions = intentions
@@ -730,8 +731,15 @@ class World(object):
                 # for o in observations:
                     # Iterate over all of the observers
                 seeds.append(np.random.get_state()[2])
+                
                 for agent in self.agents:
                     agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
+
+                print players
+                print observations
+                
+                for agent in self.agents:
+                    print agent.belief
                 seeds.append(np.random.get_state()[2])
                 history.append({
                     'round': rounds,
@@ -744,7 +752,6 @@ class World(object):
                     'belief': tuple(copy(self.agents[player].belief) for player in players)
                 })
 
-                
                 if self.stop_condition(rounds): break
         self.last_run_results = {'fitness': fitness,'history': history,'seeds':seeds}
 
@@ -938,7 +945,7 @@ def protection_plot(in_path = 'sims/protection.pkl',
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(pop_size = 3, path = 'sims/fitness_rounds.pkl', overwrite = False):
+def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', overwrite = False):
     """
     Repetition supports cooperation. Look at how the number of rounds each dyad plays together and 
     the average fitness of the difference agent types. 
@@ -953,14 +960,15 @@ def fitness_rounds_experiment(pop_size = 3, path = 'sims/fitness_rounds.pkl', ov
     params = default_params()
     params.update({
         "N_agents":pop_size,
-        "RA_K": 1,
+        "RA_K": 0,
         "agent_types": agent_types,
         "agent_types_world": agent_types,
         "RA_prior":.8
     })
     N_runs = 1
     data = []
-    for rounds in np.linspace(1, 8, 8, dtype=int):
+    # for rounds in np.linspace(1, 8, 8, dtype=int):
+    for rounds in [2]:
         print "Rounds:",rounds
         for r_id in range(N_runs):
             np.random.seed(r_id)
@@ -1011,7 +1019,7 @@ def diagnostics():
 
     
     typesClassic = agent_types = (ReciprocalAgent,SelfishAgent)
-    typesAll = (ReciprocalAgent,AltruisticAgent,SelfishAgent)
+    typesAll = (ReciprocalAgent,SelfishAgent)
 
 
 
@@ -1023,71 +1031,54 @@ def diagnostics():
     params['stop_condition'] = [constant_stop_condition,10]
     params['p_tremble'] = 0
     params['RA_prior'] = 0.8
-    params['prior_precision'] = 0
+    params['RA_prior_precision'] = 0
     prior = prior_generator(agent_types,params['RA_prior'])
 
+
     w = World(params, [
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'prior_precision': params['prior_precision'], 'beta': params['beta'],'prior' : prior, 'agent_types': agent_types},
-])
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'], 'prior': prior,  "agent_types":agent_types},
+        {'type': SelfishAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'], 'prior': prior, "agent_types":agent_types},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta'], 'prior': prior, "agent_types":agent_types}
+    ])
 
-
+    K = 0
+    
     observations= [
-        #(w.game, [0, 1], range(len(w.agents)), 'give'),
-        (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [0, 1], range(len(w.agents)), 'keep'),
-        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [1, 2], range(len(w.agents)), 'keep'),
-        #(w.game, [1, 2], range(len(w.agents)), 'keep'),
-        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        # (w.game, [1, 0], range(len(w.agents)), 'keep'),
-        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        # (w.game, [1, 0], range(len(w.agents)), 'keep'),
-        # (w.game, [1, 2], range(len(w.agents)), 'give'),
-        #(w.game, [2, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [2, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [4, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [5, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [6, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [7, 1], range(len(w.agents)), 'keep'),
-        
-        # (w.game, [2, 1], range(len(w.agents)), 'give'),
-        
-        
-        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        #(w.game, [2, 3], range(len(w.agents)), 'give'),
-        # (AllocationGame(), [2, 0, 1], range(len(w.agents)), 'give 1'),
+        (w.game, [0, 1], [0, 1], 'give'),
+        (w.game, [1, 0], [0, 1], 'keep'),
     ]
 
+    for a in w.agents:
+        a.observe_k(observations, K)
+    for a in w.agents:
+        print a.belief
+    
+    observations= [
+        (w.game, [0, 2], [0, 2], 'give'),
+        (w.game, [2, 0], [0, 2], 'give'),
+    ]
 
-    K = 1
-    i = 3
+    for a in w.agents:
+        a.observe_k(observations, K)
+    for a in w.agents:
+        print a.belief
+
+
+    # K = 1
+    # i = 3
     
     
-    print "prior: %s" % prior
-    w.agents[i].belief[0] = w.agents[i].pop_prior
-    print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
+    # print "prior: %s" % prior
+    # w.agents[i].belief[0] = w.agents[i].pop_prior
+    # print "belief(type(0)=RA|Nothing) = ", w.agents[i].belief[0][ReciprocalAgent]
     
-    w.agents[i].observe_k(observations[:], 1)
-    print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
-    print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
+    # w.agents[i].observe_k(observations[:], 1)
+    # print "belief(type(0)=RA|Obs) = ", w.agents[i].belief[0][ReciprocalAgent]
+    # print "likelihood(0)",w.agents[i].likelihood[0][ReciprocalAgent]
     
-    w.agents[i].update_prior()
-    for aid,l in w.agents[i].likelihood.iteritems():
-        print aid,l
+    # w.agents[i].update_prior()
+    # for aid,l in w.agents[i].likelihood.iteritems():
+    #     print aid,l
 
 # forgiveness_experiment(overwrite=True)
 # forgiveness_plot() 
@@ -1095,5 +1086,7 @@ def diagnostics():
 # protection_experiment(overwrite=True)
 # protection_plot()
 
-fitness_rounds_experiment(overwrite=True)
-fitness_rounds_plot()
+# fitness_rounds_experiment(overwrite=True)
+# fitness_rounds_plot()
+
+diagnostics()
