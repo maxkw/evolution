@@ -139,6 +139,8 @@ def compare_agent_styles(new,old):
 
     ids = [agent.world_id for agent in new_agents]
 
+
+
     for [new,old],id in product(izip(new_agents,old_agents),ids):
         assert new.world_id == old.world_id
         ids = [new.world_id,id]
@@ -166,6 +168,12 @@ def compare_agent_styles(new,old):
 
 
 def compare_observations():
+    """
+    make two agents with the same ids, one old and one new,
+    feed the same observations to see if their beliefs change in tandem
+
+    BELIEFS DO CHANGE IN TANDEM
+    """
     params = new.default_params()
     agent_types = [new.ReciprocalAgent,new.SelfishAgent]
     new_genome = {'type': new.ReciprocalAgent,
@@ -204,4 +212,119 @@ def compare_observations():
     for observation in observations:
         update_and_print(observation)
 
-compare_observations()
+    for id in range(3):
+        new_agent.belief[id] = new_agent.initialize_prior()
+        old_agent.belief[id] = old_agent.initialize_prior()
+
+    for actor in range(3):
+        print "prior belief that",actor,"is reciprocal"
+        print "\told-style:",old_agent.belief[actor]
+        print "\tnew-style:",new_agent.belief[actor][new.ReciprocalAgent]
+        
+    new_agent.observe_k(observations,2)
+    old_agent.observe_k(observations,2)
+
+    for actor in range(3):
+        print "posterior belief that",actor,"is reciprocal"
+        print "\told-style:",old_agent.belief[actor]
+        print "\tnew-style:",new_agent.belief[actor][new.ReciprocalAgent]
+
+#compare_observations()
+        
+from numpy import random
+import numpy as np
+
+def random_test():
+    random.seed(0)
+    print np.where(random.multinomial(1,[1/3.0]*3))
+    print random.get_state()[2]
+
+    random.seed(0)
+    print random.multinomial(1,[1/3.0]*3)
+    print random.get_state()[2]
+
+#random_test()
+#raise
+def parallel_worlds(rounds):
+    params = new.default_params()
+    agent_types = [new.ReciprocalAgent,new.SelfishAgent]
+    new_genome_RA = {'type': new.ReciprocalAgent,
+                     'RA_prior': params['RA_prior'],
+                     'prior_precision': params['prior_precision'],
+                     'beta': params['beta'],
+                     'prior' : new.prior_generator(agent_types,params['RA_prior']),
+                     'agent_types': agent_types}
+    new_genome_SA = deepcopy(new_genome_RA)
+    new_genome_SA['type'] = new.SelfishAgent
+
+    old_genome_RA = genome_new2old(new_genome_RA)
+    old_genome_SA = genome_new2old(new_genome_SA)
+
+    
+    params['stop_condition'][1] = rounds
+    params['RA_K'] = 0
+    new_world = new.World(params,[new_genome_RA,new_genome_SA])
+    old_world = old.World(params,[old_genome_RA,old_genome_SA])
+
+    return old_world, new_world
+    
+def parallel_test():
+    ow,nw = parallel_worlds(10)
+    owr = ow.run()
+    nwr = nw.run()
+    
+    #print zip(ow.last_run_results['seeds'],ow.last_run_results['seeds'])
+    #return
+    for oo,no in reversed(zip(owr[1],nwr[1])):
+        print "round",oo['round']
+        print "old"
+        print "new"
+        print
+        print "players:"
+        print oo['pair']
+        print no['pair']
+        print
+        print "decide_likelihood"
+        print oo['likelihoods']
+        print no['likelihoods']
+        print
+        print "actions,payoffs:"
+        print oo['actions'],oo['payoff']
+        print no['actions'],no['payoff']
+        print
+        print "observations"
+        print oo['observations']
+        print no['observations']
+        print
+        print "0's posterior belief that 1 is reciprocal"
+        print oo['belief'][0][1]
+        print no['belief'][0][1][new.ReciprocalAgent]
+        print
+        print
+        print
+
+    print ow.last_run_results['fitness']
+    print nw.last_run_results['fitness']
+    
+parallel_test()
+
+    
+
+    
+def test_run():
+
+    def inspect(h):
+        [h] = h
+        print h['payoff']
+        print
+    old_w, new_w = load_worlds()
+    random.seed(8)
+    inspect(old_w.run())
+    random.seed(8)
+    inspect(new_w.run())
+#test_run()
+
+        
+#compare_agent_styles(new,old)
+#compare_observations()
+

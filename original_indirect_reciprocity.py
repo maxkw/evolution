@@ -327,8 +327,8 @@ class ReciprocalAgent(Agent):
             # TODO: Change to log-likelihood
             if agent_ids[0] not in self.likelihood:
                 self.likelihood[agent_ids[0]] = {
-                    SelfishAgent.__name__ : 1,
-                    ReciprocalAgent.__name__: 1
+                    SelfishAgent.__name__ : .5,
+                    ReciprocalAgent.__name__: .5
                 }
 
 
@@ -484,6 +484,7 @@ class World(object):
             self.agents[a] = ng['type'](ng)
 
     def run(self):
+        random.seed(0)
         # take in a sampling function
         fitness = np.zeros(len(self.agents))
         history = []
@@ -491,33 +492,37 @@ class World(object):
         # Get all pairs
         pairs = list(itertools.combinations(range(len(self.agents)), 2))
         np.random.shuffle(pairs)
-
+        seeds = []
         for pair in pairs:
             rounds = 0
             while True:
-                rounds += 1
                 
+                
+                rounds += 1
+                likelihoods = []
                 observations = []
                 payoff = np.zeros(len(self.agents))
                 # Have both players play both roles in the dictator game
-                for p0, p1 in [[pair[0], pair[1]], [pair[1], pair[0]]]:
+                player_orderings = [[pair[0], pair[1]], [pair[1], pair[0]]]
+                seeds.append(np.random.get_state()[2])
+                for p0, p1 in player_orderings:
+                    
                     agents = [self.agents[p0], self.agents[p1]]
                     agent_ids = [self.agents[p0].world_id, self.agents[p1].world_id]
-
+                    
                     # Intention -> Trembling Hand -> Action
                     intentions = agents[0].decide(self.game, agent_ids)
+                    likelihoods.append(Agent.decide_likelihood(agents[0],self.game,agent_ids))
                     actions = copy(intentions)
-
+                    
                     #does this assume that everyone has the same actions?
                     #does everyone tremble independently?
                     #are these joint actions?
-                    
-                    for i in range(len(intentions)):
-                        if flip(self.tremble):
-                            actions = np.random.choice(self.game.actions)
-                            
-                    intentions = intentions
-                    actions = actions
+
+                    if flip(self.tremble):
+                        actions = np.random.choice(self.game.actions)
+
+                    actions = intentions
 
                     payoff[[p0, p1]] += self.game.payoffs[actions]
 
@@ -528,27 +533,33 @@ class World(object):
                     # amount of observability
                     observer_ids = pair
                     observations.append((self.game, agent_ids, observer_ids, actions))
+                seeds.append(np.random.get_state()[2])
 
+                
                 # Update fitness
                 fitness += payoff
 
                 # All observers see who observed the action. 
                 # for o in observations:
                     # Iterate over all of the observers
+                seeds.append(np.random.get_state()[2])
                 for a in self.agents:
                     a.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
-                    
+                seeds.append(np.random.get_state()[2])    
                 history.append({
                     'round': rounds,
                     'players': (self.agents[pair[0]].world_id, self.agents[pair[1]].world_id),
-                    'actions': (observations[0][2][0], observations[1][2][0]),
+                    'actions': (observations[0][3], observations[1][3]),
+                    'pair':player_orderings,
+                    'likelihoods':likelihoods,
+                    'observations':observations,
                     'payoff': payoff,
                     'belief': (copy(self.agents[0].belief), copy(self.agents[1].belief))
                 })
-
                 if self.stop_condition(rounds): break
 
-        self.last_run_results = {'fitness': fitness,'history': history}
+        self.last_run_results = {'fitness': fitness,'history': history,'seeds':seeds}
+        
         return fitness, history
 
     def _make_pickleable(self):

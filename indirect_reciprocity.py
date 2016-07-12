@@ -227,11 +227,17 @@ class RationalAgent(Agent):
         
 
     def initialize_models(self, agent_ids):
-        for agent_id in without(agent_ids, self.world_id, self.models):
-            self.models[agent_id] = type(self)(self.genome, world_id = agent_id)
-            for id in agent_ids:
-                if id is not agent_id:
-                    self.models[agent_id].belief[id] = self.models[agent_id].initialize_prior()
+        for agent_id in agent_ids:
+            if agent_id == self.world_id: continue
+            if agent_id not in self.models:
+                self.models[agent_id] = ReciprocalAgent(self.genome,world_id = agent_id)
+                for o_id in agent_ids:
+                    self.models[agent_id].belief[o_id] = self.models[agent_id].initialize_prior()
+     #   for agent_id in without(agent_ids, self.world_id, self.models):
+     #       self.models[agent_id] = type(self)(self.genome, world_id = agent_id)
+     #       for id in agent_ids:
+     #           if id is not agent_id:
+     #               self.models[agent_id].belief[id] = self.models[agent_id].initialize_prior()
 
     def get_models(self, agent_id):
         models = []
@@ -372,7 +378,7 @@ class RationalAgent(Agent):
             # Update the priors after getting the likelihood estimate for each agent
             # TODO: Should the K-1 agents also have priors that get updated?
             
-            self.likelihood[deciding_agent] = normalized(self.likelihood[deciding_agent])
+            self.likelihood[deciding_agent] = self.likelihood[deciding_agent]
             
             self.belief[deciding_agent] = (self.pop_prior*self.likelihood[deciding_agent]) / np.dot(self.pop_prior,self.likelihood[deciding_agent])
 
@@ -586,7 +592,7 @@ class World(object):
         self.agent_types = self.agents[0].genome['agent_types']
         
         self.pop_size = len(self.agents)
-        
+        self.tremble = params['p_tremble']
         self.game = params['games']
         self._stop_condition = params['stop_condition']
         self.stop_condition = partial(*params['stop_condition'])
@@ -643,6 +649,7 @@ class World(object):
         pass
     
     def run(self):
+        random.seed(0)
         # take in a sampling function
         fitness = np.zeros(self.pop_size)
         history = []
@@ -655,11 +662,14 @@ class World(object):
         for players in matchups:
             players= list(players)
             rounds = 0
-                      
+            seeds = []
             while True:
+                np.random.seed(rounds)
+                
                 rounds += 1
                 
                 observations = []
+                likelihoods = []
                 payoff = np.zeros(self.pop_size)
 
 
@@ -671,7 +681,7 @@ class World(object):
                 #games only have a single deciding player
                 player_orderings = [players[n:n+1]+players[:n]+players[n+1:]
                                     for n in range(len(players))]
-
+                seeds.append(np.random.get_state()[2])
                 for player_order in player_orderings:
                     
                     agents, agent_ids = [], []
@@ -679,16 +689,26 @@ class World(object):
                         agents.append(self.agents[nth])
                         agent_ids.append(self.agents[nth].world_id)
 
-                    deciders = agents[:1]
                     
+                    deciders = agents[:1]
+                    decider = deciders[0]
                     # Intention -> Trembling Hand -> Action
-                    intentions = [decider.decide(self.game, agent_ids)
-                                  for decider in deciders]
+                    intentions = [decider.decide(self.game,agent_ids)]
 
+                    likelihoods.append(Agent.decide_likelihood(decider,self.game,agent_ids))
+                    #[decider.decide(self.game, agent_ids) for decider in deciders]
+                    
+                    actions = intentions
                     # translate intentions into actions applying tremble
-                    actions = [np.random.choice(self.game.actions)
-                               if flip(self.params['p_tremble']) else intention
-                               for intention in intentions]
+                    
+                    
+                    for i in range(len(intentions)):
+                        if flip(self.tremble):
+                            actions = np.random.choice(self.game.actions)
+                            
+                    #[np.random.choice(self.game.actions)
+                              # if flip(self.params['p_tremble']) else intention
+                              # for intention in intentions]
                     
                     #accumulate the payoff
                     for action in actions:
@@ -702,29 +722,35 @@ class World(object):
                     observer_ids = players
 
                     # Record observations
-                    observation = (self.game, agent_ids, observer_ids, actions[0])
+                    observation = (self.game, agent_ids, tuple(observer_ids), actions[0])
                     observations.append(observation)
-
+                    
+                seeds.append(np.random.get_state()[2])
                 # Update fitness
                 fitness += payoff
 
                 # All observers see who observed the action. 
                 # for o in observations:
                     # Iterate over all of the observers
-
+                seeds.append(np.random.get_state()[2])
                 for agent in self.agents:
                     agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
-
+                seeds.append(np.random.get_state()[2])
                 history.append({
                     'round': rounds,
                     'players': tuple(self.agents[player] for player in players),
-                    'actions': tuple(observation[2][0] for observation in observations),
+                    'actions': tuple(observation[3] for observation in observations),
+                    'pair':player_orderings,
+                    'likelihoods':likelihoods,
+                    'observations':observations,
                     'payoff': payoff,
                     'belief': tuple(copy(self.agents[player].belief) for player in players)
                 })
 
-                if self.stop_condition(rounds): break
                 
+                if self.stop_condition(rounds): break
+        self.last_run_results = {'fitness': fitness,'history': history,'seeds':seeds}
+
         return fitness, history
 
     def use_npArrays(self):
