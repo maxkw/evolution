@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import itertools
-import random
 from collections import Counter
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -484,7 +483,6 @@ class World(object):
             self.agents[a] = ng['type'](ng)
 
     def run(self):
-        random.seed(0)
         # take in a sampling function
         fitness = np.zeros(len(self.agents))
         history = []
@@ -496,8 +494,9 @@ class World(object):
         for pair in pairs:
             rounds = 0
             while True:
-                
-                
+
+                np.random.seed(rounds)
+
                 rounds += 1
                 likelihoods = []
                 observations = []
@@ -505,6 +504,7 @@ class World(object):
                 # Have both players play both roles in the dictator game
                 player_orderings = [[pair[0], pair[1]], [pair[1], pair[0]]]
                 seeds.append(np.random.get_state()[2])
+                print player_orderings
                 for p0, p1 in player_orderings:
                     
                     agents = [self.agents[p0], self.agents[p1]]
@@ -519,8 +519,8 @@ class World(object):
                     #does everyone tremble independently?
                     #are these joint actions?
 
-                    if flip(self.tremble):
-                        actions = np.random.choice(self.game.actions)
+                    # if flip(self.tremble):
+                    #     actions = np.random.choice(self.game.actions)
 
                     actions = intentions
 
@@ -763,7 +763,7 @@ def protection_plot(in_path = 'sims/protection.pkl', out_path='writing/evol_util
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', overwrite = False):
+def fitness_rounds_experiment(pop_size = 3, path = 'sims/fitness_rounds.pkl', overwrite = False):
     """
     Repetition supports cooperation. Look at how the number of rounds each dyad plays together and the average fitness of the difference agent types. 
     """
@@ -779,7 +779,7 @@ def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', o
     params['RA_K'] = 1
     params['RA_prior'] = .8
     params['agent_types'] = [ReciprocalAgent,SelfishAgent]
-    N_runs = 10
+    N_runs = 1
     data = []
     for rounds in np.linspace(1, 8, 8, dtype=int):
         print rounds
@@ -790,6 +790,7 @@ def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', o
             
             w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'], params['RA_prior_precision'], params['beta']))
             fitness, history = w.run()
+            print fitness
 
             genome_fitness = Counter()
             genome_count = Counter()
@@ -889,6 +890,6 @@ def manual_experiments():
 # protection_experiment(overwrite=True)
 # protection_plot()
 
-#fitness_rounds_experiment(overwrite=True)
-#fitness_rounds_plot()
+fitness_rounds_experiment(overwrite=True)
+fitness_rounds_plot()
 

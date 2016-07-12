@@ -262,7 +262,7 @@ def parallel_worlds(rounds):
 
     
     params['stop_condition'][1] = rounds
-    params['RA_K'] = 0
+    params['RA_K'] = 1
     new_world = new.World(params,[new_genome_RA,new_genome_SA])
     old_world = old.World(params,[old_genome_RA,old_genome_SA])
 
@@ -272,13 +272,15 @@ def parallel_test():
     ow,nw = parallel_worlds(10)
     owr = ow.run()
     nwr = nw.run()
+    print ow.last_run_results['seeds']
+    print nw.last_run_results['seeds']
     
     #print zip(ow.last_run_results['seeds'],ow.last_run_results['seeds'])
     #return
-    for oo,no in reversed(zip(owr[1],nwr[1])):
+    for oo,no in zip(owr[1],nwr[1]):
         print "round",oo['round']
-        print "old"
-        print "new"
+        print "old", 
+        print "new", 
         print
         print "players:"
         print oo['pair']
