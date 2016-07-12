@@ -2,7 +2,7 @@ import original_indirect_reciprocity as old
 import indirect_reciprocity as new
 import numpy as np
 from utils import namedArrayConstructor, pickled, unpickled
-
+from itertools import product, combinations
 
 
 from inspect import isclass
@@ -43,7 +43,7 @@ def load_worlds():
     new_world = new.World.unpickle('debug/new_world.pkl')
     return old_world,new_world
 
-from itertools import product
+
 
 def belief_accuracy(world,agents):
     correct = 0
@@ -263,8 +263,8 @@ def parallel_worlds(rounds):
     
     params['stop_condition'][1] = rounds
     params['RA_K'] = 1
-    new_world = new.World(params,[new_genome_RA,new_genome_SA])
-    old_world = old.World(params,[old_genome_RA,old_genome_SA])
+    new_world = new.World(params,[new_genome_RA, new_genome_RA, new_genome_SA])
+    old_world = old.World(params,[old_genome_RA, old_genome_RA, old_genome_SA])
 
     return old_world, new_world
     
@@ -277,6 +277,8 @@ def parallel_test():
     
     #print zip(ow.last_run_results['seeds'],ow.last_run_results['seeds'])
     #return
+    
+    
     for oo,no in zip(owr[1],nwr[1]):
         print "round",oo['round']
         print "old", 
@@ -298,9 +300,18 @@ def parallel_test():
         print oo['observations']
         print no['observations']
         print
-        print "0's posterior belief that 1 is reciprocal"
-        print oo['belief'][0][1]
-        print no['belief'][0][1][new.ReciprocalAgent]
+        print "beliefs"
+        print oo['belief']
+        print no['belief']
+        for x,y in combinations(oo['pair'][0],2):
+            try:
+                print "%s's posterior belief that %s is reciprocal" % (x,y)
+                print oo['belief'][x][y]
+                print no['belief'][x][y][new.ReciprocalAgent]
+                print
+            except KeyError:
+                pass
+            
         print
         print
         print

@@ -321,8 +321,9 @@ class ReciprocalAgent(Agent):
             # Because self.agents *only* includes reciprocal agent
             # types!
             reciprocal_agent = self.models[agent_ids[0]]
-            reciprocal_likelhood = Agent.decide_likelihood(reciprocal_agent, game, agent_ids, tremble)[action_indx]
-
+            reciprocal_likelihood = Agent.decide_likelihood(reciprocal_agent, game, agent_ids, tremble)[action_indx]
+            #print agent_ids[0]
+            #print "raw likelihood",[reciprocal_likelihood,selfish_likelihood]
             # TODO: Change to log-likelihood
             if agent_ids[0] not in self.likelihood:
                 self.likelihood[agent_ids[0]] = {
@@ -330,9 +331,12 @@ class ReciprocalAgent(Agent):
                     ReciprocalAgent.__name__: .5
                 }
 
-
+            #print "old likelihood",[self.likelihood[agent_ids[0]][ReciprocalAgent.__name__],self.likelihood[agent_ids[0]][SelfishAgent.__name__]]
+            #print
             self.likelihood[agent_ids[0]][SelfishAgent.__name__] *= selfish_likelihood
-            self.likelihood[agent_ids[0]][ReciprocalAgent.__name__] *= reciprocal_likelhood
+            self.likelihood[agent_ids[0]][ReciprocalAgent.__name__] *= reciprocal_likelihood
+            
+            
 
             
         # Update the priors after getting the likelihood estimate for each agent
@@ -347,7 +351,9 @@ class ReciprocalAgent(Agent):
             # if K>0:
                 # import ipdb; ipdb.set_trace()
 
-            # Combine my likelihood with my prior to get my belief that agent_ids[0] is reciprocal. 
+            # Combine my likelihood with my prior to get my belief that agent_ids[0] is reciprocal.
+            #print "prior","RA",self.pop_prior['ReciprocalAgent'],"\tSA",self.pop_prior['SelfishAgent']
+            #print "likelihood",agent_ids[0],"RA",self.likelihood[agent_ids[0]]['ReciprocalAgent'],"\tSA",self.likelihood[agent_ids[0]]['SelfishAgent']
             self.belief[agent_ids[0]] = (self.pop_prior[ReciprocalAgent.__name__] * self.likelihood[agent_ids[0]][ReciprocalAgent.__name__]) / (self.pop_prior[ReciprocalAgent.__name__] * self.likelihood[agent_ids[0]][ReciprocalAgent.__name__] + self.pop_prior[SelfishAgent.__name__] * self.likelihood[agent_ids[0]][SelfishAgent.__name__])
 
         # Observe the other person, when this code runs at K=0
@@ -546,10 +552,10 @@ class World(object):
                 for a in self.agents:
                     a.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
 
-                print pair
-                print observations
-                for agent in self.agents:
-                    print agent.belief
+                #print pair
+                #print observations
+                #for agent in self.agents:
+                #    print agent.belief
 
                     
                 seeds.append(np.random.get_state()[2])    
@@ -784,13 +790,13 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', ov
 
     params = default_params()
     params['N_agents'] = pop_size
-    params['RA_K'] = 0
+    params['RA_K'] = 1
     params['RA_prior'] = .8
     params['agent_types'] = [ReciprocalAgent,SelfishAgent]
-    N_runs = 1
+    N_runs = 10
     data = []
-    for rounds in [2]:
-    # for rounds in np.linspace(1, 8, 8, dtype=int):
+    
+    for rounds in np.linspace(1, 8, 8, dtype=int):
         print rounds
         for r_id in range(N_runs):
             np.random.seed(r_id)
@@ -799,7 +805,7 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', ov
             
             w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'], params['RA_prior_precision'], params['beta']))
             fitness, history = w.run()
-            print fitness
+            #print fitness
 
             genome_fitness = Counter()
             genome_count = Counter()
@@ -899,6 +905,6 @@ def manual_experiments():
 # protection_experiment(overwrite=True)
 # protection_plot()
 
-# fitness_rounds_experiment(overwrite=True)
-# fitness_rounds_plot()
-manual_experiments()
+fitness_rounds_experiment(10,overwrite=True)
+fitness_rounds_plot()
+#manual_experiments()

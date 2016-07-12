@@ -294,7 +294,7 @@ class RationalAgent(Agent):
         return self.pop_prior
     
     def initialize_likelihood(self):
-        return self.uniform_likelihood
+        return normalized(self.pop_prior*0+1)
 
     def utility(self, payoffs, agent_ids):
         return sum(itertools.imap(self.utility_try,payoffs,agent_ids))
@@ -367,18 +367,24 @@ class RationalAgent(Agent):
             likelihood = [
                 Agent.decide_likelihood(model, game, participants, tremble)[action_index]
                 for model in models]
+            #print deciding_agent
+            #print"raw likelihood", likelihood
 
-            try:
-                self.likelihood[deciding_agent] *= likelihood
-            except KeyError:
+           
+            if deciding_agent not in self.likelihood:
                 self.likelihood[deciding_agent] = self.initialize_likelihood()
-                self.likelihood[deciding_agent] *= likelihood
+            #print "old likelihood",[self.likelihood[deciding_agent][ReciprocalAgent],self.likelihood[deciding_agent][SelfishAgent]]
+
+            self.likelihood[deciding_agent] *= likelihood
 
             # Update the priors after getting the likelihood estimate for each agent
             # TODO: Should the K-1 agents also have priors that get updated?
             
             self.likelihood[deciding_agent] = self.likelihood[deciding_agent]
             
+            #print "prior","RA",self.pop_prior[ReciprocalAgent],"\tSA",self.pop_prior[SelfishAgent]
+            #print "likelihood",deciding_agent,"RA",self.likelihood[deciding_agent][ReciprocalAgent],"\tSA",self.likelihood[deciding_agent][SelfishAgent]
+            #print 
             self.belief[deciding_agent] = (self.pop_prior*self.likelihood[deciding_agent]) / np.dot(self.pop_prior,self.likelihood[deciding_agent])
 
 
@@ -735,11 +741,11 @@ class World(object):
                 for agent in self.agents:
                     agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
 
-                print players
-                print observations
+                #print players
+                #print observations
                 
-                for agent in self.agents:
-                    print agent.belief
+                #for agent in self.agents:
+                #    print agent.belief
                 seeds.append(np.random.get_state()[2])
                 history.append({
                     'round': rounds,
@@ -945,7 +951,7 @@ def protection_plot(in_path = 'sims/protection.pkl',
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', overwrite = False):
+def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds_new.pkl', overwrite = False):
     """
     Repetition supports cooperation. Look at how the number of rounds each dyad plays together and 
     the average fitness of the difference agent types. 
@@ -960,15 +966,15 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', ov
     params = default_params()
     params.update({
         "N_agents":pop_size,
-        "RA_K": 0,
+        "RA_K": 1,
         "agent_types": agent_types,
         "agent_types_world": agent_types,
         "RA_prior":.8
     })
-    N_runs = 1
+    N_runs = 10
     data = []
-    # for rounds in np.linspace(1, 8, 8, dtype=int):
-    for rounds in [2]:
+    for rounds in np.linspace(1, 8, 8, dtype=int):
+    
         print "Rounds:",rounds
         for r_id in range(N_runs):
             np.random.seed(r_id)
@@ -977,7 +983,7 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', ov
                   
             w = World(params, generate_random_genomes(**params))
             fitness, history = w.run()
-            print fitness
+            #print fitness
             genome_fitness = Counter()
             genome_count = Counter()
 
@@ -1000,7 +1006,7 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', ov
         df.to_pickle(path)
     return w
 
-def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/evol_utility/figures/fitness_rounds_new.pdf'):
+def fitness_rounds_plot(in_path = 'sims/fitness_rounds_new.pkl', out_path='writing/evol_utility/figures/fitness_rounds_new.pdf'):
 
     df = pd.read_pickle(in_path)
     sns.factorplot('rounds', 'fitness', hue='genome', data=df,)
@@ -1086,7 +1092,7 @@ def diagnostics():
 # protection_experiment(overwrite=True)
 # protection_plot()
 
-# fitness_rounds_experiment(overwrite=True)
-# fitness_rounds_plot()
+fitness_rounds_experiment(10,overwrite=True)
+fitness_rounds_plot()
 
-diagnostics()
+#diagnostics()
