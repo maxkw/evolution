@@ -263,8 +263,8 @@ def parallel_worlds(rounds):
     
     params['stop_condition'][1] = rounds
     params['RA_K'] = 0
-    new_world = new.World(params,[new_genome_RA,new_genome_SA])
-    old_world = old.World(params,[old_genome_RA,old_genome_SA])
+    new_world = new.World(params,[new_genome_RA,new_genome_RA,new_genome_SA])
+    old_world = old.World(params,[old_genome_RA,old_genome_RA,old_genome_SA])
 
     return old_world, new_world
     
@@ -273,7 +273,7 @@ def parallel_test():
     owr = ow.run()
     nwr = nw.run()
     
-    #print zip(ow.last_run_results['seeds'],ow.last_run_results['seeds'])
+    #print zip(
     #return
     for oo,no in reversed(zip(owr[1],nwr[1])):
         print "round",oo['round']
@@ -300,9 +300,21 @@ def parallel_test():
         print oo['belief'][0][1]
         print no['belief'][0][1][new.ReciprocalAgent]
         print
+        print "0's posterior belief that 2 is reciprocal"
+        print oo['belief'][0][2]
+        print no['belief'][0][2][new.ReciprocalAgent]
+        print
+        print "1's posterior belief that 0 is reciprocal"
+        print oo['belief'][1][0]
+        print no['belief'][1][0][new.ReciprocalAgent]
+        print
+        print "1's posterior belief that 2 is reciprocal"
+        print oo['belief'][1][2]
+        print no['belief'][1][2][new.ReciprocalAgent]
         print
         print
-
+        print
+        print
     print ow.last_run_results['fitness']
     print nw.last_run_results['fitness']
     
