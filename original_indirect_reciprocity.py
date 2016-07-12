@@ -504,7 +504,6 @@ class World(object):
                 # Have both players play both roles in the dictator game
                 player_orderings = [[pair[0], pair[1]], [pair[1], pair[0]]]
                 seeds.append(np.random.get_state()[2])
-                print player_orderings
                 for p0, p1 in player_orderings:
                     
                     agents = [self.agents[p0], self.agents[p1]]
@@ -543,8 +542,16 @@ class World(object):
                 # for o in observations:
                     # Iterate over all of the observers
                 seeds.append(np.random.get_state()[2])
+
                 for a in self.agents:
                     a.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
+
+                print pair
+                print observations
+                for agent in self.agents:
+                    print agent.belief
+
+                    
                 seeds.append(np.random.get_state()[2])    
                 history.append({
                     'round': rounds,
@@ -556,6 +563,7 @@ class World(object):
                     'payoff': payoff,
                     'belief': (copy(self.agents[0].belief), copy(self.agents[1].belief))
                 })
+
                 if self.stop_condition(rounds): break
 
         self.last_run_results = {'fitness': fitness,'history': history,'seeds':seeds}
@@ -763,7 +771,7 @@ def protection_plot(in_path = 'sims/protection.pkl', out_path='writing/evol_util
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(pop_size = 3, path = 'sims/fitness_rounds.pkl', overwrite = False):
+def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', overwrite = False):
     """
     Repetition supports cooperation. Look at how the number of rounds each dyad plays together and the average fitness of the difference agent types. 
     """
@@ -776,12 +784,13 @@ def fitness_rounds_experiment(pop_size = 3, path = 'sims/fitness_rounds.pkl', ov
 
     params = default_params()
     params['N_agents'] = pop_size
-    params['RA_K'] = 1
+    params['RA_K'] = 0
     params['RA_prior'] = .8
     params['agent_types'] = [ReciprocalAgent,SelfishAgent]
     N_runs = 1
     data = []
-    for rounds in np.linspace(1, 8, 8, dtype=int):
+    for rounds in [2]:
+    # for rounds in np.linspace(1, 8, 8, dtype=int):
         print rounds
         for r_id in range(N_runs):
             np.random.seed(r_id)
@@ -831,43 +840,43 @@ def manual_experiments():
     params['stop_condition'] = [constant_stop_condition,10]
     params['p_tremble'] = 0
     params['RA_prior'] = 0.8
-    params['RA_prior_precision'] = 2
+    params['RA_prior_precision'] = 0
 
     w = World(params, [
         {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
-        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
+        {'type': SelfishAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
+        {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']}
     ])
 
-    observations= [
-        (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        (w.game, [1, 2], range(len(w.agents)), 'give'),
-        (w.game, [1, 2], range(len(w.agents)), 'give'),
-        
-        # (w.game, [2, 1], range(len(w.agents)), 'give'),
-        # (w.game, [1, 2], range(len(w.agents)), 'give'),
-        # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-        # (w.game, [2, 3], range(len(w.agents)), 'give'),
-        # (AllocationGame(), [2, 0, 1], range(len(w.agents)), 'give 1'),
-    ]
+    K = 0
     
-    obs = [
-        (w.game, [1, 0], range(len(w.agents)), 'keep'),
-        (w.game, [1, 0], range(len(w.agents)), 'keep'),
-        (w.game, [1, 0], range(len(w.agents)), 'keep'),
-        (w.game, [1, 0], range(len(w.agents)), 'keep'),
+    observations= [
+        (w.game, [0, 1], [0, 1], 'give'),
+        (w.game, [1, 0], [0, 1], 'keep'),
     ]
-    K = 1
-    i = 2
-    w.agents[i].observe_k(observations, K)
-    print w.agents[i].belief
 
-    w.agents[i].observe_k(obs, K)
-    print w.agents[i].belief
+    for a in w.agents:
+        a.observe_k(observations, K)
+    for a in w.agents:
+        print a.belief
+    
+    observations= [
+        (w.game, [0, 2], [0, 2], 'give'),
+        (w.game, [2, 0], [0, 2], 'give'),
+    ]
+
+    for a in w.agents:
+        a.observe_k(observations, K)
+    for a in w.agents:
+        print a.belief
+
+    
+    # i = 2
+    # w.agents[i].observe_k(observations, K)
+    # print w.agents[i].belief
+
+    # w.agents[i].observe_k(obs, K)
+    # print w.agents[i].belief
 
     # print w.agents[i].pop_prior['ReciprocalAgent']
 
@@ -890,6 +899,6 @@ def manual_experiments():
 # protection_experiment(overwrite=True)
 # protection_plot()
 
-fitness_rounds_experiment(overwrite=True)
-fitness_rounds_plot()
-
+# fitness_rounds_experiment(overwrite=True)
+# fitness_rounds_plot()
+manual_experiments()
