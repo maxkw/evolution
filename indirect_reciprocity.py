@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import itertools
-import random
 from collections import Counter,defaultdict,Iterable
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -649,7 +648,6 @@ class World(object):
         pass
     
     def run(self):
-        random.seed(0)
         # take in a sampling function
         fitness = np.zeros(self.pop_size)
         history = []
@@ -665,7 +663,6 @@ class World(object):
             seeds = []
             while True:
                 np.random.seed(rounds)
-                
                 rounds += 1
                 
                 observations = []
@@ -702,9 +699,9 @@ class World(object):
                     # translate intentions into actions applying tremble
                     
                     
-                    for i in range(len(intentions)):
-                        if flip(self.tremble):
-                            actions = np.random.choice(self.game.actions)
+                    # for i in range(len(intentions)):
+                    #     if flip(self.tremble):
+                    #         actions = np.random.choice(self.game.actions)
                             
                     #[np.random.choice(self.game.actions)
                               # if flip(self.params['p_tremble']) else intention
@@ -864,7 +861,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
     df = pd.DataFrame(data)
     df.to_pickle(path)
 
-def forgiveness_plot(in_path = 'sims/forgiveness.pkl', out_path='writing/evol_utility/figures/forgiveness.pdf'):
+def forgiveness_plot(in_path = 'sims/forgiveness.pkl', out_path='writing/evol_utility/figures/forgiveness_new.pdf'):
     df = pd.read_pickle(in_path)
 
     sns.factorplot(x='round', y='avg_beliefs', hue='RA_prior', data=df)
@@ -914,7 +911,6 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
             
             fitness, history = w.run()
 
-            pickled(w,"sims/world_protection.pkl")
             for h in history:
                 data.append({
                     'round': h['round'],
@@ -942,7 +938,7 @@ def protection_plot(in_path = 'sims/protection.pkl',
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', overwrite = False):
+def fitness_rounds_experiment(pop_size = 3, path = 'sims/fitness_rounds.pkl', overwrite = False):
     """
     Repetition supports cooperation. Look at how the number of rounds each dyad plays together and 
     the average fitness of the difference agent types. 
@@ -962,7 +958,7 @@ def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', o
         "agent_types_world": agent_types,
         "RA_prior":.8
     })
-    N_runs = 10
+    N_runs = 1
     data = []
     for rounds in np.linspace(1, 8, 8, dtype=int):
         print "Rounds:",rounds
@@ -973,12 +969,12 @@ def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', o
                   
             w = World(params, generate_random_genomes(**params))
             fitness, history = w.run()
-            
+            print fitness
             genome_fitness = Counter()
             genome_count = Counter()
 
-            for a in w.agents:
-                genome_fitness[type(a)] += fitness[a.world_id]
+            for a_id, a in enumerate(w.agents):
+                genome_fitness[type(a)] += fitness[a_id]
                 genome_count[type(a)] += 1
 
             average_fitness = {a:genome_fitness[a]/genome_count[a] for a in genome_fitness}
@@ -996,7 +992,7 @@ def fitness_rounds_experiment(pop_size = 10, path = 'sims/fitness_rounds.pkl', o
         df.to_pickle(path)
     return w
 
-def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/evol_utility/figures/fitness_rounds.pdf'):
+def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/evol_utility/figures/fitness_rounds_new.pdf'):
 
     df = pd.read_pickle(in_path)
     sns.factorplot('rounds', 'fitness', hue='genome', data=df,)
@@ -1093,11 +1089,11 @@ def diagnostics():
     for aid,l in w.agents[i].likelihood.iteritems():
         print aid,l
 
-#forgiveness_experiment(overwrite=True)
-#forgiveness_plot() 
+# forgiveness_experiment(overwrite=True)
+# forgiveness_plot() 
 
-#protection_experiment(overwrite=True)
-#protection_plot()
+# protection_experiment(overwrite=True)
+# protection_plot()
 
-#fitness_rounds_experiment(overwrite=True)
-#fitness_rounds_plot()
+fitness_rounds_experiment(overwrite=True)
+fitness_rounds_plot()
