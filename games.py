@@ -125,7 +125,7 @@ class DecisionDependent(DecisionObserved):
     This type of decision is defined solely by a payoff
     """
     def __init__(self,payoff):
-        pass
+        raise NotImplementedError
     
 class DecisionDependentSeq(DecisionSeq):
     """
@@ -143,7 +143,8 @@ class DecisionDependentSeq(DecisionSeq):
         
         last_action = last_decision.last_action
         last_payoff = last_decision(last_action)
-        for decision_maker, ordering in pairs:
+        for decision_maker, ordering in pairs[1:]:
+            # Check if this is a bug in terms of payoff orderings
             decision = decision_maker([last_payoff[i] for i in last_ordering])
             yield (decision,ordering)
             last_decision,last_ordering = decision, ordering
@@ -165,14 +166,20 @@ class PrisonersDilemma(SymmetricGame):
 
 class UltimatumPropose(DecisionObserved):
     def __init__(self, endowment = 10):
-        payoffs = {"keep {}/give {}".format(keep, give) : (keep, give) for keep, give in
-                   ((endowment - give, give) for give in xrange(endowment))}
+        payoffs = dict()
+        for give in range(endowment):
+            keep = endowment - give
+            payoffs["keep %d/give %d" % (keep, give)] = (keep, give)
+        
+        # payoffs = {"keep {}/give {}".format(keep, give) : (keep, give) for keep, give in
+
         super(UltimatumPropose,self).__init__(payoffs)
 
 class UltimatumDecide(DecisionDependent):
     def __init__(self,proposed_payoff):
         payoffs = {"accept":(0,)*len(proposed_payoff),
                    "reject":tuple(-array(proposed_payoff))}
+        # FIXME: This is probably going to be a bug since the super is not defined. Solution is to get rid of __init__ in DecisionDependent?
         super(UltimatumDecide,self).__init__(payoffs)
 
 class UltimatumGame(DecisionDependentSeq):
@@ -229,7 +236,8 @@ class RandomizedTournament(DecisionSeq):
         matchups = list(itertools.combinations(xrange(len(participants)), self.game.N_players))
         np.shuffle(matchups)
         game = self.game
-        return ((game, matchup) for matchup in iter(matchups))
+        for matchup in matchups:
+            yield (game, matchup)
 
 def run_equivalent(repetitions):
     return RandomizedTournament(RepeatedGame(PrisonersDilemma(),repetitions)).play(agents,observers)
