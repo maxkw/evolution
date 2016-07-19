@@ -20,20 +20,32 @@ def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
         return
 
     params = default_params()
-    params['agent_types_world'] = agent_types = [ReciprocalAgent, SelfishAgent, AltruisticAgent]
+    # agent_types = [ReciprocalAgent, AltruisticAgent]
+    agent_types = [ReciprocalAgent, SelfishAgent, AltruisticAgent]
+    params['agent_types_world'] = agent_types
     params['games'] = PrisonersDilemma()
-    params['stop_condition'] = [constant_stop_condition,10]
-    params['beta'] = 100
+    params['stop_condition'] = [constant_stop_condition,40]
+    params['p_tremble'] = 0
+    # params['beta'] = 5
     data = []
-    N_runs = 500
-    for RA_prior in np.linspace(0.3, .95, 4):
+    N_runs = 1
+    for RA_prior in np.linspace(0.5, .9, 3):
         params['RA_prior'] = RA_prior
         print 'running prior', RA_prior
 
         for r_id in range(N_runs):
             np.random.seed(r_id)
-            prior =prior_generator(agent_types,RA_prior)
+            prior = prior_generator(agent_types,RA_prior)
             w = World(params, [
+                {'type': ReciprocalAgent,
+                 'RA_prior': RA_prior,
+                 'agent_types':agent_types,
+                 'agent_types_world':agent_types,
+                 'prior': prior,
+                 'prior_precision': params['prior_precision'],
+                 'beta': params['beta'],
+                 'RA_K':1
+                },
                 {'type': ReciprocalAgent,
                  'RA_prior': RA_prior,
                  'agent_types':agent_types,
@@ -50,17 +62,21 @@ def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
             fitness, history = w.run()
 
             for h in history:
+                print h['belief']
                 data.append({
                     'round': h['round'],
                     'RA_prior': prior[ReciprocalAgent],
-                    'belief': h['belief'][0][1][AltruisticAgent],
+                    'belief': h['belief'][0][1][ReciprocalAgent],
+                    'belief2': h['belief'][1][0][ReciprocalAgent],
                 })
 
             data.append({
                 'round': 0,
                 'RA_prior': prior[ReciprocalAgent],
-                'belief': prior[AltruisticAgent],
+                'belief': prior[ReciprocalAgent],
+                'belief2': prior[ReciprocalAgent],
             })
+            
     df = pd.DataFrame(data)
     df.to_pickle(path)
 
@@ -71,9 +87,16 @@ def RA_v_AA_plot(in_path = 'sims/RAvAA.pkl',
     sns.factorplot('round', 'belief', hue='RA_prior', data=df, ci=68)
     sns.despine()
     plt.ylim([0,1])
-    plt.ylabel('P(1 is Altruistic | Interactions)'); plt.xlabel('Round #')
+    plt.ylabel('P(1 is RA | Interactions)'); plt.xlabel('Round #')
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
+
+    sns.factorplot('round', 'belief2', hue='RA_prior', data=df, ci=68)
+    sns.despine()
+    plt.ylim([0,1])
+    plt.ylabel('P(1 is RA | Interactions)'); plt.xlabel('Round #')
+    plt.tight_layout()
+    plt.savefig('writing/evol_utility/figures/RAvAA2.pdf'); plt.close()
 
 
 RA_v_AA(overwrite=True)

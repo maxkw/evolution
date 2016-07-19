@@ -32,6 +32,8 @@ import warnings
 warnings.filterwarnings("ignore",category=np.VisibleDeprecationWarning)
 
 from itertools import ifilterfalse
+from games import PrisonersDilemma
+
 def without(source,*blacklists):
     try:
         [blacklist] = blacklists
@@ -291,7 +293,7 @@ class RationalAgent(Agent):
         return self.pop_prior
     
     def initialize_likelihood(self):
-        return normalized(self.pop_prior*0+1)
+        return self.pop_prior*0+1
 
     def utility(self, payoffs, agent_ids):
         sample_alpha = self.sample_alpha
@@ -348,14 +350,12 @@ class RationalAgent(Agent):
         for observation in observations:
             game, participants, observers, action = observation
 
-
             deciding_agent = participants[0]
 
             # Can't have a belief about what I think about what I think. Beliefs about others are first order beliefs.
             #so if i'm considering myself, skip to the next round of the loop
             if deciding_agent == self.world_id: continue
 
-            
             #if im not one of the observers this round, skip to the next round
             if self.world_id not in observers: continue
 
@@ -380,7 +380,6 @@ class RationalAgent(Agent):
             #print deciding_agent
             #print"raw likelihood", likelihood
 
-                
             #print "old likelihood",[self.likelihood[deciding_agent][ReciprocalAgent],self.likelihood[deciding_agent][SelfishAgent]]
 
             try:
@@ -389,12 +388,18 @@ class RationalAgent(Agent):
                 self.likelihood[deciding_agent] = self.initialize_likelihood()
                 self.likelihood[deciding_agent] *= likelihood
             
-            self.likelihood[deciding_agent] = self.likelihood[deciding_agent]
-            
+            # self.likelihood[deciding_agent] = self.likelihood[deciding_agent]
+            # self.likelihood[deciding_agent] = normalized(self.likelihood[deciding_agent])
             #print "prior","RA",self.pop_prior[ReciprocalAgent],"\tSA",self.pop_prior[SelfishAgent]
             #print "likelihood",deciding_agent,"RA",self.likelihood[deciding_agent][ReciprocalAgent],"\tSA",self.likelihood[deciding_agent][SelfishAgent]
             #print 
+
             self.belief[deciding_agent] = (self.pop_prior*self.likelihood[deciding_agent]) / np.dot(self.pop_prior,self.likelihood[deciding_agent])
+
+            # likelihood = np.array(likelihood)
+            # self.belief[deciding_agent] = (self.belief[deciding_agent] * likelihood) / np.dot(self.belief[deciding_agent], likelihood)
+
+            
 
 
         # Observe the other person, when this code runs at K=0
@@ -675,110 +680,109 @@ class World(object):
         """
         pass
     
+    # def run(self):
+    #     # take in a sampling function
+    #     fitness = np.zeros(self.pop_size)
+    #     history = []
+        
+    #     #Get all matchups (sets of players)
+    #     #players are represented by their position in the list of agents
+    #     matchups = list(itertools.combinations(xrange(self.pop_size), self.game.N_players))
+    #     np.random.shuffle(matchups)
+        
+    #     for players in matchups:
+    #         players= list(players)
+    #         rounds = 0
+    #         seeds = []
+    #         while True:
+    #             # np.random.seed(rounds)
+    #             rounds += 1
+                
+    #             observations = []
+    #             likelihoods = []
+    #             payoff = np.zeros(self.pop_size)
+
+
+    #             #We want every possible significant matchup to happen
+    #             #everyone gets to be a deciding agents exactly once
+                
+    #             #We assume that:
+    #             #the order of non-deciding players doesn't matter
+    #             #games only have a single deciding player
+    #             player_orderings = [players[n:n+1]+players[:n]+players[n+1:]
+    #                                 for n in range(len(players))]
+    #             #seeds.append(np.random.get_state()[2])
+                
+    #             for player_order in player_orderings:
+                    
+    #                 agents, agent_ids = [], []
+    #                 for nth in player_order:
+    #                     agents.append(self.agents[nth])
+    #                     agent_ids.append(self.agents[nth].world_id)
+
+                    
+    #                 deciders = agents[:1]
+    #                 decider = deciders[0]
+    #                 # Intention -> Trembling Hand -> Action
+    #                 intentions = [decider.decide(self.game,agent_ids)]
+
+                    
+    #                 #[decider.decide(self.game, agent_ids) for decider in deciders]
+                    
+    #                 actions = intentions
+    #                 # translate intentions into actions applying tremble
+
+    #                 #accumulate the payoff
+    #                 for action in actions:
+    #                     payoff[list(player_order)] += self.game.payoffs[action]
+
+    #                 # Determine who gets to observe this action. 
+                    
+    #                 # Reveal observations to update the belief state. This
+    #                 # is where we can include more agents to increase the
+    #                 # amount of observability
+    #                 observer_ids = players
+
+    #                 # Record observations
+    #                 observation = (self.game, agent_ids, tuple(observer_ids), actions[0])
+    #                 observations.append(observation)
+                    
+                
+    #             # Update fitness
+    #             fitness += payoff
+
+    #             # All observers see who observed the action. 
+    #             # for o in observations:
+    #                 # Iterate over all of the observers
+                
+                
+    #             for agent in self.agents:
+    #                 agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
+
+    #             #print players
+    #             #print observations
+                
+    #             #for agent in self.agents:
+    #             #    print agent.belief
+                
+    #             history.append({
+    #                 'round': rounds,
+    #                 'players': tuple(self.agents[player] for player in players),
+    #                 'actions': tuple(observation[3] for observation in observations),
+    #                 'pair':player_orderings,
+    #                 'likelihoods':likelihoods,
+    #                 'observations':observations,
+    #                 'payoff': payoff,
+    #                 'belief': tuple(copy(self.agents[player].belief) for player in players)
+    #             })
+
+    #             if self.stop_condition(rounds): break
+    #     self.last_run_results = {'fitness': fitness,'history': history}
+
+    #     return fitness, history
+
     def run(self):
         # take in a sampling function
-        fitness = np.zeros(self.pop_size)
-        history = []
-        
-        #Get all matchups (sets of players)
-        #players are represented by their position in the list of agents
-        matchups = list(itertools.combinations(xrange(self.pop_size), self.game.N_players))
-        np.random.shuffle(matchups)
-        
-        for players in matchups:
-            players= list(players)
-            rounds = 0
-            seeds = []
-            while True:
-                np.random.seed(rounds)
-                rounds += 1
-                
-                observations = []
-                likelihoods = []
-                payoff = np.zeros(self.pop_size)
-
-
-                #We want every possible significant matchup to happen
-                #everyone gets to be a deciding agents exactly once
-                
-                #We assume that:
-                #the order of non-deciding players doesn't matter
-                #games only have a single deciding player
-                player_orderings = [players[n:n+1]+players[:n]+players[n+1:]
-                                    for n in range(len(players))]
-                #seeds.append(np.random.get_state()[2])
-                
-                for player_order in player_orderings:
-                    
-                    agents, agent_ids = [], []
-                    for nth in player_order:
-                        agents.append(self.agents[nth])
-                        agent_ids.append(self.agents[nth].world_id)
-
-                    
-                    deciders = agents[:1]
-                    decider = deciders[0]
-                    # Intention -> Trembling Hand -> Action
-                    intentions = [decider.decide(self.game,agent_ids)]
-
-                    
-                    #[decider.decide(self.game, agent_ids) for decider in deciders]
-                    
-                    actions = intentions
-                    # translate intentions into actions applying tremble
-
-                    #accumulate the payoff
-                    for action in actions:
-                        payoff[list(player_order)] += self.game.payoffs[action]
-
-                    # Determine who gets to observe this action. 
-                    
-                    # Reveal observations to update the belief state. This
-                    # is where we can include more agents to increase the
-                    # amount of observability
-                    observer_ids = players
-
-                    # Record observations
-                    observation = (self.game, agent_ids, tuple(observer_ids), actions[0])
-                    observations.append(observation)
-                    
-                
-                # Update fitness
-                fitness += payoff
-
-                # All observers see who observed the action. 
-                # for o in observations:
-                    # Iterate over all of the observers
-                
-                
-                for agent in self.agents:
-                    agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
-
-                #print players
-                #print observations
-                
-                #for agent in self.agents:
-                #    print agent.belief
-                
-                history.append({
-                    'round': rounds,
-                    'players': tuple(self.agents[player] for player in players),
-                    'actions': tuple(observation[3] for observation in observations),
-                    'pair':player_orderings,
-                    'likelihoods':likelihoods,
-                    'observations':observations,
-                    'payoff': payoff,
-                    'belief': tuple(copy(self.agents[player].belief) for player in players)
-                })
-
-                if self.stop_condition(rounds): break
-        self.last_run_results = {'fitness': fitness,'history': history}
-
-        return fitness, history
-
-    def new_run(self):
-        # take in a sampling function
-        from games import PrisonersDilemma
         game = PrisonersDilemma()
         
         fitness = np.zeros(self.pop_size)
@@ -794,12 +798,11 @@ class World(object):
             rounds = 0
             seeds = []
             while True:
-                np.random.seed(rounds)
                 rounds += 1
 
                 agents = np.array([self.agents[i] for i in players])
                 
-                payoff, observations = game.play(agents)
+                payoff, observations = game.play(agents, tremble=self.params['p_tremble'])
 
                 fitness[players] += payoff
 
@@ -812,7 +815,8 @@ class World(object):
                     'players': tuple(self.agents[player] for player in players),
                     'actions': tuple(observation[3] for observation in observations),
                     'payoff': payoff,
-                    'belief': tuple(copy(self.agents[player].belief) for player in players)
+                    'belief': tuple(copy(agent.belief) for agent in self.agents),
+                    # 'belief2': copy(self.agents[0].models[1].belief[0][ReciprocalAgent]),
                 })
 
                 if self.stop_condition(rounds): break
@@ -942,7 +946,7 @@ def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
     df = pd.DataFrame(data)
     df.to_pickle(path)
 
-def forgiveness_plot(in_path = 'sims/forgiveness.pkl', out_path='writing/evol_utility/figures/forgiveness_new.pdf'):
+def forgiveness_plot(in_path = 'sims/forgiveness.pkl', out_path='writing/evol_utility/figures/forgiveness.pdf'):
     df = pd.read_pickle(in_path)
 
     sns.factorplot(x='round', y='avg_beliefs', hue='RA_prior', data=df)
@@ -1019,7 +1023,7 @@ def protection_plot(in_path = 'sims/protection.pkl',
     plt.tight_layout()
     plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds_new.pkl', overwrite = False):
+def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', overwrite = False):
     """
     Repetition supports cooperation. Look at how the number of rounds each dyad plays together and 
     the average fitness of the difference agent types. 
@@ -1074,7 +1078,7 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds_new.pkl'
         df.to_pickle(path)
     return w
 
-def fitness_rounds_plot(in_path = 'sims/fitness_rounds_new.pkl', out_path='writing/evol_utility/figures/fitness_rounds_new.pdf'):
+def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/evol_utility/figures/fitness_rounds.pdf'):
 
     df = pd.read_pickle(in_path)
     sns.factorplot('rounds', 'fitness', hue='genome', data=df,)
@@ -1141,13 +1145,15 @@ def diagnostics():
         assert_almost_equal(w.agents[0].belief[2],[ 0.98637196,  0.01362804])
         assert_almost_equal(w.agents[1].belief[0],[ 0.98637196,  0.01362804])
 
-# forgiveness_experiment(overwrite=True)
-# forgiveness_plot() 
+if __name__ == '__main__':
+    import ipdb; ipdb.set_trace()
+    forgiveness_experiment(overwrite=True)
+    forgiveness_plot() 
 
-#protection_experiment(overwrite=True)
-#protection_plot()
+    #protection_experiment(overwrite=True)
+    #protection_plot()
 
-fitness_rounds_experiment(10,overwrite=True)
-fitness_rounds_plot()
+    # fitness_rounds_experiment(10,overwrite=True)
+    # fitness_rounds_plot()
 
-#diagnostics()
+    #diagnostics()

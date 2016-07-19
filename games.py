@@ -12,7 +12,7 @@ class Decision(object):
     Tested
     """
     def __init__(self,payoffDict):
-        actions =  payoffDict.keys()
+        actions = payoffDict.keys()
         self.N_players = len(payoffDict.values()[0])
         self.actions = actions
         self.action_lookup = dict(map(reversed,enumerate(actions)))
@@ -22,16 +22,18 @@ class Decision(object):
         self.last_action = action
         return self.payoffs[action]
     
-    def play(decision,participants,observers=[],tremble=0):
+    def play(decision,participants,observers=None,tremble=0):
+        if observers == None:
+            observers = []
         participant_ids = [participant.world_id for participant in participants]
         decider = participants[0]
 
         intention = decider.decide(decision,participant_ids)
         
-        #if flip(tremble):
-        #    action = np.random.choice(decision.actions)
-        #else:
-        action = intention
+        if flip(tremble):
+            action = np.random.choice(decision.actions)
+        else:
+            action = intention
 
         payoffs = copy(decision(action))
             
@@ -51,10 +53,10 @@ class DecisionObserved(Decision):
     """
     in this kind of decision, every observer observes after a decision is made
     """
-    def play(self,participants,observers=[],tremble=0):
+    def play(self,participants,observers=[], tremble=0):
         payoffs, observations = super(DecisionObserved,self).play(decider,participants,observers,tremble)
         for observer in set(observers+participants):
-            observer.observe_k(observations,observer.genome['K'],tremble)
+            observer.observe_k(observations,observer.genome['K'], tremble)
         return payoffs, observations
     
 class DecisionSeq(object):
