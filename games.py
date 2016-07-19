@@ -35,9 +35,16 @@ class Decision(object):
 
         payoffs = copy(decision(action))
             
-        observer_ids = participant_ids#tuple(observer.world_id for observer in set(observers+participants))
+        observer_ids = tuple(observer.world_id for observer in set(observers+list(participants)))
+        
+        observations = [{
+            'game':decision,
+            'action':action,
+            'participant_ids':array(participant_ids),
+            'observer_ids':array(observer_ids),
+            'payoffs':array(payoffs)}]
+        
         observations = [(decision,participant_ids,observer_ids,action)]
-
         return payoffs, observations
 
 class DecisionObserved(Decision):
@@ -63,17 +70,25 @@ class DecisionSeq(object):
     """
     def __init__(self, decision_ordering_pairs):
         self.decision_ordering_pairs = decision_ordering_pairs
-        
+        self.play_ordering_pairs = [(decision.play, ordering) for decision, ordering in self.decision_ordering_pairs]
     def matchups(self,participants):
-        return self.decision_ordering_pairs
+        return iter(self.play_ordering_pairs)
+    
+    def annotate(self,observations):
+        for observation in observations:
+            observation['ordering'] = self.current_ordering
+        return observation
     
     def play(self,participants,observers=[],tremble=0):
+        #initialize accumulators
         observations = []
-        extend_obs = observations.extend
         payoffs = np.zeros(len(participants))
+
+        #cache the dot references
+        extend_obs = observations.extend
         
-        for decision,ordering in self.matchups(participants):
-            pay,obs = decision.play(participants[ordering],observers,tremble)
+        for play_decision,ordering in self.matchups(participants):
+            pay,obs = play_decision(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
             extend_obs(obs)
 
@@ -118,6 +133,9 @@ class DecisionDependentSeq(DecisionSeq):
     The first must be of type DecisionObserved
     The rest must be of type DecisionDependent
     """
+    def __init__(self, decision_ordering_pairs):
+        self.decision_ordering_pairs = decision_ordering_pairs
+        
     def matchups(self,participants):
         pairs = self.decision_ordering_pairs
         last_decision,last_ordering = pairs[0]
@@ -173,11 +191,32 @@ class RepeatedGame(DecisionSeq):
         self.game = game
         self.repetitions = repetitions
 
+    def annotate(self,observations):
+        round = self.current_round
+        for observation in observations:
+            observation['round'] = round
+        return observations
+    
     def matchups(self,participants):
         game = self.game
         ordering = range(len(participants))
-        return ((game,ordering) for _ in xrange(self.repetitions))
+        for round in xrange(1,self.repetitions+1):
+            self.current_round = round
+            yield game,ordering 
     
+class IndefiniteHorizonGame(DecisionSeq):
+    def __init__(self,game,gamma):
+        self.game = game
+        self.gamma = gamma
+        
+    def matchups(self,participants):
+        game = self.game
+        gamma = self.gamma
+        ordering = range(len(participants))
+        yield game,ordering
+        while flip(gamma):
+            yield game,ordering
+            
 class RandomizedTournament(DecisionSeq):
     """
     This DecisionSeq plays the game with every adequately 
@@ -187,9 +226,10 @@ class RandomizedTournament(DecisionSeq):
         self.game = game
 
     def matchups(self, participants):
-        matchups = itertools.combinations(xrange(len(participants)), self.game.N_players)
+        matchups = list(itertools.combinations(xrange(len(participants)), self.game.N_players))
+        np.shuffle(matchups)
         game = self.game
-        return ((game, matchup) for matchup in matchups)
+        return ((game, matchup) for matchup in iter(matchups))
 
 def run_equivalent(repetitions):
     return RandomizedTournament(RepeatedGame(PrisonersDilemma(),repetitions)).play(agents,observers)
