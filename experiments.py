@@ -24,11 +24,11 @@ def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
     agent_types = [ReciprocalAgent, SelfishAgent, AltruisticAgent]
     params['agent_types_world'] = agent_types
     params['games'] = PrisonersDilemma()
-    params['stop_condition'] = [constant_stop_condition,40]
+    params['stop_condition'] = [constant_stop_condition,10]
     params['p_tremble'] = 0
     # params['beta'] = 5
     data = []
-    N_runs = 1
+    N_runs = 50
     for RA_prior in np.linspace(0.5, .9, 3):
         params['RA_prior'] = RA_prior
         print 'running prior', RA_prior
@@ -56,13 +56,13 @@ def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
                  'RA_K':1
                 },
                 {'type': AltruisticAgent, 'beta': params['beta'], 'RA_K':1},
-                {'type': SelfishAgent, 'beta': params['beta'], 'RA_K':1}
+                {'type': SelfishAgent, 'beta': params['beta'], 'RA_K':1},
             ])
             
             fitness, history = w.run()
 
             for h in history:
-                print h['belief']
+                
                 data.append({
                     'round': h['round'],
                     'RA_prior': prior[ReciprocalAgent],
