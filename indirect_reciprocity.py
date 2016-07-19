@@ -228,27 +228,27 @@ class RationalAgent(Agent):
         self.belief = {}
         
 
-    def initialize_models(self, agent_ids):
-        for agent_id in agent_ids:
-            if agent_id == self.world_id: continue
-            if agent_id not in self.models:
-                self.models[agent_id] = ReciprocalAgent(self.genome,world_id = agent_id)
-                for o_id in agent_ids:
-                    self.models[agent_id].belief[o_id] = self.models[agent_id].initialize_prior()
+    # def initialize_models(self, agent_ids):
+    #     for agent_id in agent_ids:
+    #         if agent_id == self.world_id: continue
+    #         if agent_id not in self.models:
+    #             self.models[agent_id] = type(self)(self.genome,world_id = agent_id)
+    #             for o_id in agent_ids:
+    #                 self.models[agent_id].belief[o_id] = self.models[agent_id].initialize_prior()
 
                     
-    def get_models(self, agent_id):
-        models = []
-        for agent_type in self.genome['agent_types']:
-            if agent_type is type(self):
-                try:
-                    models.append(self.models[agent_id])
-                except KeyError:
-                    self.models[agent_id] = agent_type(self.genome, world_id = agent_id)
-                    models.append(self.models[agent_id])
-            else:
-                models.append(agent_type(self.genome, world_id = agent_id))
-        return models
+    # def get_models(self, agent_id):
+    #     models = []
+    #     for agent_type in self.genome['agent_types']:
+    #         if agent_type is type(self):
+    #             try:
+    #                 models.append(self.models[agent_id])
+    #             except KeyError:
+    #                 self.models[agent_id] = agent_type(self.genome, world_id = agent_id)
+    #                 models.append(self.models[agent_id])
+    #         else:
+    #             models.append(agent_type(self.genome, world_id = agent_id))
+    #     return models
         
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
@@ -258,35 +258,6 @@ class RationalAgent(Agent):
             del self.likelihood[id]
         for model in agentModels.itervalues():
             model.purge_models(ids)
-
-    def use_default_dicts(self):
-        """
-        adding this function to __init__(self) makes all internal representations default-dicts
-        this is guaranteed to not fail throughout and renders initializations redundant
-        """
-        #modelDict stores this agent's models of other agents
-        #it maps agent ids to a model of that agent
-        #will initialize any unseen agents to a new ReciprocalAgent
-        class modelDict(dict):
-            def __missing__(agentModels,agent_id):
-                typeDict = {}
-                for agent_type in self.genome['agent_types']:
-                    if issubclass(agent_type,RationalAgent):
-                        typeDict[agent_type] = agent_type(self.genome, world_id = agent_id)
-                    else:
-                        typeDict[agent_type] = self.genome['generic_models'][agent_type]
-                        
-                agentModels[agent_id] = type(self)(self.genome,world_id = agent_id)
-                return agentModels[agent_id]
-            
-        self.models = modelDict()
-
-        #dict mapping a particular agent to the belief that they are of a given type
-        #the belief is represented as a NamedArray
-        self.belief = defaultdict(self.initialize_prior)
-
-        #basically the same as belief
-        self.likelihood = defaultdict(self.initialize_likelihood) 
         
     def initialize_prior(self):
         # This needs to initialize the data structure that is used for the online update
@@ -316,6 +287,7 @@ class RationalAgent(Agent):
         
         # return int(flip(belief))
         return NotImplementedError
+
     #@profile
     def observe_k(self, observations, K, tremble = 0):
         """
@@ -343,7 +315,7 @@ class RationalAgent(Agent):
             for agent_id in observers:
                 if agent_id == self.world_id: continue
                 if agent_id not in self.models:
-                    self.models[agent_id] = ReciprocalAgent(self.genome,world_id = agent_id)
+                    self.models[agent_id] = type(self)(self.genome,world_id = agent_id)
                     for o_id in observers:
                         self.models[agent_id].belief[o_id] = self.models[agent_id].initialize_prior()
                 
@@ -575,7 +547,7 @@ def default_params():
 def prior_generator(agent_types,RA_prior=False):
     agent_types = tuple(agent_types)
                                            
-    if ReciprocalAgent in agent_types:
+    if ReciprocalAgent in agent_types or NiceReciprocalAgent in agent_types:
         uniform = (1.0-RA_prior)/(len(agent_types)-1)
     else:
         uniform = 1.0/len(agent_types)
@@ -585,7 +557,7 @@ def prior_generator(agent_types,RA_prior=False):
     try:
         return namedArrayConstructor(tuple(agent_types))(
             [
-                uniform if agentType is not ReciprocalAgent
+                uniform if agentType is not NiceReciprocalAgent 
                 else RA_prior for agentType in agent_types
             ])
     except:
