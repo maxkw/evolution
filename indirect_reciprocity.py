@@ -293,7 +293,7 @@ class RationalAgent(Agent):
         return self.pop_prior
     
     def initialize_likelihood(self):
-        return self.pop_prior*0+1
+        return normalized(self.pop_prior*0+1)
 
     def utility(self, payoffs, agent_ids):
         sample_alpha = self.sample_alpha
@@ -631,6 +631,12 @@ class World(object):
         self.params = params
         self.last_run_results = {}
 
+        for id, agent in enumerate(self.agents):
+            if isinstance(agent,RationalAgent):
+                for a_id in range(self.pop_size):
+                    if a_id is not id:
+                        agent.belief[a_id] = agent.initialize_prior()
+
 
 
     def add_agents(self, genomes):
@@ -802,7 +808,7 @@ class World(object):
 
                 agents = np.array([self.agents[i] for i in players])
                 
-                payoff, observations = game.play(agents, tremble=self.params['p_tremble'])
+                payoff, observations = game.play(agents, self.agents, tremble=self.params['p_tremble'])
 
                 fitness[players] += payoff
 
