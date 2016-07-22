@@ -32,73 +32,11 @@ import warnings
 warnings.filterwarnings("ignore",category=np.VisibleDeprecationWarning)
 
 from itertools import ifilterfalse
-from games import PrisonersDilemma
+from games import PrisonersDilemmaCTO
 
-def without(source,*blacklists):
-    try:
-        [blacklist] = blacklists
-        if isinstance(blacklist,Iterable):
-            blacklist = list(blacklist)
-            return ifilterfalse(lambda x: x in blacklist, source)
-        else:
-            return ifilterfalse(lambda x: x is blacklist, source)
-    except ValueError:
-        return without(without(source,blacklists[0]),blacklists[1:])
-
-def printing(obj):
-    print obj
-    return obj
-
-class SerialGame(object):
-    def __init__(self, *decisions):
-        self.decisions = decisions
-    def start(self):
-        self.payoff = []
-        self.actions = []
-        self.stage = 0
-    def play(self,action):
-        decision,stage = self.decisions[stage]
-        
-class Game(object):
-    def __init__(self, payoffs):
-        pass
 
 class StageGame(object):
-    """
-    base class for all games, initialized with a payoff dict
-    TODO: Build a game generator that can capture an ultimatum game by stringing together simple games. For instance,
-    GAME 1: P1 gets 10 and can share X [0 through 10] with P2
-    GAME 2: P2 can do nothing and keep X, or lose -X and have P1 lose 10-X
-    
-    """
-    def __init__(self, payoffs):
-        self.N_players = len(payoffs.values()[0])
-     # Create the action space
-        self.actions = payoffs.keys()
-        self.action_lookup = {a:i for i, a in enumerate(self.actions)}
-        self.payoffs = payoffs
-
-    def __call__(self,action):
-        return action, self.payoffs[action]
-        
-class BinaryDictator(StageGame):
-    """
-    dictator game in which cooperation produces more rewards in total
-    """
-    def __init__(self, endowment = 0, cost = 1, benefit = 2):
-        payoffs = {
-            "keep": (endowment, 0),
-            "give": (endowment-cost, benefit),
-        }
-        super(BinaryDictator, self).__init__(payoffs)
-
-class UltimatumPropose(StageGame):
-    def __init__(self, endowment):
-        payoffs = {"keep {}/give {}".format(keep, give) : (keep, give) for keep, give in
-                   ((endowment - give, give) for give in xrange(endowment))}
-        super(UltimatumPropose, self).__init__(payoffs)
-        
-
+    pass
 class CostlyAllocationGame(StageGame):
     """
     Three player version of dictator
@@ -163,14 +101,6 @@ class Agent(object):
         # assume its uniform since it doesn't matter for dictator
         # game. Can/Should use the belief distribution. May need to do
         # a logit response for simultaneous move games.
-
-        # OBSOLETE?
-        #Us = np.zeros(len(game.actions)) # Utilities for each action
-        #for action in game.actions:
-        #    action_index = game.action_lookup[action]
-        #    Us[action_index] += deciding_agent.utility(game.payoffs[action], agents)
-        #    print Us[action_index]
-
         Us = np.array([deciding_agent.utility(game.payoffs[action], agents)
                        for action in game.actions])
         return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
@@ -222,33 +152,19 @@ class RationalAgent(Agent):
         self.pop_prior = copy(self.genome['prior'])
         
         self.uniform_likelihood = normalized(self.pop_prior*0+1)
-        
+        self.rational_models = {}
         self.models = {}
         self.likelihood = {}
         self.belief = {}
-        
 
-    # def initialize_models(self, agent_ids):
-    #     for agent_id in agent_ids:
+
+    #def initialize_models(self, agent_ids):
+    #    for agent_id in agent_ids:
     #         if agent_id == self.world_id: continue
     #         if agent_id not in self.models:
     #             self.models[agent_id] = type(self)(self.genome,world_id = agent_id)
     #             for o_id in agent_ids:
     #                 self.models[agent_id].belief[o_id] = self.models[agent_id].initialize_prior()
-
-                    
-    # def get_models(self, agent_id):
-    #     models = []
-    #     for agent_type in self.genome['agent_types']:
-    #         if agent_type is type(self):
-    #             try:
-    #                 models.append(self.models[agent_id])
-    #             except KeyError:
-    #                 self.models[agent_id] = agent_type(self.genome, world_id = agent_id)
-    #                 models.append(self.models[agent_id])
-    #         else:
-    #             models.append(agent_type(self.genome, world_id = agent_id))
-    #     return models
         
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
@@ -308,80 +224,72 @@ class RationalAgent(Agent):
         # observes who is unknown.
 
         #if K < 0: return
+        genome = self.genome
+        agent_types = genome['agent_types']
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
 
+        my_id = self.world_id 
+        observations = filter(lambda obs: my_id in obs[2], observations)
         for observation in observations:
-            g, p,observers,a = observation
-            #self.initialize_models(observers)
+            observers = observation[2]
+            
             for agent_id in observers:
                 if agent_id == self.world_id: continue
-                if agent_id not in self.models:
-                    self.models[agent_id] = type(self)(self.genome,world_id = agent_id)
+                
+                if agent_id not in self.rational_models:
+                    rational_model = RationalAgent(genome,agent_id)
+                    self.rational_models[agent_id] = rational_model
+                    self.models[agent_id] = {}
+                    self.belief[agent_id] = self.initialize_prior()
+                    self.likelihood[agent_id] = self.initialize_likelihood()
+                    
+                    for rational_type in rational_types:
+                        model = self.models[agent_id][rational_type] = rational_type(genome,agent_id)
+                        model.belief = rational_model.belief
+                        model.likelihood = rational_model.likelihood
+
                     for o_id in observers:
-                        self.models[agent_id].belief[o_id] = self.models[agent_id].initialize_prior()
+                        rational_model.belief[o_id] = rational_model.initialize_prior()
+                        rational_model.likelihood[o_id] = rational_model.initialize_likelihood()
                 
         for observation in observations:
             game, participants, observers, action = observation
 
-            deciding_agent = participants[0]
+            decider_id= participants[0]
+            
+            if decider_id == my_id: continue
 
-            # Can't have a belief about what I think about what I think. Beliefs about others are first order beliefs.
-            #so if i'm considering myself, skip to the next round of the loop
-            if deciding_agent == self.world_id: continue
-
-            #if im not one of the observers this round, skip to the next round
-            if self.world_id not in observers: continue
-
-            #generate a list of models for every type of agent
-            #models = self.get_models(deciding_agent)
-
-            models = []
-            for agent_type in self.genome['agent_types']:
-                if issubclass(agent_type,RationalAgent):
-                    try:
-                        models.append(self.models[deciding_agent])
-                    except KeyError:
-                        self.models[deciding_agent] = agent_type(self.genome, world_id = deciding_agent)
-                        models.append(self.models[deciding_agent])
-                else:
-                    models.append(agent_type(self.genome, world_id = deciding_agent))
-
+            likelihood = []
+            append_to_likelihood = likelihood.append
+            decide_likelihood = Agent.decide_likelihood
             action_index = game.action_lookup[action]
-            
+
             #calculate the normalized likelihood for each type
-            likelihood = [Agent.decide_likelihood(model, game, participants, tremble)[action_index] for model in models]
-            #print deciding_agent
-            #print"raw likelihood", likelihood
+            for agent_type in agent_types:
+                if agent_type in rational_types:
+                    #fetch model
+                    model = self.models[decider_id][agent_type]
+                else:
+                    #make model
+                    model = agent_type(genome, world_id = decider_id)
+                append_to_likelihood(decide_likelihood(model,game,participants,tremble)[action_index])
+                
 
-            #print "old likelihood",[self.likelihood[deciding_agent][ReciprocalAgent],self.likelihood[deciding_agent][SelfishAgent]]
-
-            try:
-                self.likelihood[deciding_agent] *= likelihood
-            except KeyError:
-                self.likelihood[deciding_agent] = self.initialize_likelihood()
-                self.likelihood[deciding_agent] *= likelihood
-            
-            # self.likelihood[deciding_agent] = self.likelihood[deciding_agent]
-            # self.likelihood[deciding_agent] = normalized(self.likelihood[deciding_agent])
-            #print "prior","RA",self.pop_prior[ReciprocalAgent],"\tSA",self.pop_prior[SelfishAgent]
-            #print "likelihood",deciding_agent,"RA",self.likelihood[deciding_agent][ReciprocalAgent],"\tSA",self.likelihood[deciding_agent][SelfishAgent]
-            #print 
-
-            self.belief[deciding_agent] = (self.pop_prior*self.likelihood[deciding_agent]) / np.dot(self.pop_prior,self.likelihood[deciding_agent])
-
-            # likelihood = np.array(likelihood)
-            # self.belief[deciding_agent] = (self.belief[deciding_agent] * likelihood) / np.dot(self.belief[deciding_agent], likelihood)
-
-            
+            self.likelihood[decider_id] *= likelihood
+    
+            prior = self.pop_prior
+            likelihood = self.likelihood[decider_id]
+            self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
 
 
         # Observe the other person, when this code runs at K=0
         # nothing will happen because of the return at the top
         # of the function.
 
-        #observations = [observation for observation in observation if self.world_id in observation[2]]
+        
         if K == 0:return
-        for agent in self.models:
-            self.models[agent].observe_k(observations, K-1, tremble)
+        for model in self.rational_models.values():
+            model.observe_k(observations, K-1, tremble)
 
             
         # if K>0:
@@ -532,7 +440,7 @@ def default_params():
     ]
     return {
         'N_agents':2,
-        'games': BinaryDictator(0, 1, 2), 
+        'games': PrisonersDilemmaCTO(), 
         'stop_condition': [constant_stop_condition,10],
         'agent_types' : agent_types,
         'beta': 3,
@@ -557,7 +465,7 @@ def prior_generator(agent_types,RA_prior=False):
     try:
         return namedArrayConstructor(tuple(agent_types))(
             [
-                uniform if agentType is not NiceReciprocalAgent 
+                uniform if agentType is not ReciprocalAgent 
                 else RA_prior for agentType in agent_types
             ])
     except:
@@ -657,149 +565,30 @@ class World(object):
         proportional to fitness
         """
         pass
-    
-    # def run(self):
-    #     # take in a sampling function
-    #     fitness = np.zeros(self.pop_size)
-    #     history = []
-        
-    #     #Get all matchups (sets of players)
-    #     #players are represented by their position in the list of agents
-    #     matchups = list(itertools.combinations(xrange(self.pop_size), self.game.N_players))
-    #     np.random.shuffle(matchups)
-        
-    #     for players in matchups:
-    #         players= list(players)
-    #         rounds = 0
-    #         seeds = []
-    #         while True:
-    #             # np.random.seed(rounds)
-    #             rounds += 1
-                
-    #             observations = []
-    #             likelihoods = []
-    #             payoff = np.zeros(self.pop_size)
-
-
-    #             #We want every possible significant matchup to happen
-    #             #everyone gets to be a deciding agents exactly once
-                
-    #             #We assume that:
-    #             #the order of non-deciding players doesn't matter
-    #             #games only have a single deciding player
-    #             player_orderings = [players[n:n+1]+players[:n]+players[n+1:]
-    #                                 for n in range(len(players))]
-    #             #seeds.append(np.random.get_state()[2])
-                
-    #             for player_order in player_orderings:
-                    
-    #                 agents, agent_ids = [], []
-    #                 for nth in player_order:
-    #                     agents.append(self.agents[nth])
-    #                     agent_ids.append(self.agents[nth].world_id)
-
-                    
-    #                 deciders = agents[:1]
-    #                 decider = deciders[0]
-    #                 # Intention -> Trembling Hand -> Action
-    #                 intentions = [decider.decide(self.game,agent_ids)]
-
-                    
-    #                 #[decider.decide(self.game, agent_ids) for decider in deciders]
-                    
-    #                 actions = intentions
-    #                 # translate intentions into actions applying tremble
-
-    #                 #accumulate the payoff
-    #                 for action in actions:
-    #                     payoff[list(player_order)] += self.game.payoffs[action]
-
-    #                 # Determine who gets to observe this action. 
-                    
-    #                 # Reveal observations to update the belief state. This
-    #                 # is where we can include more agents to increase the
-    #                 # amount of observability
-    #                 observer_ids = players
-
-    #                 # Record observations
-    #                 observation = (self.game, agent_ids, tuple(observer_ids), actions[0])
-    #                 observations.append(observation)
-                    
-                
-    #             # Update fitness
-    #             fitness += payoff
-
-    #             # All observers see who observed the action. 
-    #             # for o in observations:
-    #                 # Iterate over all of the observers
-                
-                
-    #             for agent in self.agents:
-    #                 agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
-
-    #             #print players
-    #             #print observations
-                
-    #             #for agent in self.agents:
-    #             #    print agent.belief
-                
-    #             history.append({
-    #                 'round': rounds,
-    #                 'players': tuple(self.agents[player] for player in players),
-    #                 'actions': tuple(observation[3] for observation in observations),
-    #                 'pair':player_orderings,
-    #                 'likelihoods':likelihoods,
-    #                 'observations':observations,
-    #                 'payoff': payoff,
-    #                 'belief': tuple(copy(self.agents[player].belief) for player in players)
-    #             })
-
-    #             if self.stop_condition(rounds): break
-    #     self.last_run_results = {'fitness': fitness,'history': history}
-
-    #     return fitness, history
 
     def run(self):
         # take in a sampling function
-        game = PrisonersDilemma()
-        
+        game = self.game
         fitness = np.zeros(self.pop_size)
         history = []
-        
-        #Get all matchups (sets of players)
-        #players are represented by their position in the list of agents
-        matchups = list(itertools.combinations(xrange(self.pop_size), self.game.N_players))
-        np.random.shuffle(matchups)
-        
-        for players in matchups:
-            players= list(players)
-            rounds = 0
-            seeds = []
-            while True:
-                rounds += 1
-
-                agents = np.array([self.agents[i] for i in players])
+        rounds = 0
+        while True:
+            rounds += 1    
+            payoff, observations = game.play(np.array(self.agents),self.agents, tremble=self.params['p_tremble'])
+            fitness += payoff
                 
-                payoff, observations = game.play(agents, self.agents, tremble=self.params['p_tremble'])
+            history.append({
+                'round': rounds,
+                'players': tuple(self.agents),
+                'actions': tuple(observation[3] for observation in observations),
+                'payoff': payoff,
+                'belief': tuple(copy(agent.belief) for agent in self.agents),
+                # 'belief2': copy(self.agents[0].models[1].belief[0][ReciprocalAgent]),
+            })
 
-                fitness[players] += payoff
+            if self.stop_condition(rounds): break
 
-                
-                #for agent in self.agents:
-                #    agent.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
-                
-                history.append({
-                    'round': rounds,
-                    'players': tuple(self.agents[player] for player in players),
-                    'actions': tuple(observation[3] for observation in observations),
-                    'payoff': payoff,
-                    'belief': tuple(copy(agent.belief) for agent in self.agents),
-                    # 'belief2': copy(self.agents[0].models[1].belief[0][ReciprocalAgent]),
-                })
-
-                if self.stop_condition(rounds): break
         self.last_run_results = {'fitness': fitness,'history': history}
-
         return fitness, history
 
     def use_npArrays(self):
@@ -864,9 +653,6 @@ def discount_stop_condition(x,n):
     return not flip(x)
 def constant_stop_condition(x,n):
     return n >= x
-
-# adding multistep games and games that depend on the outcome of previosu games (e.g., ultimatum game)
-# TODO: This currently expects a single game instance. TODO: Make this accept a list of games or a game generator function. 
 
 
 def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
@@ -967,9 +753,10 @@ def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
                  'prior':prior_generator(agent_types,RA_prior),
                  'agent_types_model':[ReciprocalAgent,SelfishAgent],
                  'prior_precision': params['prior_precision'],
-                 'beta': params['beta']
+                 'beta': params['beta'],
+                 'RA_K':1
                 },
-                {'type': SelfishAgent, 'beta': params['beta']},
+                {'type': SelfishAgent, 'beta': params['beta'],'RA_K':1},
             ])
             
             fitness, history = w.run()
@@ -1021,9 +808,10 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', ov
         "agent_types_world": agent_types,
         "RA_prior":.8
     })
-    N_runs = 10
+    N_runs = 5
     data = []
-    for rounds in np.linspace(1, 8, 8, dtype=int):
+    n_rounds = 3
+    for rounds in np.linspace(1,n_rounds ,n_rounds, dtype=int):
     
         print "Rounds:",rounds
         for r_id in range(N_runs):
@@ -1032,7 +820,7 @@ def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', ov
             params['stop_condition'] = [constant_stop_condition,rounds]
                   
             w = World(params, generate_random_genomes(**params))
-            fitness, history = w.new_run()
+            fitness, history = w.run()
             #print fitness
             genome_fitness = Counter()
             genome_count = Counter()
@@ -1124,14 +912,20 @@ def diagnostics():
         assert_almost_equal(w.agents[1].belief[0],[ 0.98637196,  0.01362804])
 
 if __name__ == '__main__':
-    import ipdb; ipdb.set_trace()
-    forgiveness_experiment(overwrite=True)
-    forgiveness_plot() 
+    #import ipdb; ipdb.set_trace()
+    #forgiveness_experiment(overwrite=True)
+    #forgiveness_plot() 
 
-    #protection_experiment(overwrite=True)
-    #protection_plot()
+    protection_experiment(overwrite=True)
+    protection_plot()
 
-    # fitness_rounds_experiment(10,overwrite=True)
-    # fitness_rounds_plot()
+    #fitness_rounds_experiment(20,overwrite=True)
+    #fitness_rounds_plot()
 
     #diagnostics()
+
+"""
+Trust game
+public goods
+chicken?
+"""
