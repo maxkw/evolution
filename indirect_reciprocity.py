@@ -1,3 +1,4 @@
+
 from __future__ import division
 import scipy as sp
 import numpy as np
@@ -21,6 +22,7 @@ from operator import mul as multiply
 from copy import copy, deepcopy
 from functools import partial
 from utils import unpickled, pickled
+from games import RepeatedPrisonersTournament
 
 print
 sns.set_style('white')
@@ -452,25 +454,7 @@ def default_params():
         'agent_types_world': agent_types
     }
 
-def prior_generator(agent_types,RA_prior=False):
-    agent_types = tuple(agent_types)
-                                           
-    if ReciprocalAgent in agent_types or NiceReciprocalAgent in agent_types:
-        uniform = (1.0-RA_prior)/(len(agent_types)-1)
-    else:
-        uniform = 1.0/len(agent_types)
 
-    if not RA_prior:
-        RA_prior = uniform
-    try:
-        return namedArrayConstructor(tuple(agent_types))(
-            [
-                uniform if agentType is not ReciprocalAgent 
-                else RA_prior for agentType in agent_types
-            ])
-    except:
-        print agent_types
-        raise
 
 def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, prior_precision,
                             beta, **keys):
@@ -574,7 +558,7 @@ class World(object):
         rounds = 0
         while True:
             rounds += 1    
-            payoff, observations = game.play(np.array(self.agents),self.agents, tremble=self.params['p_tremble'])
+            payoff, observations,annotations = game.play(np.array(self.agents),self.agents, tremble=self.params['p_tremble'])
             fitness += payoff
                 
             history.append({
@@ -591,6 +575,13 @@ class World(object):
         self.last_run_results = {'fitness': fitness,'history': history}
         return fitness, history
 
+    def new_run(self):
+        
+        game = RepeatedPrisonersTournament(10)
+        payoff,observations,record = game.play(np.array(self.agents),self.agents,tremble=self.params['p_tremble'])
+        return payoff, record
+
+        
     def use_npArrays(self):
         """
         changes all instances of NamedArray in the world to np.ndarray
@@ -654,216 +645,48 @@ def discount_stop_condition(x,n):
 def constant_stop_condition(x,n):
     return n >= x
 
-
-def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
+def prior_generator(agent_types,RA_prior=False):
     """
-    When two reciprocal agents interact, how likely are they to figure out that they are both reciprocal agent types?
-    This will depend on the RA_prior. 
-
-    Compare with something like TFT which if it gets off on the wrong foot will never recover. There are forgiving versions of TFT but they are not context sensitive. Experiments here should explore how the ReciprocalAgent is a more robust cooperator since it can reason about types. 
-
-    TODO: This could be an interesting place to explore p_tremble, and show that agents can recover. 
-    """
-    print 'Running Forgiveness Experiment'
-    if os.path.isfile(path) and not overwrite: 
-        print path, 'exists. Delete or set the overwrite flag.'
-        return
-    
-    params = default_params()
-    params['N_agents'] = 2
-    params['agent_types_world'] = [ReciprocalAgent]
-    params['agent_types_model'] = [ReciprocalAgent,SelfishAgent]
-    N_round = 10
-    params['stop_condition'] = [constant_stop_condition,N_round]
-    data = []
-    N_runs = 500
-    for RA_prior in np.linspace(0.5, 0.95, 4):
-        params['RA_prior'] = RA_prior
-        print 'running prior', RA_prior
-
-        for r_id in range(N_runs):
-            np.random.seed(r_id) # Increment a new seed for each run
-            w = World(params, generate_random_genomes(params['N_agents'],
-                                                      params['agent_types_world'],
-                                                      params['agent_types_model'],
-                                                      params['RA_prior'],
-                                                      params['prior_precision'],
-                                                      params['beta']))
-            fitness, history = w.run()
-            for nround in range(len(history)):
-                avg_beliefs = np.mean([history[nround]['belief'][0][w.agents[1].world_id][ReciprocalAgent],
-                                       history[nround]['belief'][1][w.agents[0].world_id][ReciprocalAgent]])
-                #print avg_beliefs.dtype
-                data.append({
-                    'RA_prior': RA_prior,
-                    'avg_beliefs': avg_beliefs,
-                    'round': nround+1
-                })
-
-            data.append({
-                'RA_prior': RA_prior,
-                'avg_beliefs': RA_prior,
-                'round': 0
-            })
-
-
-    df = pd.DataFrame(data)
-    df.to_pickle(path)
-
-def forgiveness_plot(in_path = 'sims/forgiveness.pkl', out_path='writing/evol_utility/figures/forgiveness.pdf'):
-    df = pd.read_pickle(in_path)
-
-    sns.factorplot(x='round', y='avg_beliefs', hue='RA_prior', data=df)
-    sns.despine()
-    plt.ylim([0,1.05])
-    plt.ylabel('P(Other is reciprocal | Round)'); plt.xlabel('Round')
-    plt.tight_layout()
-    plt.savefig(out_path); plt.close()
-
-    
-    
-def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
-    """
-    If a ReciprocalAgent and a Selfish agent are paired together. How quickly will the
-    ReicprocalAgent detect it. Look at how fast this is learned as a function of the prior. 
+    if not given RA_prior it generates a uniform prior over types
+    else splits RA_prior uniformly among all rational types
     """
     
-    print 'Running Protection Experiment'
-    if os.path.isfile(path) and not overwrite: 
-        print path, 'exists. Delete or set the overwrite flag.'
-        return
-
-    params = default_params()
-    params['agent_types_world'] = agent_types =  [ReciprocalAgent, SelfishAgent]
+    agent_types = tuple(agent_types)
+    size = len(agent_types)
+    NamedArray = namedArrayConstructor(agent_types)
+    rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+    if not (RA_prior or rational_types):
+        return NamedArray(np.ones(size)/size)
+    else:
+        rational_size = len(rational_types)
+        try:
+            normal_prior = (1.0-sum(RA_prior.values()))/(size-rational_size)
+            prior = [RA_prior[agent_type] if agent_type in RA_prior
+                     else normal_prior for agent_type in agent_types]
+        except TypeError:
+            rational_prior = RA_prior/float(rational_size)
+            normal_prior = (1.0-RA_prior)/(size-rational_size)
+            prior = [rational_prior if agent_type in rational_types
+                     else normal_prior for agent_type in agent_types]
+        finally:
+            return NamedArray(prior)
+    
+def default_genome(params = default_params,agent_type = False):
+    agent_types = params["agent_types"]
+    
+    if agent_type:
+        assert agent_type in agent_types
+    else:
+        agent_type = np.random.choice(agent_types)
         
-    params['stop_condition'] = [constant_stop_condition,10]
-    data = []
-    N_runs = 500
-    for RA_prior in np.linspace(0.5, .95, 4):
-        params['RA_prior'] = RA_prior
-        print 'running prior', RA_prior
-
-        for r_id in range(N_runs):
-            np.random.seed(r_id)
-            w = World(params, [
-                {'type': ReciprocalAgent,
-                 'RA_prior': RA_prior,
-                 'agent_types':[ReciprocalAgent,SelfishAgent],
-                 'agent_types_world':[ReciprocalAgent,SelfishAgent],
-                 'prior':prior_generator(agent_types,RA_prior),
-                 'agent_types_model':[ReciprocalAgent,SelfishAgent],
-                 'prior_precision': params['prior_precision'],
-                 'beta': params['beta'],
-                 'RA_K':1
-                },
-                {'type': SelfishAgent, 'beta': params['beta'],'RA_K':1},
-            ])
-            
-            fitness, history = w.run()
-
-            for h in history:
-                data.append({
-                    'round': h['round'],
-                    'RA_prior': RA_prior,
-                    'belief': h['belief'][0][1][ReciprocalAgent],
-                })
-
-            data.append({
-                'round': 0,
-                'RA_prior': RA_prior,
-                'belief': RA_prior,
-            })
-
-    #df = pd.DataFrame(data)
-    #df.to_pickle(path)
-
-def protection_plot(in_path = 'sims/protection.pkl',
-                    out_path='writing/evol_utility/figures/protection.pdf'):
-    df = pd.read_pickle(in_path)
-
-    sns.factorplot('round', 'belief', hue='RA_prior', data=df, ci=68)
-    sns.despine()
-    plt.ylim([0,1])
-    plt.ylabel('P(Other is reciprocal | Interactions)'); plt.xlabel('Round #')
-    plt.tight_layout()
-    plt.savefig(out_path); plt.close()
-    
-def fitness_rounds_experiment(pop_size = 4, path = 'sims/fitness_rounds.pkl', overwrite = False):
-    """
-    Repetition supports cooperation. Look at how the number of rounds each dyad plays together and 
-    the average fitness of the difference agent types. 
-    """
-    
-    print 'Running Fitness Rounds Experiment'
-    if os.path.isfile(path) and not overwrite: 
-        print path, 'exists. Delete or set the overwrite flag.'
-        return
-
-    agent_types = [ReciprocalAgent,SelfishAgent]
-    params = default_params()
-    params.update({
-        "N_agents":pop_size,
-        "RA_K": 1,
-        "agent_types": agent_types,
-        "agent_types_world": agent_types,
-        "RA_prior":.8
-    })
-    N_runs = 5
-    data = []
-    n_rounds = 3
-    for rounds in np.linspace(1,n_rounds ,n_rounds, dtype=int):
-    
-        print "Rounds:",rounds
-        for r_id in range(N_runs):
-            np.random.seed(r_id)
-
-            params['stop_condition'] = [constant_stop_condition,rounds]
-                  
-            w = World(params, generate_random_genomes(**params))
-            fitness, history = w.run()
-            #print fitness
-            genome_fitness = Counter()
-            genome_count = Counter()
-
-            for a_id, a in enumerate(w.agents):
-                genome_fitness[type(a)] += fitness[a_id]
-                genome_count[type(a)] += 1
-
-            average_fitness = {a:genome_fitness[a]/genome_count[a] for a in genome_fitness}
-
-            moran_fitness = softmax_utility(average_fitness, params['moran_beta'])
-
-            for a in moran_fitness:
-                data.append({
-                    'rounds': rounds,
-                    'genome': a,
-                    'fitness': moran_fitness[a]
-                })
-
-        df = pd.DataFrame(data)
-        df.to_pickle(path)
-    return w
-
-def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/evol_utility/figures/fitness_rounds.pdf'):
-
-    df = pd.read_pickle(in_path)
-    sns.factorplot('rounds', 'fitness', hue='genome', data=df,)
-    sns.despine()
-    plt.ylim([0,1.05])
-    plt.ylabel('Fitness ratio'); plt.xlabel('# of repetitions')
-    plt.tight_layout()
-    plt.savefig(out_path); plt.close()
-
-
-def default_genome(agent_type,agent_types = (ReciprocalAgent,SelfishAgent), params = default_params()):
-    assert agent_type in agent_types
     return {
         'type': agent_type,
         'RA_prior': params['RA_prior'],
-        'RA_prior_precision': params['RA_prior_precision'],
+        'prior_precision': params['prior_precision'],
         'beta': params['beta'],
         'prior': prior_generator(agent_types,params['RA_prior']),
-        "agent_types":agent_types
+        "agent_types":agent_types,
+        'RA_K':params['RA_K']
     }
     
 
