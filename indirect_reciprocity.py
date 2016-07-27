@@ -631,12 +631,12 @@ def prior_generator(agent_types,RA_prior=False):
     if not (RA_prior or rational_types):
         return NamedArray(np.ones(size)/size)
     else:
-        rational_size = len(rational_types)
         try:
-            normal_prior = (1.0-sum(RA_prior.values()))/(size-rational_size)
+            normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
             prior = [RA_prior[agent_type] if agent_type in RA_prior
                      else normal_prior for agent_type in agent_types]
         except TypeError:
+            rational_size = len(rational_types)
             rational_prior = RA_prior/float(rational_size)
             normal_prior = (1.0-RA_prior)/(size-rational_size)
             prior = [rational_prior if agent_type in rational_types

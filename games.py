@@ -303,8 +303,9 @@ def PrisonersTournament(repetitions_per_round=1,endowment = 0, cost = 1, benefit
     """
     these two versions should be the same but they're not
     """
-    return PrivatelyObserved(Symmetric(BinaryDictator()))
-    #return PrivatelyObserved(CombinatorialTournament(PrisonersDilemma(endowment,cost,benefit)))
+    #return PrivatelyObserved(Symmetric(BinaryDictator()))
+    return PrivatelyObserved(CombinatorialTournament(PrisonersDilemma(endowment,cost,benefit)))
 
 def RepeatedPrisonersTournament(rounds = 10):
     return Repeated(rounds,PrivatelyObserved(CombinatorialTournament(PrisonersDilemma())))
+    #return Repeated(rounds,PrivatelyObserved(Symmetric(BinaryDictator())))

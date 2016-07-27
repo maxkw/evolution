@@ -1,6 +1,6 @@
 from indirect_reciprocity import World, default_params,constant_stop_condition,prior_generator,default_genome
 from indirect_reciprocity import RationalAgent, ReciprocalAgent, NiceReciprocalAgent, AltruisticAgent, SelfishAgent
-from games import PrisonersTournament
+from games import RepeatedPrisonersTournament
 
 import numpy as np
 import os.path
@@ -27,24 +27,24 @@ def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
                    AltruisticAgent,
                    SelfishAgent]
     params['agent_types'] = agent_types
-    params['games'] = PrisonersTournament() 
-    params['stop_condition'] = [constant_stop_condition,10]
+    params['games'] = RepeatedPrisonersTournament(10)
     params['p_tremble'] = 0
     params['RA_K'] = 1
 
-    N_runs = 100
+    N_runs = 50
     historical_record = []
     record_history = historical_record.append
     rational_types = filter(lambda t: issubclass(t,RationalAgent), agent_types)
     player_types = agent_types+rational_types
-    
-    for RA_prior in np.linspace(1.0/len(agent_types), .9, 3):
+    #player_types = [ReciprocalAgent]+agent_types
+    for RA_prior in np.linspace(1.0/len(agent_types),.9, 3):
+    #for RA_prior in np.linspace(.5,.9, 3):
         print 'running prior', RA_prior
         params['RA_prior'] = RA_prior = {ReciprocalAgent:RA_prior}
+        prior = prior_generator(agent_types,RA_prior)
         
         for r_id in range(N_runs):
             np.random.seed(r_id)
-            prior = prior_generator(agent_types,RA_prior)
             w = World(params, [default_genome(params,agent_type) for agent_type in player_types])
             fitness, history = w.run()
             record_history((prior,history))
