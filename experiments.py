@@ -4,28 +4,25 @@ from games import RepeatedPrisonersTournament
 
 import numpy as np
 import os.path
+from os import makedirs
 
 #plotting imports
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-
-def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
+def type_tournament(agent_types,path = 'plots/', overwrite = False):
     """
-    How long does it take for RA to realize AA's type
+    Face each type against every other type
+    Plot beliefs over time of all rationals
     """
     
     print 'Running RA v. AA Experiment'
     if os.path.isfile(path) and not overwrite: 
         print path, 'exists. Delete or set the overwrite flag.'
         return
-
+    
     params = default_params()
-    agent_types = [ReciprocalAgent,
-                   NiceReciprocalAgent,
-                   AltruisticAgent,
-                   SelfishAgent]
     params['agent_types'] = agent_types
     params['games'] = RepeatedPrisonersTournament(10)
     params['p_tremble'] = 0
@@ -34,6 +31,7 @@ def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
     N_runs = 50
     historical_record = []
     record_history = historical_record.append
+    
     rational_types = filter(lambda t: issubclass(t,RationalAgent), agent_types)
     player_types = agent_types+rational_types
     #player_types = [ReciprocalAgent]+agent_types
@@ -51,34 +49,75 @@ def RA_v_AA(path = 'sims/RAvAA.pkl', overwrite = False):
     print "Done. All conditions have been tested."
 
     def history_to_belief_data(historical_record,agent_id,target_ids):
-        data = []
-        append = data.append
+        belief_data,likelihood_data = [],[]
+        belief_append = belief_data.append
+        likelihood_append = likelihood_data.append
+        init_likelihood = 1.0/len(agent_types)
         for prior,history in historical_record:
             for agent_type in agent_types:
                 for target_id in target_ids:
                     for h in history:
-                        append({
+                        belief_append({
                             'round': h['round'],
                             'RA_prior': prior[ReciprocalAgent],
                             'belief': h['belief'][agent_id][target_id][agent_type],
                             'Type': agent_type,
                             'ID':target_id
                         })
-
-                    append({
+                        likelihood_append({
+                            'round': h['round'],
+                            'RA_prior': prior[ReciprocalAgent],
+                            'likelihood': h['likelihood'][agent_id][target_id][agent_type],
+                            'Type': agent_type,
+                            'ID':target_id
+                            })
+                    belief_append({
                         'round': 0,
                         'RA_prior': prior[ReciprocalAgent],
                         'belief': prior[agent_type],
                         'Type': agent_type,
                         'ID':target_id
                     })
-        return data
+                    likelihood_append({
+                        'round': 0,
+                        'RA_prior': prior[ReciprocalAgent],
+                        'likelihood': init_likelihood,
+                        'Type': agent_type,
+                        'ID':target_id
+                    })
+        return belief_data,likelihood_data
+
+    path += "v".join(filter(str.isupper,t.__name__) for t in agent_types)+"/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    path += "%s_%s.pdf"
+    
     
     N_types = len(agent_types)
-    data = history_to_belief_data(historical_record,N_types,range(N_types))
-    #data = history_to_belief_data(historical_record,0,[1,2,3])
-    df = pd.DataFrame(data)
-    df.to_pickle(path)
+    N_rational = len(rational_types)
+    for agent_type,agent_id in zip(rational_types,range(N_types,N_types+N_rational)):
+        belief, likelihood = history_to_belief_data(historical_record,agent_id,range(N_types))
+        type_initials = filter(str.isupper,agent_type.__name__)
+        tourney_plotter(belief,'belief', path % (type_initials,'belief'))
+        tourney_plotter(likelihood,'likelihood',path % (type_initials,'likelihood'))
+
+
+
+def tourney_plotter(data,field,out_path):
+    data = pd.DataFrame(data)
+    sns.factorplot('round', field , hue='RA_prior', col='Type',row='ID',data=data, ci=68)
+    sns.despine()
+    plt.ylim([0,1])
+    plt.ylabel('P(1 is RA | Interactions)'); plt.xlabel('Round #')
+    plt.tight_layout()
+    plt.savefig(out_path); plt.close()
+
+type_tournament([
+    ReciprocalAgent,
+    NiceReciprocalAgent,
+    AltruisticAgent,
+    SelfishAgent,
+])
 
 def RA_v_AA_plot(in_path = 'sims/RAvAA.pkl',
                  out_path='writing/evol_utility/figures/RAvAA.pdf'):
@@ -99,8 +138,8 @@ def RA_v_AA_plot(in_path = 'sims/RAvAA.pkl',
     # plt.savefig('writing/evol_utility/figures/RAvAA2.pdf'); plt.close()
 
 
-RA_v_AA(overwrite=True)
-RA_v_AA_plot()
+#RA_v_AA(overwrite=True)
+#RA_v_AA_plot()
 
 from indirect_reciprocity import default_genome
 def diagnostics():

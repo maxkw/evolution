@@ -34,7 +34,7 @@ import warnings
 warnings.filterwarnings("ignore",category=np.VisibleDeprecationWarning)
 
 from itertools import ifilterfalse
-from games import PrisonersDilemmaCTO
+from games import RepeatedPrisonersTournament
 
 
 class StageGame(object):
@@ -278,7 +278,8 @@ class RationalAgent(Agent):
                 
 
             self.likelihood[decider_id] *= likelihood
-    
+            self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
+            
             prior = self.pop_prior
             likelihood = self.likelihood[decider_id]
             self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
@@ -442,7 +443,7 @@ def default_params():
     ]
     return {
         'N_agents':2,
-        'games': PrisonersDilemmaCTO(), 
+        'games': RepeatedPrisonersTournament(10), 
         'stop_condition': [constant_stop_condition,10],
         'agent_types' : agent_types,
         'beta': 3,
