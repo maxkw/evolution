@@ -551,34 +551,7 @@ class World(object):
         pass
 
     def run(self):
-        # take in a sampling function
-        game = self.game
-        fitness = np.zeros(self.pop_size)
-        history = []
-        rounds = 0
-        while True:
-            rounds += 1    
-            payoff, observations,annotations = game.play(np.array(self.agents),self.agents, tremble=self.params['p_tremble'])
-            fitness += payoff
-                
-            history.append({
-                'round': rounds,
-                'players': tuple(self.agents),
-                'actions': tuple(observation[3] for observation in observations),
-                'payoff': payoff,
-                'belief': tuple(copy(agent.belief) for agent in self.agents),
-                # 'belief2': copy(self.agents[0].models[1].belief[0][ReciprocalAgent]),
-            })
-
-            if self.stop_condition(rounds): break
-
-        self.last_run_results = {'fitness': fitness,'history': history}
-        return fitness, history
-
-    def new_run(self):
-        
-        game = RepeatedPrisonersTournament(10)
-        payoff,observations,record = game.play(np.array(self.agents),self.agents,tremble=self.params['p_tremble'])
+        payoff,observations,record = self.game.play(np.array(self.agents),self.agents,tremble=self.params['p_tremble'])
         return payoff, record
 
         
