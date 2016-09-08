@@ -170,3 +170,13 @@ def constraint_min(f,x):
     )
     return out
 
+def randomly_chosen(percent,elements):
+    """
+    given a percentage and a list of elements
+    randomly select that percent of elements from the list
+    uses floor of number of elements times percent
+    """
+    indices = range(int(len(elements)*percent))
+    np.random.shuffle(indices)
+    return list(elements[indices])
+
