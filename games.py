@@ -19,14 +19,10 @@ class Playable(object):
         Combinatorial(PrisonersDilemma(cost = 1, benefit = 3)).name has the value
         'Combinatorial(PrisonersDilemma(cost = 1, benefit = 3))'
 
-    Playable Classes and functions that take in and return Playables as parameters 
-    should likewise set their own names, or that of the playable, to the appropriate 
-    name.
-
     the idea is that the name perfectly specifies how the object came to be and how
     to recreate it.
     """
-    def _play(decision,participants,observers=[],tremble=0):
+    def play(decision,participants,observers=[],tremble=0):
         """
         returns a dict containing
         the decision
@@ -34,6 +30,9 @@ class Playable(object):
         the ids of the participants in the order they were given
         the ids of the observers (participants are always on this list)
         an array of the payoffs of each agent as ordered in participant_ids
+
+        NOTE:
+        participants are always added to observer list (with no doubling)
         """
         participant_ids = [participant.world_id for participant in participants]
         decider = participants[0]
@@ -57,92 +56,81 @@ class Playable(object):
         
         observations = [(decision,participant_ids,observer_ids,action)]
         return payoffs, observations, None
- 
-    play = _play
-    """
-    the following functions are wrappers around the '_play' method
-    these internally call '_play' but extract and process the observations
-    before passing the results back up.
-    
-    DO NOT USE ANY OF THESE DIRECTLY, NOT EVEN '_observe'
-    """
-    def _publicly_observed_play(self,participants,observers=[], tremble=0):
-        """
-        passes observer list down to _play
-        observers and participants observe
-        """
-        payoffs, observations, notes = self._play(participants,observers,tremble)
-        for observer in set(list(observers)+list(participants))):       
-            observer.observe_k(observations,observer.genome['RA_K'], tremble)
-        return payoffs, observations, notes
-    
-    def _privately_observed_play(self,participants,observers=[], tremble=0):
-        """
-        calls _play with no observers
-        participants observe
-        """
-        payoffs, observations,notes = self._play(participants,[],tremble)
-        for observer in list(participants):
-            observer.observe_k(observations,observer.genome['RA_K'], tremble)
-        return payoffs, observations, notes
-
-    def _randomly_observed_play(self,participants,observers=[], tremble=0):
-        """
-        randomly selects a specified percent of the provided observers
-        percent is determined by self.observability, which must be set beforehand
-        these observers are passed down into _play
-        selected observers and all participants observe
-        """
-        observers = randomly_chosen(self.observability,observers))
-        payoffs, observations, notes = self._play(participants,observers,tremble)
-        for observer in set(list(observers)+list(participants))):
-            observer.observe_k(observations,observer.genome['RA_K'], tremble)
-        return payoffs, observations, notes
-    
-
-    def _observing(self,observation_type = False, observability=.5):
-        """
-        overwrites the 'play' function according to provided parameters
-        changes 'name' attribute with every call.
-        """
-        if not observation_type:
-            self.play = self._play
-        if observation_type == 'public':
-            self.name = "PubliclyObserved(%s)" % self.name
-            self.play = self._publicly_observed_play
-        if observation_type == 'private':
-            self.name = "PrivatelyObserved(%s)" % self.name
-            self.play = self._privately_observed_play
-        if observation_type == 'random':
-            assert 1>=observability and observability>=0
-            self.name = "RandomlyObserved(%s,%s)" % (observability,self.name)
-            self.observability = observability
-            self.play = self._randomly_observed_play
-        return self
 
 """
-Use these functions to set the observability of a Playable
+Observation Modifiers
+The following classes cause agents to observe after the 'play' function is called
 
-The following are pretty wrappers for setting the observability of Playables
-these should never be nested with each other as they'll overwrite each other.
-"""
-
-def PrivatelyObserved(playable):
-    return playable._observing('private')
-def PubliclyObserved(playable):
-    return playable._observing('public')
-def RandomlyObserved(observability,playable):
-    return playable._observing('random',observability)
-
-"""
 Keep this in mind when using observations on more complex playables:
 
 PubliclyObserved(Combinatorial(PrisonersDilemma)) is a playable where observations happen only after all combinations of participants have played.
 
 Combinatorial(PubliclyObserved(PrisonersDilemma)) is a playable where every pair of participants plays and then immediately observes the game.
 
+TO DO:
+Distinguish Observability vs Observation
+These modules force observation. What about when I want to change the observer list
+at the bottom level, but no actually observe?
 """
+class PrivatelyObserved(Playable):
+    """
+    calls _play with no observers
+    participants observe
+    """
+    def __init__(self,playable):
+        self.name = "PrivatelyObserved(%s)" % playable.name
+        self.N_players = playable.N_players
+        self.playable=playable
 
+    def play(self,participants,observers=[], tremble=0):
+        payoffs, observations,notes = self.playable.play(participants,[],tremble)
+        for observer in list(participants):
+            observer.observe_k(observations,observer.genome['RA_K'], tremble)
+        return payoffs, observations, notes
+
+class PubliclyObserved(Playable):
+    """
+    passes complete observer list to _play
+    observers and participants observe
+    """
+    def __init__(self,playable):
+        self.name = "PubliclyObserved(%s)" % playable.name
+        self.N_players = playable.N_players
+        self.playable=playable
+
+    def play(self,participants,observers=[], tremble=0):
+        payoffs, observations, notes = self.playable.play(participants,observers,tremble)
+        for observer in set(list(observers)+list(participants)):       
+            observer.observe_k(observations,observer.genome['RA_K'], tremble)
+        return payoffs, observations, notes
+    
+class RandomlyObserved(Playable):
+    """
+    randomly selects a specified percent of the provided observers
+    percent is determined by self.observability, which must be set beforehand
+    these observers are passed down into _play
+    selected observers and all participants observe
+    """
+    def __init__(self,observability,playable):
+        self.name = "RandomlyObserved(%s,%s)" % (observability, playable.name)
+        self.observability = observability
+        self.N_players = playable.N_players
+        self.playable=playable
+
+    def play(self,participants,observers=[], tremble=0):
+        observers = randomly_chosen(self.observability,observers)
+        payoffs, observations, notes = self.playable.play(participants,observers,tremble)
+        for observer in set(list(observers)+list(participants)):
+            observer.observe_k(observations,observer.genome['RA_K'], tremble)
+        return payoffs, observations, notes
+
+"""
+Decisions
+These are the only things Agents actually know how to deal with
+every other class here orchestrates different ways to get a pool of
+agents to actually play a decision. 
+"""
+    
 class Decision(Playable):
     """
     A decision is defined by a payoffDict
@@ -163,8 +151,36 @@ class Decision(Playable):
         
     def __call__(self,action):
         self.last_action = action
-        return self.payoffs[action]
+        return array(self.payoffs[action])
 
+def BinaryDictatorDict(endowment = 0, cost = 1, benefit = 2):
+    return {
+        "keep": (endowment, 0),
+        "give": (endowment-cost, benefit)
+    }
+
+def BinaryDictator(endowment = 0, cost = 1, benefit = 2):
+    """
+    a 2-participant decision
+    """
+    decision = Decision(BinaryDictatorDict(endowment,cost,benefit))
+    decision.name = decision._name = "BinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))
+    return decision
+
+"""
+Decision Seqs
+These are used to play multiple games in a row
+the games played are independent from each other
+
+though you can manually feed it pairs of games and orderings of players this is not
+reccomended
+
+the 'matchups' method is in charge of producing the pairs of games and players
+that will be played
+
+other classes overwrite 'matchups' to get more complicated behavior from this base
+class
+"""
 
 class DecisionSeq(Playable):
     """
@@ -184,10 +200,10 @@ class DecisionSeq(Playable):
 
     Classes that inherit from DecisionSeq will mostly overwrite the 'matchups' method
     """
-    name = _name = "DecisionSeq"
+    name = "DecisionSeq"
     def __init__(self, decision_ordering_pairs):
         self.decision_ordering_pairs = decision_ordering_pairs
-        self.play_ordering_pairs = [(decision.play, ordering) for decision, ordering in self.decision_ordering_pairs]
+        self.play_ordering_pairs = [(decision, ordering) for decision, ordering in self.decision_ordering_pairs]
         
     def matchups(self,participants):
         """
@@ -225,27 +241,120 @@ class DecisionSeq(Playable):
         #cache the dot references
         extend_obs = observations.extend
         
-        for play_decision,ordering in self.matchups(participants):
-            pay,obs,rec = play_decision(participants[ordering],observers,tremble)
+        for game,ordering in self.matchups(participants):
+            pay,obs,rec = game.play(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
             extend_obs(obs)
 
         return payoffs,observations,[]
     _play = play
+
+"""
+Match Fixers
+
+The following classes take in a game and automatically
+slice a given pool of participants to the appropriate size
+and feed them into the given game
+
+NOTE:
+these classes adopt the N_players attribute from their subgames
+and they themselves use this attribute to fix their subgames
+
+if fed themselves into a fixer they will be treated as if
+the number of players for them is the same as their subgame
+
+meaning that 
+Combinatorial(Symmetric(BinaryDictator())).play(p)
+and
+Symmetric(BinaryDictator()).play(p)
+will play the same number of games for the same p
+"""
+class Combinatorial(DecisionSeq):
+    """
+    the playable is played exactly once by every adequately sized 
+    subset of the participants.
+    
+    NOTE:
+    every subset plays exactly once
+    best for games that handle their own ordering
+    """
+    def __init__(self,game):
+        self.name = self._name = "Combinatorial("+game.name+")"
+        self.game = game
+        self.N_players = game.N_players
+    def matchups(self, participants):
+        matchups = list(combinations(xrange(len(participants)), self.game.N_players))
+        np.random.shuffle(matchups)
+        game = self.game
+        for matchup in matchups:
+            yield (game, list(matchup))
             
-class SymmetricGame(DecisionSeq):
+class Symmetric(DecisionSeq):
     """
-    plays a decision with every meaningful permutation of deciders and non-deciders
-    this game assumes that the order of non-deciders does not matter
-    and that all decisions have a single decider
+    plays the game with every possible permutation of the participants
+    
+    
+    NOTE:
+    there will be redundancy if ordering does not matter.
+    this is best for games where every position is different.
     """
-    name = _name = "SymmetricGame"
-    def __init__(self, payoffDict):
-        N = len(payoffDict.values()[0])
-        orderings = (range(n,n+1)+range(n)+range(n+1,N) for n in xrange(N))
-        decisions = [(Decision(payoffDict),ordering) for ordering in orderings]
-        self.N_players = N
-        super(SymmetricGame,self).__init__(decisions)
+    def __init__(self,game):
+        self.game = game
+        self.N_players = game.N_players
+
+    def matchups(self, participants):
+        matchups = list(permutations(xrange(len(participants)), self.game.N_players))
+        np.random.shuffle(matchups)
+        game = self.game
+        for matchup in matchups:
+            yield (game, list(matchup))
+            
+class EveryoneDecides(DecisionSeq):
+    """
+    plays the playable with every adequately sized subset of participants
+    and every participant gets to be the first player once per subset
+
+    NOTE:
+    This fixer is meant to handle playables where only the decider matters
+    in these games all payoffs to non-deciders are symmetrical and of equal
+    cost to deciders
+    """
+    def __init__(self, playable):
+        self.name = "EveryoneDecides(%s)" % playable.name
+        self.playable = playable
+        self.N_players = playable.N_players
+
+    def matchups(self, participants):
+        matchups = []; append = matchups.append
+        size = self.N_players
+        for combination in combinations(xrange(len(participants)), size):
+            for i in range(n):
+                append(combination[i:i+1]+combination[:i]+combination[i+1:size])
+        np.random.shuffle(matchups)
+
+        playable = self.playable
+        for matchup in matchups:
+            yield (playable, list(matchup))
+
+def PrisonersDilemma(endowment = 0, cost = 1, benefit = 2):
+    game = Symmetric(BinaryDictator(endowment,cost,benefit))
+    game.name = "PrisonersDilemma(%s)" % ",".join(map(str,[endowment,cost,benefit]))
+    return game
+
+
+
+"""
+Dependent Decisions
+
+These are special Decisions whose characteristics are determined
+by the events of a previous playable.
+
+The first element in a sequence of these must be independent, of course.
+
+NOTE:
+although not enforced, it only makes sense that the playable that precedes a
+dependent decision be observed by an agent if they are present for both.
+"""
 
 class DecisionDependent(Decision):
     """
@@ -255,11 +364,9 @@ class DecisionDependent(Decision):
     for implementing things like the ultimatum game
     """
     pass
-    
+
 class DecisionDependentSeq(DecisionSeq):
     """
-    Can't remember if this works. NOT TESTED.
-    
     This Decision Seq is made up of Observed decisions
     The first should be a Decision
     The rest must be of type DecisionDependent
@@ -268,68 +375,58 @@ class DecisionDependentSeq(DecisionSeq):
     constituent decisions are observed
     """
     def __init__(self, decision_ordering_pairs):
-        self.decision_ordering_pairs = decision_ordering_pairs
+        self.decision_ordering_pairs = [(d,array(o)) for d,o in decision_ordering_pairs] 
         
     def matchups(self,participants):
         pairs = self.decision_ordering_pairs
         last_decision,last_ordering = pairs[0]
-        yield pairs[0]
+        #last_ordering = array(last_ordering)
+        yield pairs[0]#[0],array(pairs[0][1])
         
         last_action = last_decision.last_action
         last_payoff = last_decision(last_action)
         for decision_maker, ordering in pairs[1:]:
-            # Check if this is a bug in terms of payoff orderings
-            decision = decision_maker([last_payoff[i] for i in last_ordering])
+            # Check if this is a bug in terms of payoff ordering
+            decision = decision_maker(last_payoff[last_ordering][ordering])
             yield (decision,ordering)
             last_decision,last_ordering = decision, ordering
             last_action = last_decision.last_action
             last_payoff = last_decision(last_action)
 
-def BinaryDictatorDict(endowment = 0, cost = 1, benefit = 2):
-    return {
-        "keep": (endowment, 0),
-        "give": (endowment-cost, benefit)
-    }
-def BinaryDictator(endowment = 0, cost = 1, benefit = 2):
-    """
-    a 2-participant decision
-    """
-    decision = Decision(BinaryDictatorDict(endowment,cost,benefit))
-    decision.name = decision._name = "BinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))
-    return decision
+"""
+Ultimatum Game
 
-class PrisonersDilemma(SymmetricGame):
-    """
-    a 2-player game
-    """
-    def __init__(self, endowment = 0, cost = 1, benefit = 2):
-        payoffs = BinaryDictatorDict(endowment,cost,benefit)
-        super(PrisonersDilemma,self).__init__(payoffs)
-        self.name = self._name = "PrisonersDilemma(%s)" % ",".join(map(str,[endowment,cost,benefit]))
-
-class UltimatumPropose(Observed,Decision):
+this game is built up of a 'Propose' and 'Decide' game
+"""
+class UltimatumPropose(Decision):
     def __init__(self, endowment = 10):
         payoffs = dict()
-        for give in range(endowment):
+        self.name = "UltimatumProposal(%s)" % endowment
+        for give in range(endowment+1):
             keep = endowment - give
             payoffs["keep %d/give %d" % (keep, give)] = (keep, give)
-        
-        # payoffs = {"keep {}/give {}".format(keep, give) : (keep, give) for keep, give in
 
         super(UltimatumPropose,self).__init__(payoffs)
 
 class UltimatumDecide(DecisionDependent):
     def __init__(self,proposed_payoff):
+        self.name = "UltimatumDecide([%s])" % ",".join(map(str,proposed_payoff))
         payoffs = {"accept":(0,)*len(proposed_payoff),
                    "reject":tuple(-array(proposed_payoff))}
-        # FIXME: This is probably going to be a bug since the super is not defined. Solution is to get rid of __init__ in DecisionDependent?
         super(UltimatumDecide,self).__init__(payoffs)
 
 class UltimatumGame(DecisionDependentSeq):
     def __init__(self,endowment = 10):
+        self.name = "UltimatumGame(%s)" % endowment
         pairs = [(UltimatumPropose(endowment),[0,1]),
                  (UltimatumDecide,[1,0])]
         super(UltimatumGame,self).__init__(pairs)
+
+"""
+Annotated Decision Sequences
+
+these are used to collect data about the games mid-way
+"""
 
 class AnnotatedDS(DecisionSeq):
     """
@@ -355,10 +452,9 @@ class AnnotatedDS(DecisionSeq):
         extend_rec = record.append
         annotate = self.annotate
         
-        for play_decision,ordering in self.matchups(participants):
-            pay,obs,rec = play_decision(participants[ordering],observers,tremble)
+        for game,ordering in self.matchups(participants):
+            pay,obs,rec = game.play(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
-            #print payoffs
             extend_rec(annotate(participants,payoffs,obs,rec))
             extend_obs(obs)
 
@@ -397,16 +493,15 @@ class Repeated(AnnotatedDS):
         return note
     
     def matchups(self,participants):
-        game = self.game
         ordering = range(len(participants))
         for game_round in xrange(1,self.repetitions+1):
             self.current_round = game_round
-            yield game.play,ordering
+            yield self.game,ordering
     
 class IndefiniteHorizonGame(DecisionSeq):
-    def __init__(self,game,gamma):
-        self.name = self._name = "IndefiniteHorizon(%s,%s)" % (game.name,gamma)
-        self.game = game
+    def __init__(self,gamma,playable):
+        self.name = self._name = "IndefiniteHorizon(%s,%s)" % (gamma,playable.name)
+        self.playable = playable
         self.gamma = gamma
         
     def matchups(self,participants):
@@ -414,60 +509,25 @@ class IndefiniteHorizonGame(DecisionSeq):
         yields the game/ordering pair once
         subsequently yields with probability gamma
         """
-        game = self.game
+        game = self.playable
         gamma = self.gamma
         ordering = range(len(participants))
         yield game,ordering
         while flip(gamma):
             yield game,ordering
             
-class Combinatorial(DecisionSeq):
-    """
-    This DecisionSeq plays the game with every adequately 
-    sized subset of a given population of participants
-    
-    games used here should handle meaningful orderings themselves.
-
-    matchups are randomized, so games with observations will not be biased.
-    
-    """
-    def __init__(self,game):
-        self.name = self._name = "Combinatorial("+game.name+")"
-        self.game = game
-        self.N_players = game.N_players
-    def matchups(self, participants):
-        matchups = list(combinations(xrange(len(participants)), self.game.N_players))
-        np.random.shuffle(matchups)
-        play = self.game.play
-        for matchup in matchups:
-            yield (play, list(matchup))
-            
-class Symmetric(DecisionSeq):
-    """
-    plays the game with every possible permutation of the participants
-    there will be redundancy if ordering does not matter.
-
-    this is best for games where every position is different.
-    
-    matchups in this class are not randomized.
-    keep in mind if the game has observed components.
-    """
-    def __init__(self,game):
-        self.game = game
-        self.N_players = game.N_players
-
-    def matchups(self, participants):
-        matchups = permutations(xrange(len(participants)), self.game.N_players)
-        #np.random.shuffle(list(matchups))
-        play = self.game.play
-        for matchup in matchups:
-            yield (play, list(matchup))
-
 def RepeatedPrisonersTournament(rounds = 10,visibility = "private"):
-    PD = 
+    PD = PrisonersDilemma(cost = 1, benefit = 3)
     if visibility == "private":
-        return Repeated(rounds,PrivatelyObserved(Combinatorial(PrisonersDilemma(cost = 1, benefit = 3))))
+        return Repeated(rounds, PrivatelyObserved(PD))
     if visibility == "random":
-        return Repeated(rounds,PubliclyObserved(Combinatorial(RandomlyObserved(.5,PrisonersDilemma(cost = 1, benefit = 3)))))
+        return Repeated(rounds, PubliclyObserved(Combinatorial(RandomlyObserved(.5,PD))))
     if visibility == "public":
-        return Repeated(rounds,PubliclyObserved(Combinatorial(PrisonersDilemma(cost = 1, benefit = 3))))
+        return Repeated(rounds, PubliclyObserved(PD))
+
+if __name__ == "__main__":
+    from indirect_reciprocity import Puppet
+    puppets = array([Puppet("Alpha"),Puppet("Beta")])
+    game = UltimatumGame(3)
+    payoff = game.play(puppets,[])[0]
+    print "Final Payoff:",payoff
