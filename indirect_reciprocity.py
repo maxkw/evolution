@@ -37,32 +37,13 @@ from itertools import ifilterfalse
 from games import RepeatedPrisonersTournament
 
 
-class StageGame(object):
-    pass
-class CostlyAllocationGame(StageGame):
-    """
-    Three player version of dictator
-    """
-    def __init__(self, endowment = 0, cost = 1, benefit = 2):
-        payoffs = {
-            "give 1": (endowment-cost, benefit, 0),
-            "give 2": (endowment-cost, 0, benefit),
-            "keep": (endowment, 0, 0),
-        }
-        super(CostlyAllocationGame, self).__init__(payoffs)
+"""
+Begin:
+Agent Definitions
 
-        
-class AllocationGame(StageGame):
-    """
-    Three player game, first player must give to one of two others
-    """
-    def __init__(self, endowment = 0, cost = 1, benefit = 2):
-        payoffs = {
-            "give 1": (endowment-cost, benefit, 0),
-            "give 2": (endowment-cost, 0, benefit),
-        }
-        super(AllocationGame, self).__init__(payoffs)
-
+Agents play games and make observations.
+They are characteristically defined by their utilities and whether or not they can observe.
+"""
 class AgentType(type):
     def __str__(cls):
         return cls.__name__
@@ -120,12 +101,17 @@ class Agent(object):
     def observe_k(self, observations, k, tremble = 0):
         pass
 
-    def use_npArrays(self):
-        self.genome['prior'] = np.array(self.genome['prior'])
+class Puppet(Agent):
+    def __init__(self,world_id = 'puppet'):
+        self.world_id = world_id
         
-    def use_NamedArrays(self):
-        NamedArray = namedArrayConstructor(tuple(self.genome['agent_types']))
-        self.genome['prior'] = NamedArray(self.genome['prior'])
+    def decide(self,decision,agent_ids):
+        print decision.name
+        for i,(action,payoff) in enumerate(decision.payoffs.iteritems()):
+            print i,action, payoff
+        choice = decision.actions[int(input("enter a number: "))]
+        print ""
+        return choice
     
 class SelfishAgent(Agent):
     def __init__(self, genome, world_id=None):
@@ -145,12 +131,13 @@ class AltruisticAgent(Agent):
     def utility(self,payoffs,agent_ids):
         weights = [1]*len(agent_ids)
         return sum(itertools.imap(multiply,weights,payoffs))
-    
+
 class RationalAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(RationalAgent, self).__init__(genome, world_id)
         
         #NamedArray mapping agent_type to odds that an arbitrary agent is of that type
+        self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
         self.pop_prior = copy(self.genome['prior'])
         
         self.uniform_likelihood = normalized(self.pop_prior*0+1)
@@ -159,15 +146,14 @@ class RationalAgent(Agent):
         self.likelihood = {}
         self.belief = {}
 
+    """
+    the following are wrappers for convenience
+    """
+    def belief_that(self, a_id,a_type):
+        return self.belief[a_id][self._type_to_index[a_type]]
+    def likelihood_that(self, a_id,a_type):
+        return self.likelihood[a_id][self._type_to_index[a_type]]
 
-    #def initialize_models(self, agent_ids):
-    #    for agent_id in agent_ids:
-    #         if agent_id == self.world_id: continue
-    #         if agent_id not in self.models:
-    #             self.models[agent_id] = type(self)(self.genome,world_id = agent_id)
-    #             for o_id in agent_ids:
-    #                 self.models[agent_id].belief[o_id] = self.models[agent_id].initialize_prior()
-        
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
         for id in (id for id in ids if id in set(self.models.keys())): 
@@ -311,7 +297,7 @@ class RationalAgent(Agent):
             p[-1] = 1-sum(p[0:-1])
             like = 0
             for order in itertools.product(range(n_agent_types), repeat=len(self.likelihood)):
-                agent_counts = NamedArray([sum(np.array(order)==t) for t in range(n_agent_types)])
+                agent_counts = [sum(np.array(order)==t) for t in range(n_agent_types)]
                 counts = np.array(prior + agent_counts)
 
             #     # lnB = np.sum(gammaln(counts)) - gammaln(np.sum(counts))
@@ -324,7 +310,7 @@ class RationalAgent(Agent):
                     # belief = (self.likelihood[a_id][agent_type]*p[agent_type]) / np.dot(p, self.likelihood[a_id])
 
                     # still wrong since this just using the mean and not doing the full integration
-                    belief = (self.likelihood[a_id][agent_type]*prior[agent_type]) / np.dot(prior, self.likelihood[a_id])
+                    belief = (self.likelihood[a_id][self._type_to_index[agent_type]]*prior[self._type_to_index[agent_type]]) / np.dot(prior, self.likelihood[a_id])
 
                     term *= belief
 
@@ -335,7 +321,7 @@ class RationalAgent(Agent):
         out = constraint_min(ll, np.ones(n_agent_types)/n_agent_types)
         
         print out
-        print NamedArray(out.x)
+        
         # FIXME: Need to save these out to the pop_prior and then update the belief of all the agents by using the new prior when combining the likelihood and prior. 
         
         # self.pop_prior = {
@@ -367,25 +353,28 @@ class RationalAgent(Agent):
         for id, model in self.models.items():
             model.use_NamedArrays()
 
-class ReciprocalAgent(RationalAgent):
+class IngroupAgent(RationalAgent):
+    def __init__(self, genome, world_id=None):
+        super(IngroupAgent, self).__init__(genome, world_id)
+        self.ingroup_indices = np.array([self._type_to_index[member] for member in self.ingroup()])
+        
     def sample_alpha(self,agent_id):
         if agent_id == self.world_id:
             return 1
         try:
-            return self.belief[agent_id][ReciprocalAgent]
+            return sum(self.belief[agent_id][self.ingroup_indices])
         except KeyError:
             self.belief[agent_id] = self.initialize_prior()
-            return self.belief[agent_id][ReciprocalAgent]
+            return sum(self.belief[agent_id][self.ingroup_indices])
+            
+class ReciprocalAgent(IngroupAgent):
+    def ingroup(self):
+        return [ReciprocalAgent]
         
-class NiceReciprocalAgent(RationalAgent):
-    def sample_alpha(self,agent_id):
-        if agent_id == self.world_id:
-            return 1
-        try:
-            return self.belief[agent_id][NiceReciprocalAgent]+self.belief[agent_id][AltruisticAgent]
-        except KeyError:
-            self.belief[agent_id] = self.initialize_prior()    
-            return self.belief[agent_id][NiceReciprocalAgent]+self.belief[agent_id][AltruisticAgent]        
+class NiceReciprocalAgent(IngroupAgent):
+    def ingroup(self):
+        return [NiceReciprocalAgent,AltruisticAgent]
+       
 
 class OpportunisticRA(RationalAgent):
     """
@@ -404,6 +393,21 @@ class OpportunisticRA(RationalAgent):
     
     """
     pass
+
+"""
+End Agent Definitions
+"""
+
+"""
+Start Essential Auxiliary Definitions
+
+These define structures that are necessary to define other structures in this file, namely params and genomes
+"""
+
+def discount_stop_condition(x,n):
+    return not flip(x)
+def constant_stop_condition(x,n):
+    return n >= x
 
 def default_params():
     """
@@ -438,7 +442,7 @@ def default_params():
     """
     agent_types =  [
         SelfishAgent,
-        ReciprocalAgent,
+        NiceReciprocalAgent,
         AltruisticAgent
     ]
     return {
@@ -474,7 +478,81 @@ def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, 
         })
         
     return genomes
+
+def prior_generator(agent_types,RA_prior=False):
+    """
+    if not given RA_prior  it generates a uniform prior over types
+    else splits RA_prior uniformly among all rational types
+    """
     
+    agent_types = tuple(agent_types)
+    type2index = dict(map(reversed,enumerate(agent_types)))
+    size = len(agent_types)
+    NamedArray = namedArrayConstructor(agent_types)
+    rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+    if not (RA_prior or rational_types):
+        return np.array(np.ones(size)/size)
+    else:
+        try:
+            normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
+            prior = [RA_prior[agent_type] if agent_type in RA_prior
+                     else normal_prior for agent_type in agent_types]
+            #print prior
+        except AttributeError:
+            rational_size = len(rational_types)
+            rational_prior = RA_prior/float(rational_size)
+            normal_prior = (1.0-RA_prior)/(size-rational_size)
+            prior = [rational_prior if agent_type in rational_types
+                     else normal_prior for agent_type in agent_types]
+        return np.array(prior)
+    
+def default_genome(params = default_params() ,agent_type = False):
+    agent_types = params["agent_types"]
+    
+    if agent_type:
+        assert agent_type in agent_types
+    else:
+        agent_type = np.random.choice(agent_types)
+        
+    return {
+        'type': agent_type,
+        'RA_prior': params['RA_prior'],
+        'prior_precision': params['prior_precision'],
+        'beta': params['beta'],
+        'prior': prior_generator(agent_types,params['RA_prior']),
+        "agent_types":agent_types,
+        'RA_K':params['RA_K']
+    }
+
+def generate_proportional_genomes(params = default_params(), agent_proportions = None):
+    """
+    returns a number of genomes roughly proportional to 'N_agents' in the supplied params.
+
+    'params' is a dict
+    'agent_proportions' is a dict of agent_type to a fraction
+    ideally all fractions add up to 1 but this is not enforced nor will anything break if unobserved
+    
+    WARNING:
+    this function does not try to preserve the value of "N_agents" it will round up fractions of the population.
+    
+    for example, if given 'N_agents' = 1, and agent proportions of 1/3,1/3,1/3 the actual population will be 3.
+    """
+    if not agent_proportions:
+        return generate_random_genomes(**params)
+    agent_list = []
+    pop_size = params['N_agents']
+    for agent_type in agent_proportions:
+        number = int(math.ceil(pop_size*agent_proportions[agent_type]))
+        agent_list.extend([default_genome(params,agent_type) for _ in xrange(number)])
+    #print agent_list
+    return agent_list
+
+
+
+
+"""
+End Essential Auxiliary Definitions
+"""
 
 class World(object):
     # TODO: spatial or interaction probabilities
@@ -492,7 +570,7 @@ class World(object):
         self.tremble = params['p_tremble']
         self.game = params['games']
         self._stop_condition = params['stop_condition']
-        self.stop_condition = partial(*params['stop_condition'])
+        #self.stop_condition = partial(*params['stop_condition'])
         self.params = params
         self.last_run_results = {}
 
@@ -552,117 +630,8 @@ class World(object):
         pass
 
     def run(self):
-        payoff,observations,record = self.game.play(np.array(self.agents),self.agents,tremble=self.params['p_tremble'])
+        payoff,observations,record = self.game.play(np.array(self.agents),np.array(self.agents),tremble=self.params['p_tremble'])
         return payoff, record
-
-        
-    def use_npArrays(self):
-        """
-        changes all instances of NamedArray in the world to np.ndarray
-        """
-        for agent in self.agents:
-            agent.use_npArrays()
-        if self.last_run_results:
-            for epoch in self.last_run_results['history']:
-                epoch['belief'] = tuple(np.array(belief) for belief in epoch['belief'])
-        return self
-    
-    def use_NamedArrays(self):
-        """
-        changes all previous instances of NamedArray back from np.ndarrays
-        """
-        for agent in self.agents:
-            agent.use_NamedArrays()
-        if self.last_run_results:
-            NamedArray = namedArrayConstructor(self.params['agent_types'])
-            for epoch in self.last_run_results['history']:
-                epoch['belief'] = tuple(NamedArray(belief) for belief in epoch['belief'])
-        return self
-    
-    @staticmethod
-    def unpickle(path):
-        world = unpickled(path)
-        world.agents = [dict2agent(agent) for agent in world.agents]
-        world.use_NamedArrays()
-        world.id_to_agent = {agent.world_id:agent for agent in world.agents}
-        world.stop_condition = partial(*world._stop_condition)
-        return world.use_NamedArrays()
-
-    def pickle(self,path):
-        self.use_npArrays()
-        self.agents = [agent2dict(agent) for agent in self.agents]
-        self.id_to_agent = {}
-        self.stop_condition = None
-        return pickled(self,path)
-
-def agent2dict(agent):
-    if isinstance(agent, RationalAgent):
-        for id in agent.models:
-            agent.models[id] = agent2dict(agent.models[id])
-    return vars(agent)
-
-def dict2agent(agentDict):
-    agent = agentDict['genome']['type'](agentDict['genome'],agentDict['world_id'])
-    agent.__dict__.update(agentDict)
-    if isinstance(agent, RationalAgent):
-        for id in agent.models:
-            agent.models[id] = dict2agent(agent.models[id])
-    return agent
-
-def pickle_worlds(list_of_worlds, path):
-    pickled([world.use_npArrays() for world in list_of_worlds],path)
-    for world in list_of_worlds:
-        world.use_NamedArrays()
-
-def discount_stop_condition(x,n):
-    return not flip(x)
-def constant_stop_condition(x,n):
-    return n >= x
-
-def prior_generator(agent_types,RA_prior=False):
-    """
-    if not given RA_prior it generates a uniform prior over types
-    else splits RA_prior uniformly among all rational types
-    """
-    
-    agent_types = tuple(agent_types)
-    size = len(agent_types)
-    NamedArray = namedArrayConstructor(agent_types)
-    rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
-    if not (RA_prior or rational_types):
-        return NamedArray(np.ones(size)/size)
-    else:
-        try:
-            normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
-            prior = [RA_prior[agent_type] if agent_type in RA_prior
-                     else normal_prior for agent_type in agent_types]
-        except TypeError:
-            rational_size = len(rational_types)
-            rational_prior = RA_prior/float(rational_size)
-            normal_prior = (1.0-RA_prior)/(size-rational_size)
-            prior = [rational_prior if agent_type in rational_types
-                     else normal_prior for agent_type in agent_types]
-        finally:
-            return NamedArray(prior)
-    
-def default_genome(params = default_params,agent_type = False):
-    agent_types = params["agent_types"]
-    
-    if agent_type:
-        assert agent_type in agent_types
-    else:
-        agent_type = np.random.choice(agent_types)
-        
-    return {
-        'type': agent_type,
-        'RA_prior': params['RA_prior'],
-        'prior_precision': params['prior_precision'],
-        'beta': params['beta'],
-        'prior': prior_generator(agent_types,params['RA_prior']),
-        "agent_types":agent_types,
-        'RA_K':params['RA_K']
-    }
-    
 
 def diagnostics():
 
@@ -677,9 +646,19 @@ def diagnostics():
     params['RA_prior_precision'] = 0
     prior = prior_generator(agent_types,params['RA_prior'])
 
-    w = World(params, [default_genome(ReciprocalAgent,agent_types,params),
-                       default_genome(SelfishAgent,agent_types,params),
-                       default_genome(ReciprocalAgent,agent_types,params)])
+    w = World(params, [default_genome(params,NiceReciprocalAgent)])
+
+    g = RepeatedPrisonersTournament().game
+    #print g.name
+    #for key,val in g.__dict__.items():
+    #    print key,val
+    #    pickled(val,"./world.pkl")
+
+    #
+    pickled(w,"./world.pkl")
+    w = unpickled("./world.pkl")
+    return "YAY"
+    
     
     K = 0
     
@@ -709,17 +688,20 @@ def diagnostics():
         assert_almost_equal(w.agents[1].belief[0],[ 0.98637196,  0.01362804])
 
 if __name__ == '__main__':
+
+    #pickled(NiceReciprocalAgent,"./agent.pkl")
+    #print unpickled("./agent.pkl")
     #import ipdb; ipdb.set_trace()
     #forgiveness_experiment(overwrite=True)
     #forgiveness_plot() 
 
-    protection_experiment(overwrite=True)
-    protection_plot()
+    #protection_experiment(overwrite=True)
+    #protection_plot()
 
     #fitness_rounds_experiment(20,overwrite=True)
     #fitness_rounds_plot()
 
-    #diagnostics()
+    diagnostics()
 
 """
 Trust game
