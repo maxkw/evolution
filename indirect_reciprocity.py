@@ -1,4 +1,3 @@
-
 from __future__ import division
 import scipy as sp
 import numpy as np
@@ -44,6 +43,9 @@ Agent Definitions
 Agents play games and make observations.
 They are characteristically defined by their utilities and whether or not they can observe.
 """
+
+
+
 class AgentType(type):
     def __str__(cls):
         return cls.__name__
@@ -102,7 +104,7 @@ class Agent(object):
         pass
 
 class Puppet(Agent):
-    def __init__(self,world_id = 'puppet'):
+    def __init__(self, world_id = 'puppet'):
         self.world_id = world_id
         
     def decide(self,decision,agent_ids):
@@ -112,6 +114,50 @@ class Puppet(Agent):
         choice = decision.actions[int(input("enter a number: "))]
         print ""
         return choice
+class TitForTat(Agent):
+    """
+    Abstract Tit-For-Tat agent
+    collaboration is maximizing the sum of payoffs
+    defection is anything else
+    """
+    def __init__(self, genome, world_id=None):
+        self.world_id = world_id
+        self.genome = genome
+        self.grudge = defaultdict(int)
+        self.punishments = 1
+        self.belief = {}
+        self.likelihood = {}
+    def utility(self,payoffs,agent_ids):
+        if agent_ids[0] == self.world_id and self.grudge[agent_ids[1]]:
+            return -payoffs[1]
+        else:
+            return self.social_good(payoffs)
+        
+    def social_good(self,payoffs):
+        return sum(payoffs)
+    
+    def decide(self,game,agent_ids):
+        if self.grudge[agent_ids[1]]:
+            action = min(game.actions, key = lambda a: game.payoffs[a][1])
+            self.grudge[agent_ids[1]] -= 1
+        else:
+            action = max(game.actions, key = lambda a: sum(game.payoffs[a]))
+            
+        return action
+        
+    def observe_k(self,observations,k,tremble=0):
+        for observation in observations:
+            decision,participants,observers,actions = observation
+            decider_id = participants[0]
+            my_id = self.world_id
+            
+            if decider_id == my_id or my_id not in participants: continue
+
+            best_action = max(decision.actions,key=lambda a: sum(decision.payoffs[a]))
+
+            if actions is not best_action:
+                self.grudge[decider_id] += self.punishments
+    
     
 class SelfishAgent(Agent):
     def __init__(self, genome, world_id=None):
@@ -132,6 +178,41 @@ class AltruisticAgent(Agent):
         weights = [1]*len(agent_ids)
         return sum(itertools.imap(multiply,weights,payoffs))
 
+class keydefaultdict(defaultdict):
+    def __missing__(self,key):
+        ret = self[key] = self.default_factory(key)
+        return ret
+
+class constantdefaultdict(dict):
+    def __init__(self,val):
+        self.val = val
+    def __missing__(self,key):
+        ret = self[key] = copy(self.val)
+        return ret
+    
+class TypeDict(dict):
+    def __init__(self,genome,agent_id=None):
+        agent_types = genome['agent_types']
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+        model = self.agent = RationalAgent(genome,agent_id)
+        belief = self.belief = model.belief #= defaultdict(model.initialize_prior)
+        likelihood = self.likelihood = model.likelihood# = defaultdict(model.initialize_likelihood)
+        
+        for agent_type in agent_types:
+            dict.__setitem__(self,agent_type,agent_type(genome,agent_id))
+
+        for rational_type in rational_types:
+            r_model = dict.__getitem__(self,rational_type)
+            r_model.belief = belief
+            r_model.likelihood = likelihood
+            
+class AgentDict(dict):
+    def __init__(self,genome):
+        self.genome = genome
+    def __missing__(self,agent_id):
+        ret = self[agent_id] = TypeDict(self.genome,agent_id)
+        return ret
+        
 class RationalAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(RationalAgent, self).__init__(genome, world_id)
@@ -141,10 +222,10 @@ class RationalAgent(Agent):
         self.pop_prior = copy(self.genome['prior'])
         
         self.uniform_likelihood = normalized(self.pop_prior*0+1)
-        self.rational_models = {}
-        self.models = {}
-        self.likelihood = {}
-        self.belief = {}
+        self.model = AgentDict(genome)
+        
+        self.likelihood = constantdefaultdict(self.initialize_likelihood())
+        self.belief = constantdefaultdict(self.initialize_prior())
 
     """
     the following are wrappers for convenience
@@ -156,11 +237,11 @@ class RationalAgent(Agent):
 
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
-        for id in (id for id in ids if id in set(self.models.keys())): 
-            del self.models[id]
+        for id in (id for id in ids if id in set(self.model.keys())): 
+            del self.model[id]
             del self.belief[id]
             del self.likelihood[id]
-        for model in agentModels.itervalues():
+        for model in self.model.itervalues():
             model.purge_models(ids)
         
     def initialize_prior(self):
@@ -170,6 +251,38 @@ class RationalAgent(Agent):
     def initialize_likelihood(self):
         return normalized(self.pop_prior*0+1)
 
+    def initialize_model(self, agent_id):
+        genome = self.genome
+        agent_types = genome['agent_types']
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+        
+        self.agent = rational_model = RationalAgent(genome,agent_id)
+        self.rational_models[agent_id] = rational_model
+        self.models[agent_id] = {}
+        
+        for rational_type in rational_types:
+            model = self.models[agent_id][rational_type] = rational_type(genome,agent_id)
+            model.belief = rational_model.belief
+            model.likelihood = rational_model.likelihood
+            model.models = rational_model.models
+        return self.models[agent_id]
+
+    def _use_defaultdicts(self):
+        belief,likelihood,models = copy(self.belief),copy(self.likelihood),copy(self.models)
+        
+        self.belief.update(belief)
+        
+        self.likelihood = defaultdict(self.initialize_likelihood)
+        self.likelihood.update(likelihood)
+        
+        self.models = keydefaultdict(self.initialize_model)
+        self.models.update(models)
+
+        for model in self.rational_models.values():
+            model._use_defaultdicts()
+        return self
+
+        
     def utility(self, payoffs, agent_ids):
         sample_alpha = self.sample_alpha
         weights = map(sample_alpha,agent_ids)                
@@ -193,6 +306,8 @@ class RationalAgent(Agent):
         return NotImplementedError
 
     #@profile
+    def observe(self,observations):
+        self.observe_k(observations,self.genome['RA_K'],self.genome['tremble'])
     def observe_k(self, observations, K, tremble = 0):
         """
         takes in
@@ -224,21 +339,22 @@ class RationalAgent(Agent):
             for agent_id in observers:
                 if agent_id == self.world_id: continue
                 
-                if agent_id not in self.rational_models:
-                    rational_model = RationalAgent(genome,agent_id)
-                    self.rational_models[agent_id] = rational_model
-                    self.models[agent_id] = {}
-                    self.belief[agent_id] = self.initialize_prior()
-                    self.likelihood[agent_id] = self.initialize_likelihood()
+                if agent_id not in self.model:
+                    model = self.model[agent_id]
+                    #rational_model = RationalAgent(genome,agent_id)
+                    #self.rational_models[agent_id] = rational_model
+                    #self.models[agent_id] = {}
+                    #self.belief[agent_id] = self.initialize_prior()
+                    #self.likelihood[agent_id] = self.initialize_likelihood()
                     
-                    for rational_type in rational_types:
-                        model = self.models[agent_id][rational_type] = rational_type(genome,agent_id)
-                        model.belief = rational_model.belief
-                        model.likelihood = rational_model.likelihood
+                    #for rational_type in rational_types:
+                    #    model = self.models[agent_id][rational_type] = rational_type(genome,agent_id)
+                    #    model.belief = rational_model.belief
+                    #    model.likelihood = rational_model.likelihood
 
                     for o_id in observers:
-                        rational_model.belief[o_id] = rational_model.initialize_prior()
-                        rational_model.likelihood[o_id] = rational_model.initialize_likelihood()
+                        model.belief[o_id]# = model.agent.initialize_prior()
+                        model.likelihood[o_id]# = model.agent.initialize_likelihood()
                 
         for observation in observations:
             game, participants, observers, action = observation
@@ -254,12 +370,13 @@ class RationalAgent(Agent):
 
             #calculate the normalized likelihood for each type
             for agent_type in agent_types:
-                if agent_type in rational_types:
+                model = self.model[decider_id][agent_type]
+                #if agent_type in rational_types:
                     #fetch model
-                    model = self.models[decider_id][agent_type]
-                else:
+                #    model = self.model[decider_id][agent_type]
+                #else:
                     #make model
-                    model = agent_type(genome, world_id = decider_id)
+                #    model = agent_type(genome, world_id = decider_id)
                 append_to_likelihood(decide_likelihood(model,game,participants,tremble)[action_index])
                 
 
@@ -277,8 +394,8 @@ class RationalAgent(Agent):
 
         
         if K == 0:return
-        for model in self.rational_models.values():
-            model.observe_k(observations, K-1, tremble)
+        for model in self.model.values():
+            model.agent.observe_k(observations, K-1, tremble)
 
             
         # if K>0:
@@ -356,7 +473,9 @@ class RationalAgent(Agent):
 class IngroupAgent(RationalAgent):
     def __init__(self, genome, world_id=None):
         super(IngroupAgent, self).__init__(genome, world_id)
-        self.ingroup_indices = np.array([self._type_to_index[member] for member in self.ingroup()])
+        self.ingroup_indices = np.array([self._type_to_index[agent_type]
+                                         for agent_type in self.ingroup()
+                                         if agent_type in genome['agent_types']])
         
     def sample_alpha(self,agent_id):
         if agent_id == self.world_id:
@@ -409,7 +528,8 @@ def discount_stop_condition(x,n):
 def constant_stop_condition(x,n):
     return n >= x
 
-def default_params():
+def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticAgent],
+                   RA_prior = .8):
     """
     generates clean dict containing rules that determine agent qualities
     this dict provides a simple way to change conditions of experiments
@@ -440,11 +560,11 @@ def default_params():
     `RA_K`: is the number of theory-of-mind recursions to carry out. When RA_K is 0 the agent just tries to infer the type directly, when it is 1, you first infer what each agent knows and then infer what you know based on those agents and so on. 
 
     """
-    agent_types =  [
-        SelfishAgent,
-        NiceReciprocalAgent,
-        AltruisticAgent
-    ]
+    #agent_types =  [
+    #    SelfishAgent,
+    #    NiceReciprocalAgent,
+    #    AltruisticAgent
+    #]
     return {
         'N_agents':2,
         'games': RepeatedPrisonersTournament(10), 
@@ -452,7 +572,7 @@ def default_params():
         'agent_types' : agent_types,
         'beta': 3,
         'moran_beta': .1,
-        'RA_prior': .8,
+        'RA_prior': RA_prior,
         'prior_precision': 0, # setting this to 0 turns off updating the prior
         'p_tremble': 0.0,
         'RA_K': 1,
@@ -461,8 +581,7 @@ def default_params():
 
 
 
-def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, prior_precision,
-                            beta, **keys):
+def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, prior_precision,p_tremble, beta, **keys):
     genomes = []
     
     prior = prior_generator(agent_types,RA_prior)
@@ -474,15 +593,18 @@ def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, 
             'RA_prior': RA_prior,
             'prior_precision': prior_precision,
             'beta': beta,
-            'RA_K': 1
+            'RA_K': 1,
+            'tremble': p_tremble,
         })
         
     return genomes
 
 def prior_generator(agent_types,RA_prior=False):
     """
-    if not given RA_prior  it generates a uniform prior over types
-    else splits RA_prior uniformly among all rational types
+    if RA_prior is False it generates a uniform prior over types
+    if RA_prior is a dict from agent_type to a number it assigns those types
+    the corresponding number
+    if RA_prior is a number it divides that number uniformly among all rational types
     """
     
     agent_types = tuple(agent_types)
@@ -510,7 +632,8 @@ def default_genome(params = default_params() ,agent_type = False):
     agent_types = params["agent_types"]
     
     if agent_type:
-        assert agent_type in agent_types
+        #assert agent_type in agent_types
+        pass
     else:
         agent_type = np.random.choice(agent_types)
         
@@ -521,7 +644,8 @@ def default_genome(params = default_params() ,agent_type = False):
         'beta': params['beta'],
         'prior': prior_generator(agent_types,params['RA_prior']),
         "agent_types":agent_types,
-        'RA_K':params['RA_K']
+        'RA_K':params['RA_K'],
+        'tremble':params['p_tremble']
     }
 
 def generate_proportional_genomes(params = default_params(), agent_proportions = None):
@@ -583,10 +707,12 @@ class World(object):
 
 
     def add_agents(self, genomes):
+        self.agents = list(self.agents)
         for genome, world_id in itertools.izip(genomes,self.counter):
             agent = genome['type'](genome,world_id)
             self.agents.append(agent)
             self.id_to_agent[world_id] = agent
+        self.agents = np.array(self.agents)
 
     def purge_agents(self, ids):
         pass

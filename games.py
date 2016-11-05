@@ -1,7 +1,7 @@
 from utils import flip, randomly_chosen
 from itertools import product,combinations,permutations
 from numpy import array
-from copy import copy
+from copy import copy,deepcopy
 import numpy as np
 
 class Playable(object):
@@ -269,7 +269,7 @@ and
 Symmetric(BinaryDictator()).play(p)
 will play the same number of games for the same p
 """
-class Combinatorial(DecisionSeq):
+class CombinatorialMatchup(object):
     """
     the playable is played exactly once by every adequately sized 
     subset of the participants.
@@ -288,8 +288,11 @@ class Combinatorial(DecisionSeq):
         game = self.game
         for matchup in matchups:
             yield (game, list(matchup))
+
+class Combinatorial(CombinatorialMatchup,DecisionSeq):
+    pass
             
-class Symmetric(DecisionSeq):
+class SymmetricMatchup(object):
     """
     plays the game with every possible permutation of the participants
     
@@ -304,12 +307,14 @@ class Symmetric(DecisionSeq):
 
     def matchups(self, participants):
         matchups = list(permutations(xrange(len(participants)), self.game.N_players))
-        np.random.shuffle(matchups)
+        #np.random.shuffle(matchups)
         game = self.game
         for matchup in matchups:
             yield (game, list(matchup))
+class Symmetric(SymmetricMatchup,DecisionSeq):
+    pass
             
-class EveryoneDecides(DecisionSeq):
+class EveryoneDecidesMatchup(object):
     """
     plays the playable with every adequately sized subset of participants
     and every participant gets to be the first player once per subset
@@ -335,6 +340,9 @@ class EveryoneDecides(DecisionSeq):
         playable = self.playable
         for matchup in matchups:
             yield (playable, list(matchup))
+class EveryoneDecides(EveryoneDecidesMatchup,DecisionSeq):
+    pass
+
 
 def PrisonersDilemma(endowment = 0, cost = 1, benefit = 2):
     game = Symmetric(BinaryDictator(endowment,cost,benefit))
@@ -484,7 +492,7 @@ class Repeated(AnnotatedDS):
     def annotate(self,participants,payoff,observations,record):
         note = {
             'round':self.current_round,
-            'players':tuple(participants),
+            'players':tuple(deepcopy(agent) for agent in participants),
             'actions':tuple(observation[3] for observation in observations),
             'payoff': copy(payoff),
             'belief': tuple(copy(agent.belief) for agent in participants),
@@ -515,7 +523,11 @@ class IndefiniteHorizonGame(DecisionSeq):
         yield game,ordering
         while flip(gamma):
             yield game,ordering
-            
+
+def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
+    BD = BinaryDictator(cost = 1, benefit = 3)
+    return Repeated(rounds,Symmetric(PrivatelyObserved(BD)))
+
 def RepeatedPrisonersTournament(rounds = 10,visibility = "private"):
     PD = PrisonersDilemma(cost = 1, benefit = 3)
     if visibility == "private":
