@@ -21,7 +21,7 @@ class Experiment(object):
         """
         name is a string
         conditions is too
-        processing list is a triple with a 
+        processing list is a list of triples consisting of a 
             filename(no extension)
             a function that takes a historical record and returns a pd.DataFrame
             a function that takes a pd.DataFrame and plots it
@@ -306,4 +306,72 @@ def observer_plotter(K,raw_data,out_path):
         plt.savefig(out_path[:-4]+k_string+out_path[-4:]); plt.close()
 
 for K in [0,1]:
-    meta_judgement(K).run(True,True,True)
+    pass
+    #meta_judgement(K).run(True,True,True)
+
+
+class first_impressions3(Experiment):
+    def __init__(self,K=2,RA_prior = .75):
+        self.K = K
+        self.name = self.__class__.__name__
+        self.conditions = "(K=%s)" % (K,)
+        
+        
+        self.save_dir = 'experiments/%s/%s/' % (self.name,self.conditions)
+        
+        self.rational_type = rational_type = ReciprocalAgent
+        self.agent_types = agent_types = [rational_type,SelfishAgent]
+        self.processing_list = [('belief',
+                                 identity,
+                                 first_impressions3_plotter)]
+
+        self.pickle_history = True
+        self.pickle_data = True
+
+        
+    def procedure(self):
+        agent_types = self.agent_types
+        rational_type = self.rational_type
+        BD = BinaryDictator()
+
+        def char_to_observation(action_char,order=[0,1]):
+            action = "give" if action_char is "C" else "keep"
+            return [(BD,order,[0,1,"O"],action)]
+    
+        def observations(actions_string):
+            return map(char_to_observation,actions_string)
+
+        def c_to_the_k_then_d(k):
+            return 
+
+        total_actions = 5
+        action_strings = ["C"*n+"D" for n in range(total_actions)]
+
+        RA_prior = .75
+        params = default_params(agent_types,RA_prior)
+        params['RA_K'] = self.K
+        
+        record = []; append = record.append
+        for CAB, CBA in [(RA_prior,RA_prior)]:#product(np.linspace(.25,.75,3),repeat=2):
+            for action_string in action_strings:
+                observer = RationalAgent(default_genome(params,RationalAgent),'O')
+
+                for i,observation in enumerate(observations(action_string)):                    
+                    observer.observe(observation)
+                record.append(
+                    {
+                        'belief':observer.belief_that(0,rational_type),
+                        'action':action_string,
+                        'cooperations':i,
+                        'prior':RA_prior,
+                    })
+        return record
+
+def first_impressions3_plotter(raw_data,out_path):
+    data = pd.DataFrame(raw_data)
+    figure = sns.pointplot(x='cooperations',y='belief',color = "red",data = data)
+    figure.set(yticks=[x/10.0 for x in range(11)])
+    plt.savefig(out_path);plt.close()
+
+
+first_impressions3().run(True,True,True)
