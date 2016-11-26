@@ -23,6 +23,7 @@ from functools import partial
 from utils import unpickled, pickled
 from games import RepeatedPrisonersTournament
 
+
 print
 sns.set_style('white')
 sns.set_context('paper', font_scale=1.5)
@@ -48,6 +49,8 @@ They are characteristically defined by their utilities and whether or not they c
 
 class AgentType(type):
     def __str__(cls):
+        return cls.__name__
+    def __repr__(cls):
         return cls.__name__
     
 class Agent(object):
@@ -529,7 +532,7 @@ def constant_stop_condition(x,n):
     return n >= x
 
 def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticAgent],
-                   RA_prior = .8):
+                   RA_prior = .8, N_agents= 10):
     """
     generates clean dict containing rules that determine agent qualities
     this dict provides a simple way to change conditions of experiments
@@ -566,7 +569,7 @@ def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticA
     #    AltruisticAgent
     #]
     return {
-        'N_agents':2,
+        'N_agents':N_agents,
         'games': RepeatedPrisonersTournament(10), 
         'stop_condition': [constant_stop_condition,10],
         'agent_types' : agent_types,
@@ -756,7 +759,8 @@ class World(object):
         pass
 
     def run(self):
-        payoff,observations,record = self.game.play(np.array(self.agents),np.array(self.agents),tremble=self.params['p_tremble'])
+        agents = np.array(self.agents)
+        payoff,observations,record = self.game.play(agents,agents,tremble=self.params['p_tremble'])
         return payoff, record
 
 def diagnostics():

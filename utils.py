@@ -4,8 +4,17 @@ import itertools
 import random
 import scipy as sp
 from collections import Counter
+from itertools import product
+from copy import copy
+import pandas as pd
+import collections
 import math
+from inspect import getargspec
+from collections import OrderedDict
+import os
 
+
+pd.set_option('precision',5)
 def softmax(vector, beta):
     ''' returns the softmax of the vector,'''
     e_x = np.exp(beta * (np.array(vector)-max(vector)))
@@ -179,4 +188,6 @@ def randomly_chosen(percent,elements):
     indices = range(int(len(elements)*percent))
     np.random.shuffle(indices)
     return list(elements[indices])
+
+
 
