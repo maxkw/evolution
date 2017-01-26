@@ -24,7 +24,6 @@ from utils import unpickled, pickled
 from games import RepeatedPrisonersTournament
 
 
-print
 sns.set_style('white')
 sns.set_context('paper', font_scale=1.5)
 
@@ -461,18 +460,6 @@ class RationalAgent(Agent):
         for id, model in self.models.items():
             model.use_npArrays()
 
-    def use_NamedArrays(self):
-        NamedArray = namedArrayConstructor(tuple(self.genome['agent_types']))
-        self.genome['prior'] = NamedArray(self.genome['prior'])
-        self.uniform_likelihood = NamedArray(self.uniform_likelihood)
-        self.pop_prior = NamedArray(self.pop_prior)
-        for id in self.belief:
-            self.belief[id] = NamedArray(self.belief[id])
-        for id in self.likelihood:
-            self.likelihood[id] = NamedArray(self.likelihood[id])
-        for id, model in self.models.items():
-            model.use_NamedArrays()
-
 class IngroupAgent(RationalAgent):
     def __init__(self, genome, world_id=None):
         super(IngroupAgent, self).__init__(genome, world_id)
@@ -532,7 +519,7 @@ def constant_stop_condition(x,n):
     return n >= x
 
 def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticAgent],
-                   RA_prior = .8, N_agents= 10):
+                   RA_prior = .8, N_agents= 10, p_tremble = 0,rounds = 10, **kwargs):
     """
     generates clean dict containing rules that determine agent qualities
     this dict provides a simple way to change conditions of experiments
@@ -568,10 +555,14 @@ def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticA
     #    NiceReciprocalAgent,
     #    AltruisticAgent
     #]
-    return {
+
+    given_values = locals()
+    given_values.update(kwargs)
+    
+    values =  {
         'N_agents':N_agents,
         'games': RepeatedPrisonersTournament(10), 
-        'stop_condition': [constant_stop_condition,10],
+        'stop_condition': [constant_stop_condition,rounds],
         'agent_types' : agent_types,
         'beta': 3,
         'moran_beta': .1,
@@ -582,6 +573,11 @@ def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticA
         'agent_types_world': agent_types
     }
 
+    for key in given_values:
+        if key in values:
+            values[key] = given_values[key]
+
+    return values
 
 
 def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, prior_precision,p_tremble, beta, **keys):
@@ -668,10 +664,9 @@ def generate_proportional_genomes(params = default_params(), agent_proportions =
         return generate_random_genomes(**params)
     agent_list = []
     pop_size = params['N_agents']
-    for agent_type in agent_proportions:
+    for agent_type in sorted(agent_proportions.keys()):
         number = int(math.ceil(pop_size*agent_proportions[agent_type]))
         agent_list.extend([default_genome(params,agent_type) for _ in xrange(number)])
-    #print agent_list
     return agent_list
 
 

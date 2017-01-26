@@ -123,7 +123,17 @@ class RandomlyObserved(Playable):
         for observer in set(list(observers)+list(participants)):
             observer.observe_k(observations,observer.genome['RA_K'], tremble)
         return payoffs, observations, notes
+    
+class RandomlyObservable(Playable):
+    def __init__(self,observability,playable):
+        self.name = "RandomlyObservable(%s,%s)" % (observability, playable.name)
+        self.observability = observability
+        self.N_players = playable.N_players
+        self.playable=playable
 
+    def play(self,participants,observers=[], tremble=0):
+        observer_subset = randomly_chosen(self.observability,observers)
+        return self.playable.play(participants,observer_subset,tremble)
 """
 Decisions
 These are the only things Agents actually know how to deal with
@@ -166,6 +176,10 @@ def BinaryDictator(endowment = 0, cost = 1, benefit = 2):
     decision = Decision(BinaryDictatorDict(endowment,cost,benefit))
     decision.name = decision._name = "BinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))
     return decision
+
+def decision_test():
+    """make an agent, have it make a decision"""
+    pass
 
 """
 Decision Seqs
@@ -307,7 +321,7 @@ class SymmetricMatchup(object):
 
     def matchups(self, participants):
         matchups = list(permutations(xrange(len(participants)), self.game.N_players))
-        #np.random.shuffle(matchups)
+        np.random.shuffle(matchups)
         game = self.game
         for matchup in matchups:
             yield (game, list(matchup))
@@ -528,12 +542,12 @@ def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = 1, benefit = 3)
     return Repeated(rounds,Symmetric(PrivatelyObserved(BD)))
 
-def RepeatedPrisonersTournament(rounds = 10,visibility = "private"):
+def RepeatedPrisonersTournament(rounds = 10,visibility = "private",observability = .5,**junk):
     PD = PrisonersDilemma(cost = 1, benefit = 3)
     if visibility == "private":
         return Repeated(rounds, PrivatelyObserved(PD))
     if visibility == "random":
-        return Repeated(rounds, PubliclyObserved(Combinatorial(RandomlyObserved(.5,PD))))
+        return Repeated(rounds, PubliclyObserved(Combinatorial(RandomlyObservable(observability,PD))))
     if visibility == "public":
         return Repeated(rounds, PubliclyObserved(PD))
 

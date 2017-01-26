@@ -1,16 +1,19 @@
 import os
-from indirect_reciprocity import ReciprocalAgent,SelfishAgent
 import pandas as pd
 import collections
 from itertools import product
 from inspect import getargspec
 from collections import OrderedDict
+import numpy as np
+from copy import copy
+from utils import pickled, unpickled
 
 ### for experiments
 def is_sequency(obj):
     if isinstance(obj,basestring):
         return False
     return isinstance(obj,(collections.Sequence,np.ndarray))
+
 class multiRefOrderedDict(OrderedDict):
     def __getitem__(self,keys):
         if is_sequency(keys):
@@ -24,18 +27,6 @@ def dict_intersect(dict1,dict2):
 def product_of_vals(orderedDict):
     keys,val_lists = orderedDict.keys(),orderedDict.values()
     return [OrderedDict(zip(keys,vals)) for vals in apply(product,val_lists)]
-
-#def dict_query(df,vals_dict):
-#    item_queries = [];append = item_queries.append
-#    for key,vals in vals_dict.items():
-#        if is_sequency(vals):
-#            append("(%s)" % " | ".join(["(%s == %s)" % (key,val) for val in vals]))
-#        else:
-#            append("(%s == %s)" % (key,vals))
-#    query_string =  " & ".join(item_queries)
-#    return df.query(query_string)
-
-
 
 
 replace_dict = {basestring:(lambda str: "'%s'" % str)}
@@ -358,8 +349,9 @@ def multi_call(method):
         if len(argname_2_value) < len(arg_names):
             method(*args,**kwargs)
 
-        if "trial" in argname_2_value:
-            argname_2_value["trial"] = range(argname_2_value["trial"])
+        
+        #if "trial" in argname_2_value:
+        #    argname_2_value["trial"] = range(argname_2_value["trial"])
         ### get a dict of the args explicitly named in the init definition
         expected_args = named_args = multiRefOrderedDict((arg,argname_2_value[arg]) for arg in arg_names)
 
@@ -398,30 +390,37 @@ def multi_call(method):
         #print "Given the following arg_calls:",all_arg_calls
         uncomputed_arg_calls = []; append_call =  uncomputed_arg_calls.append
         for arg_call in all_arg_calls:
-            print "query"
-            a = dict_query(cache,arg_call)
-            if not dict_query(cache,arg_call).empty:
-                print "it's in there"
-                print a
-            else:
-                print "it's not there"
-                print a
+            #print "query"
+            #a = dict_query(cache,arg_call)
+            #if not dict_query(cache,arg_call).empty:
+            #    print "it's in there"
+            #    print a
+            #else:
+            #    print "it's not there"
+            #    print a
             if dict_query(cache,arg_call).empty:
                 append_call(arg_call)
                 
         results = []
         number_of_calls = len(uncomputed_arg_calls)
+        i = 1
         print "There are", number_of_calls, "uncomputed method calls out of",len(all_arg_calls)
-        for n,arg_call in enumerate(uncomputed_arg_calls):
+        for n,arg_call in enumerate(sorted(uncomputed_arg_calls)):
             print n+1,"/",number_of_calls
             print "current arg call:",arg_call
+
+            np.random.seed(arg_call['trial'])
+            #print np.random.get_state()
             
             if keywords:
                 reference = copy(arg_call)
                 arg_call["result"] = method(**updated(arg_call,{"expected args":reference}))
             else:
-                arg_call["result"] = method(**arg_call)
+                arg_call["result"] =  method(**arg_call)
+                
             print arg_call["result"]
+            
+
             results.append(arg_call)
             
         to_cache = pd.DataFrame(results)
@@ -431,6 +430,7 @@ def multi_call(method):
             except:
                 print result
                 print to_cache
+
         new_cache = pd.concat([cache,to_cache])
 
         if not os.path.exists(data_dir):
@@ -438,8 +438,6 @@ def multi_call(method):
         
         new_cache.to_pickle(data_file)
 
-        #print new_cache
-        #print new_cache[new_cache['agent_type'] == ReciprocalAgent]
         return dict_query(new_cache,expected_args)
     return wrapper
 
@@ -447,6 +445,22 @@ class dummy(object):
     @multi_method_call
     def meth(self,a,b):
         return a+b
+    
+def save_prompt(obj,path):
+    print obj
+    save = input("save this object to "+ path+"?")
+    
+    if save:
+        print "saving object"
+        try:
+            record = unpickled(path)
+            record.append(obj)
+            pickled(record,path)
+        except:
+            pickled([obj],path)
+    else:
+        print "object not saved"
+            
 
 if __name__ == "__main__":
     print "hi"
