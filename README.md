@@ -1,68 +1,60 @@
-# June 12
+# TODO
+1. We should split up everything into Agents, World, Games, Experiments and Utils.
+1. Information pertinent to the agents vs the world should be separated accordingly.
+1. Make clean params and genome creators based on this. 
+1. Port all experiments into the new format, using `multi_call`
+1. `default_params` update docstring stop conditions
+1. write `multi_call` hash args in call without the trial and use it as a field when storing.
+1. Refactor the way observability works. Work out the mechanisms of observability vs observation. Try to figure out a way to decouple observation from observation. Remember that we might want observers known at decision time as it might affect choices.
 
-1. Adding support for many types of agents (the altruistic type). This will require updating the code in the observe_k function as well as writing a version of sample\_alpha that is more abstract.
+# Docs
 
-1. Adding more complicated games, including multiple games, including sequential games, simultaneous games (that have limited observability). The ultimate version of this is to build a "grammar over games". Stringing games together etc.
+## Agents (indirect_reciprocity.py)
 
-1. Implement learning about the person "acted upon". If person 3 knows person 1 is nice (from previous interactions) and person 3 doesn't know anything about person 2 (has never seen him act). If person 1 is mean to person 2, person 3 should infer that person 1 knew something about person 2 even though person 3 didn't see anything. Try capturing this by allowing the prior agents have over other agents to be a random variable and hence learnable. Think about the connection between the probability that an interaction is observed and the parameter of how likely other agents are to have a known value.
+2. `Puppet`: This kind of agent prompts a user for its decisions every time it plays
 
-1. Also think about doing Gibbs sampling to check our model against (which is not online). 
+2. `SelfishAgent`: Maximizes its own payoff
 
-# Jan 26
+2. `AltruisticAgent`: Maximizes the sum of payoffs
 
-TODO:
-We should split up everything into Agents, World, Games, Experiments and Utils.
-Information pertinent to the agents vs the world should be separated accordingly.
-Make clean params and genome creators based on this.
-Port all experiments into the new format, using multi_call
+2. `RationalAgent`: Base class. Inheriting from this class gives an agent the model, likelihood, and belief attributes and methods for initializing and updating these, most importantly the observe and observe_k methods.
 
-default_params update docstring stop conditions
-multi_call hash args in call without the trial and use it as a field when storing.
-Work out the mechanisms of observability vs observation.
-Try to figure out a way to decouple observation from observation.
-Remember that we might want observers known at decision time as it might affect choices.
+2. `IngroupAgent`: Base class. Those who inherit from this class should define an ingroup method, which returns a list of types. IngroupAgeents value an agent's payoff proportional to the belief that the agent in question is of a type in this list.
 
-1. Agents (indirect_reciprocity.py)
+2. `RecpirocalAgent`: An IngroupAgent that cares about only its own type.
 
-2. Puppet: This kind of agent prompts a user for its decisions every time it plays
+2. `NiceReciprocalAgent`: An IngroupAgent that cares about its own type and AltruisticAgents.
 
-2. SelfishAgent: Maximizes its own payoff
+<!-- ## Util functions (indirect_reciprocity.py) -->
 
-2. AltruisticAgent: Maximizes the sum of payoffs
+<!-- 2. `default_params`: returns a dictionary with common parameters used by agents and World. the function will overwrite any of the parameters in this dict if provided with them as keyword arguments in the function call. Most common use is to define a dict with parameters one cares about and feed it to this function to fill in the rest, (eg. "params = default_params(**dict)")  -->
 
-2. RationalAgent: Base class. Inheriting from this class gives an agent the model, likelihood, and belief attributes and methods for initializing and updating these, most importantly the observe and observe_k methods.
+<!-- 2. `generate_random_genomes`: takes N_agents, agent_types_world, agent_types among others. makes N_agents number of agents. each of the possible types is sampled from agent_types_world, but each agent thinks only agents in agent_types can exist. -->
 
-2. IngroupAgent: Base class. Those who inherit from this class should define an ingroup method, which returns a list of types. IngroupAgeents value an agent's payoff proportional to the belief that the agent in question is of a type in this list.
+<!-- 2. `prior_generator(agent_types,RA_prior)`: returns an np array where entries correspond to a prior over an agent being of a given type. indices correspond to a type's position in agent_types. if priors are explicitly given in RA_prior (which is a dict of type Agent->Number) then those priors are set accordingly; types not listed are given a uniform prior over the remaining probability. -->
 
-2. RecpirocalAgent: An IngroupAgent that cares about only its own type.
+<!-- 2. `default_genome(params,agent_type = False)`: makes a standard genome with given params. if no agent_type is given it chooses randomly from agent_types in params. -->
 
-2. Nice ReciprocalAgent: An IngroupAgent that cares about its own type and AltruisticAgents.
+<!-- 2. `generate_proportional_genomes(params,agent_proportions)`: returns approximately 'N_agents' number of agents, as specified in 'params'. if 'agent_proportions' defaults, it makes exactly 'N_agents' randomly. agent_proportions is expected to be Agent->Fraction, but it's not enforced. otherwise it expects that agent_proportions tells you what fraction of the population will be of each type. it rounds up fractions. THIS FUNCTION SHOULD BE AMENDED TO GUARANTEE THAT THE PROPORTIONS ARE HONORED, DESPITE THE POPULATION SIZE. -->
 
-1. Utility functions (indirect_reciprocity.py)
+<!-- 2. World(params,genomes): Right now this just makes agents out of genomes and plugs them into the world. It will, later on, handle changes to the population. -->
 
-2. default_params: returns a dictionary with common parameters used by agents and World. the function will overwrite any of the parameters in this dict if provided with them as keyword arguments in the function call. Most common use is to define a dict with parameters one cares about and feed it to this function to fill in the rest, (eg. "params = default_params(**dict)") 
+## Experiments ##
 
-2. generate_random_genomes: takes N_agents, agent_types_world, agent_types among others. makes N_agents number of agents. each of the possible types is sampled from agent_types_world, but each agent thinks only agents in agent_types can exist.
-
-2. prior_generator(agent_types,RA_prior): returns an np array where entries correspond to a prior over an agent being of a given type. indices correspond to a type's position in agent_types. if priors are explicitly given in RA_prior (which is a dict of type Agent->Number) then those priors are set accordingly; types not listed are given a uniform prior over the remaining probability.
-
-2. default_genome(params,agent_type = False): makes a standard genome with given params. if no agent_type is given it chooses randomly from agent_types in params.
-
-2. generate_proportional_genomes(params,agent_proportions): returns approximately 'N_agents' number of agents, as specified in 'params'. if 'agent_proportions' defaults, it makes exactly 'N_agents' randomly. agent_proportions is expected to be Agent->Fraction, but it's not enforced. otherwise it expects that agent_proportions tells you what fraction of the population will be of each type. it rounds up fractions. THIS FUNCTION SHOULD BE AMENDED TO GUARANTEE THAT THE PROPORTIONS ARE HONORED, DESPITE THE POPULATION SIZE.
-
-2. World(params,genomes): Right now this just makes agents out of genomes and plugs them into the world. It will, later on, handle changes to the population.
-
-1. Experiments
-
-2. multi_call decorator(experiment_utils.py): Designed as a way to succinctly run an experiment with many different combinations of parameters. This decorator is to be used with functions meant to be run with many parameters. If a decorated function is called with any parameters as a lists, it is taken to mean that we want that parameter to take on each of those values in turn. The function will be called multiple times with the values of the constant parameters being fixed, but with the variable parameters taking on each of their possible value combinations.
+<!-- 2. multi_call decorator(experiment_utils.py): Designed as a way to succinctly run an experiment with many different combinations of parameters. This decorator is to be used with functions meant to be run with many parameters. If a decorated function is called with any parameters as a lists, it is taken to mean that we want that parameter to take on each of those values in turn. The function will be called multiple times with the values of the constant parameters being fixed, but with the variable parameters taking on each of their possible value combinations. -->
 
 2. fitness_v_selfish: returns the ratio of the average payoffs of a population of a given AgentType vs SelfishAgents. Specified are the population size and what percent of it is agent_type.
 
-1. games.py: defines all the decisions and games agents can make. games are matchmaking engines that composable in different ways.
+## Creating Games (games.py)
+Defines all the decisions and games agents can make. games are matchmaking engines that composable in different ways.
 
-2. Playable: the primary base class, defines the 'play' method which takes in a decision and participants, implicitly specifying that a decision is a dict with named actions and as many payoffs as participants. CONSIDER MERGING WITH DECISION, NOT GETTING MILEAGE OUT OF INHERITANCE.
+### TODOs
+- Consider merging `Playable` with `Decision`, not getting mileage out of inheritance.
+- Add input validation to `Decision` make sure number of players is correct. 
 
-2.Decision: Given the correct number of agents, has the first agent make a decision, returns a tuple of the payoffs, the observation event, and a None. This is the only thing agents actually know how to interact with. Every other class in games.py orchestrates different ways to get a pool of agents to actually play out a decision. Initialize it with a payoff dict and play with the 'play' method. ADD INPUT VALIDATION TO MAKE SURE NUMBER OF PLAYERS IS CORRECT. 
+2. `Playable`: the primary base class, defines the 'play' method which takes in a decision and participants, implicitly specifying that a decision is a dict with named actions and as many payoffs as participants. 
+
+2. `Decision`: Given the correct number of agents, has the first agent make a decision, returns a tuple of the payoffs, the observation event, and a None. This is the only thing agents actually know how to interact with. Every other class in games.py orchestrates different ways to get a pool of agents to actually play out a decision. Initialize it with a payoff dict and play with the 'play' method. 
 
 2. games/matchups: from this point on, classes are ways to arrange multiple decisions played out in sequence. these consist of two parts, 'play' which actually calls the underlying playable, and 'matchups' which generates the decision/order pairings to be played. 
 
