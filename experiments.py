@@ -1,59 +1,77 @@
 from __future__ import division
 import pandas as pd
-from experiment_utils import multi_call
+import seaborn as sns
+from experiment_utils import multi_call,experiment
 import numpy as np
-from indirect_reciprocity import World,default_params,generate_proportional_genomes
-from indirect_reciprocity import ReciprocalAgent,SelfishAgent
+from indirect_reciprocity import World,default_params,generate_proportional_genomes,default_genome
+from indirect_reciprocity import ReciprocalAgent,SelfishAgent,AltruisticAgent
 from experiment_utils import is_sequency
 from games import RepeatedPrisonersTournament
 from collections import defaultdict
-
+import matplotlib.pyplot as plt
 
 #print is_sequency(np.linspace(.1,.9,5))
 
 ###multi_call
 
+def fitness_v_selfish_plot(data,save_file):
+    #import pdb; pdb.set_trace()
+    print data
+    sns.pointplot(x = "proportion", y = "return", data = data, hue = "RA_K")
+    plt.savefig(save_file); plt.close()
 
-@multi_call
-def fitness_v_selfish(RA_K = [1], proportion = [round(n,5) for n in np.linspace(.1,.9,5)], N_agents = 50, visibility = "private", observability = .5, trial = range(10), RA_prior = .80, p_tremble = 0, agent_type = ReciprocalAgent, rounds = 10):
+#@multi_call()
+@experiment(fitness_v_selfish_plot)
+def fitness_v_selfish(RA_K = [1], proportion = [round(n,5) for n in np.linspace(.1,.9,5)], N_agents = 10, visibility = "private", observability = .5, trial = range(10), RA_prior = .80, p_tremble = 0, agent_type = ReciprocalAgent, rounds = 10):
 
     """
-    Make a population of size 'N_agents' where 'proportion' percent of the population is of type 'agent_type' 
+    Make a population of size 'N_agents' where 'proportion' percent of the population is of type 'agent_type'
     and the remainder is of type 'SelfishAgent'. have them play RepeatedPrisonersTournament with each other
-    return the ratio of average payoffs to agent_type vs average payoffs to SelfishAgent. 
+    return the ratio of average payoffs to agent_type vs average payoffs to SelfishAgent.
     """
-    
+
     condition = locals()
     condition['agent_types'] = [agent_type,SelfishAgent]
     condition['games'] = RepeatedPrisonersTournament(**condition)
-    
+
     params = default_params(**condition)
-    
+
     proportions = {agent_type:proportion,
                    SelfishAgent:1-proportion}
 
     world = World(params,generate_proportional_genomes(params,proportions))
-    print world.agents
+    #print world.agents
     fitness,history = world.run()
-    
+
     ordered_types = [type(agent) for agent in world.agents]
     fitnesses = defaultdict(int)
-    
+
     for a_type,fitness_score in zip(ordered_types,fitness):
         fitnesses[a_type] += fitness_score
-        
+
     for a_type in params["agent_types_world"]:
         fitnesses[a_type] /= ordered_types.count(a_type)
 
-    print fitnesses
+    #print fitnesses
     relative_avg_fitness = fitnesses[agent_type]/fitnesses[SelfishAgent]
-    
+
     return relative_avg_fitness
+@multi_call()
+def binary_matchup(agent_types=[(ReciprocalAgent,SelfishAgent)],RA_prior=[.25,.50,.75],trial=100,rounds=range(1,20),cost=[0,1,2,3],benefit=[0,1,2,3]):
+    condition = locals()
+    condition['agent_types']=agent_types
+    condition['games'] = RepeatedPrisonersTournament(**condition)
+    params = default_params(**condition)
+    genomes = [default_genome(params,agent_type) for agent_type in agent_types]
+    world = World(params,genomes)
 
-#fitness_v_selfish(N_agents = 1,trial =  range(100))
+    fitness,history = world.run()
+    return fitness
 
-@multi_call
-def first_impressions(RA_K=2,RA_prior=[.25,.5,.75],rational_type = ReciprocalAgent, agent_types = [[ReciprocalAgent,SelfishAgent]],N_cooperation=5):
+binary_matchup(trial=10,agent_types=[(ReciprocalAgent,AltruisticAgent)])
+
+@multi_call()
+def first_impressions(RA_K=2,RA_prior=[.25,.5,.75], rational_type = ReciprocalAgent, agent_types = [[ReciprocalAgent,SelfishAgent]],N_cooperation=5):
     """
     An observer 'O' sees an agent 'A' cooperate 'N_cooperation' times with another agent 'B' before defecting once.
     What is O's belief that A is of type 'rational_type'?
@@ -65,7 +83,7 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75],rational_type = ReciprocalAge
     def char_to_observation(action_char,order=[0,1]):
         action = "give" if action_char is "C" else "keep"
         return [(BD,order,[0,1,"O"],action)]
-    
+
     def observations(actions_string):
         return map(char_to_observation,actions_string)
 
@@ -73,8 +91,8 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75],rational_type = ReciprocalAge
     for OAB, OBA in [(RA_prior,RA_prior)]:
         for action_string in action_strings:
             observer = RationalAgent(default_genome(params,RationalAgent),'O')
-            
-            for i,observation in enumerate(observations(action_string)):                    
+
+            for i,observation in enumerate(observations(action_string)):
                 observer.observe(observation)
             record.append(
                 {
@@ -84,3 +102,7 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75],rational_type = ReciprocalAge
                     'prior':RA_prior,
                 })
     return record
+
+
+#fitness_v_selfish(N_agents = 20,trial =  range(10))
+
