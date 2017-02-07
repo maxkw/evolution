@@ -1,4 +1,15 @@
 # TODO
+## General
+- delete old unused files (keep local copy, just in case)
+- make experiment-specific documentation 'Experiments.md'
+- Explain the what, how, and how-to for each existing experiment
+- Make correctly-labeled plots for existing experiments
+
+## Exploring 1v1
+Make some plots for `binary_matchup`
+1. What do these distributions look like
+1. How many samples do we need to get it to converge (limit number of trials as a metric)
+1. Figure out how much time it takes to generate that many samples
 ## indirect_reciprocity.py
 1. We should split up everything into Agents, World, Games, Experiments and Utils.
 1. Information pertinent to the agents vs the world should be separated accordingly.
@@ -75,7 +86,7 @@ Defines all the decisions and games agents can make. games are matchmaking engin
 
 1. Observation: Observation modifiers feed observations to `observers` passed into the appropriate field when the playable's 'play' method is called. Classes ending in `Observed` have this effect. `PrivatelyObserved` ignores any agents in the `observer` field, and has only the players observe. `PubliclyObserved` makes all agents in `observer` observe. `RandomlyObservable` is different, it selects a random subset of observers to be actually passed into the `observer` field, but does not have them observe immediately afterwards, the observation must be forced with 'PubliclyObserved'.
 
-1.Simultaneous vs. Sequential: Observations change our games in subtle but profound ways by changing the information available to players. The games `Symmetric(PrivatelyObserved(BinaryDictator()))` and `Combinatorial(PrivatelyObserved(PrisonersDilemma))` are not the same. In the first, both players observe immediately after every decision, observation is *sequential*. In the latter, the two players don't see the other's choice until both have chosen, observation is *simultaneous*, but only for a single game. To make it so players observe only after every single game has played out, one can write `PrivatelyObserved(PrisonersDilemma())`. In the second case an agent starts getting information about the population before they have met everyone, in the last case agents can only learn about others after every interaction has taken place. Bugs rooted in observation dynamics have the potential to be very difficult to detect.
+1. Simultaneous vs. Sequential: Observations change our games in subtle but profound ways by changing the information available to players. The games `Symmetric(PrivatelyObserved(BinaryDictator()))` and `Combinatorial(PrivatelyObserved(PrisonersDilemma))` are not the same. In the first, both players observe immediately after every decision, observation is *sequential*. In the latter, the two players don't see the other's choice until both have chosen, observation is *simultaneous*, but only for a single game. To make it so players observe only after every single game has played out, one can write `PrivatelyObserved(PrisonersDilemma())`. In the second case an agent starts getting information about the population before they have met everyone, in the last case agents can only learn about others after every interaction has taken place. Bugs rooted in observation dynamics have the potential to be very difficult to detect.
 
 1. Repeated Games: The `Repeated` class is used when we want to play the same game or scenario a number of times and record the state of our agents after each play. `Repeated` uses the sofar unused third element of the tuple returned by `play`. This element contains a list of dictionaries each containing some information copied from the agents or return values of the `play` method in each run. Specifically itrecords the number of the round, copies the agents wholesale, each of the actions taken in each observation for that round, the payoffs of everyone at the end of that particular round, and a copy of every agent's beliefs and likelihood statistics. This is trivial to modify and makes it easy to collect information for plotting. Failing to judiciously use `copy` and `deepcopy` has led to sadness in the past.
 
