@@ -71,7 +71,6 @@ def binary_matchup(agent_types=[(ReciprocalAgent,SelfishAgent)],RA_prior=[.25,.5
     fitness,history = world.run()
     return fitness
 
-print binary_matchup(trial=10, rounds = 10)
 
 @plotter()
 def binary_matchup_plot(data=binary_matchup(rounds=10,cost=1,benefit=3,trial=1000), save_dir="./plots/", save_file="binary_matchup.pdf"):
@@ -87,12 +86,12 @@ def binary_matchup_plot(data=binary_matchup(rounds=10,cost=1,benefit=3,trial=100
     #print ndata['SelfishAgent']
     #sns.factorplot(data=ndata,x='SelfishAgent',y='ReciprocalAgent',row='RA_prior', kind='point')
     reward_ticks = list(set(list(ndata['ReciprocalAgent'])+list(ndata['SelfishAgent'])))
-    max_tick = max(reward_ticks)
-    min_tick = min(reward_ticks)
-    ticks = np.linspace(min_tick,max_tick,12)
+    max_tick = int(max(reward_ticks))
+    min_tick = int(min(reward_ticks))
+    ticks = range(min_tick, max_tick,2)#np.linspace(min_tick,max_tick,12)
     for RA_prior in set(ndata['RA_prior']):
         print ndata.query('RA_prior == %s' % RA_prior)
-        figure = sns.jointplot("ReciprocalAgent","SelfishAgent",data=ndata.query('RA_prior == %s' % RA_prior) ,kind = 'kde',color="g",
+        figure = sns.jointplot("ReciprocalAgent","SelfishAgent",data=ndata.query('RA_prior == %s' % RA_prior), color="g",
                                xlim=(min_tick,max_tick),ylim=(min_tick,max_tick))
         #plt.ylim([min_tick,max_tick])
         #plt.xlim([min_tick,max_tick])
