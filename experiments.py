@@ -86,9 +86,18 @@ def binary_matchup_plot(data=binary_matchup(rounds=10,cost=1,benefit=3,trial=100
     ndata = pd.DataFrame(l)
     #print ndata['SelfishAgent']
     #sns.factorplot(data=ndata,x='SelfishAgent',y='ReciprocalAgent',row='RA_prior', kind='point')
+    reward_ticks = list(set(list(ndata['ReciprocalAgent'])+list(ndata['SelfishAgent'])))
+    max_tick = max(reward_ticks)
+    min_tick = min(reward_ticks)
+    ticks = np.linspace(min_tick,max_tick,12)
     for RA_prior in set(ndata['RA_prior']):
         print ndata.query('RA_prior == %s' % RA_prior)
-        sns.jointplot("ReciprocalAgent","SelfishAgent",data=ndata.query('RA_prior == %s' % RA_prior) ,kind = 'kde',color="g")
+        figure = sns.jointplot("ReciprocalAgent","SelfishAgent",data=ndata.query('RA_prior == %s' % RA_prior) ,kind = 'kde',color="g",
+                               xlim=(min_tick,max_tick),ylim=(min_tick,max_tick))
+        #plt.ylim([min_tick,max_tick])
+        #plt.xlim([min_tick,max_tick])
+        print type(figure)
+        #figure.set(yticks = ticks,xticks = ticks)
         save_str = "binary_matchup - prior=%s.pdf" % RA_prior
         plt.savefig(save_dir+save_str)
 
