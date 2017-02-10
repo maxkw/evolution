@@ -92,7 +92,7 @@ def binary_matchup_plot(data=binary_matchup(rounds=10,cost=1,benefit=3,trial=100
     for RA_prior in set(ndata['RA_prior']):
         print ndata.query('RA_prior == %s' % RA_prior)
         figure = sns.jointplot("ReciprocalAgent","SelfishAgent",data=ndata.query('RA_prior == %s' % RA_prior), color="g",
-                               xlim=(min_tick,max_tick),ylim=(min_tick,max_tick))
+                               xlim=(min_tick,max_tick),ylim=(min_tick,max_tick), kind = "hex")
         #plt.ylim([min_tick,max_tick])
         #plt.xlim([min_tick,max_tick])
         print type(figure)
