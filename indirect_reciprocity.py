@@ -2,7 +2,6 @@ from __future__ import division
 import scipy as sp
 import numpy as np
 import pandas as pd
-import networkx as nx
 import itertools
 from collections import Counter,defaultdict,Iterable
 import matplotlib.pyplot as plt
@@ -13,7 +12,6 @@ from utils import softmax, sample_softmax, softmax_utility, flip, namedArrayCons
 from copy import deepcopy
 from pprint import pprint
 from scipy.spatial.distance import cosine
-from joblib import Parallel, delayed
 import operator
 import os.path
 from scipy.special import (psi, polygamma, gammaln)
@@ -51,6 +49,8 @@ class AgentType(type):
         return cls.__name__
     def __repr__(cls):
         return cls.__name__
+    def __hash__(cls):
+        return hash(cls.__name__)
     
 class Agent(object):
     __metaclass__ = AgentType

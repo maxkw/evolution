@@ -542,8 +542,8 @@ def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = 1, benefit = 3)
     return Repeated(rounds,Symmetric(PrivatelyObserved(BD)))
 
-def RepeatedPrisonersTournament(rounds = 10,visibility = "private",observability = .5,**junk):
-    PD = PrisonersDilemma(cost = 1, benefit = 3)
+def RepeatedPrisonersTournament(rounds = 10,visibility = "private",observability = .5, cost=1, benefit=3,**junk):
+    PD = PrisonersDilemma(cost = cost, benefit = benefit)
     if visibility == "private":
         return Repeated(rounds, PrivatelyObserved(PD))
     if visibility == "random":
