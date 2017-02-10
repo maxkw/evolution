@@ -40,7 +40,10 @@ def fun_call_labeler(method,args,kwargs):
     the third contains only those arguments provided but not specified in the definition
     """
 
-    arg_names,varargs,keywords,default_values = getargspec(method)
+    try:
+        arg_names,varargs,keywords,default_values = method.__getargspec__
+    except:
+        arg_names,varargs,keywords,default_values = getargspec(method)
     given_values = args
 
     #the dict is first populated with the default values if there are any
@@ -75,7 +78,7 @@ def fun_call_labeler(method,args,kwargs):
             "default_values":default_values}
 
 def multi_call(static=[],unordered=[]):
-    def handler(method):
+    def wrapper(method):
         """
         the keys of the OrderedDict are the names of the arguments,
         the values are the values that ended up being passed in
@@ -88,10 +91,9 @@ def multi_call(static=[],unordered=[]):
         calls super init with extra kwargs
         
         """
-        def wrapper(*args,**kwargs):
-            data_dir = "memo_cache/"
-            data_file = data_dir + method.__name__+'.pkl'
-            
+        data_dir = "memo_cache/"
+        data_file = data_dir + method.__name__+'.pkl'
+        def call(*args,**kwargs):
             call_data = fun_call_labeler(method,args,kwargs)
             expected_args = call_data["defined_args"]
             keywords = call_data["keywords"]
@@ -166,7 +168,7 @@ def multi_call(static=[],unordered=[]):
             try:
                 print "Attempting to load cache from: ",data_file
                 cache = pd.read_pickle(data_file)
-                print "Cache successfuly loaded, contains %s calls." % len(cache)
+                print "Cache successfuly loaded, contains %s computed calls." % len(cache)
             except Exception as e:
                 print str(e)
                 print "First time running, creating new cache..."
@@ -175,6 +177,7 @@ def multi_call(static=[],unordered=[]):
                     cache =  pd.DataFrame(columns = all_arg_calls[0].keys()+["return","arg_hash"])
                 else:
                     cache =  pd.DataFrame(columns = all_arg_calls[0].keys()+["trial","return","arg_hash"])
+                cache["arg_hash"] = cache["arg_hash"].astype(np.int64)
                 print "...done"
 
 
@@ -253,20 +256,45 @@ def multi_call(static=[],unordered=[]):
             #print 'arg_hash == %s' % arg_hashes
 
             # result = cache.query(or_query('arg_hash',arg_hashes)).query('trial in %s' % trials) #
-            #result = cache.isin({'arg_hash': arg_hashes})
-            result = cache.query('arg_hash in %s' % map(float,arg_hashes))
-            #result = cache.query('arg_hash in %s' % arg_hashes)
+            
+            #print cache['arg_hash']
+            #print type(arg_hashes[0])
+            #print arg_hashes
+            #result = cache[cache.isin({'arg_hash': arg_hashes})]
+            #result = cache.query('arg_hash in %s' % map(float,arg_hashes))
+            result = cache.query('arg_hash in %s' % arg_hashes)
             #import pdb; pdb.set_trace()
             #result = cache[cache.arg_hash.isin(arg_hashes)]
             #print result
             print ""
             return result
-        
-        return wrapper
-    return handler
+        call.__name__ = method.__name__
+        call.__getargspec__ = getargspec(method)
+        return call
+    return wrapper
 
 def or_query(field,ls):
     return " or ".join(["%s == %s" % (field, i) for i in ls])
+
+def plotter(default_plot_dir="./plots/",plot_dir_arg_name = 'plot_dir'):
+    """
+    makes sure plotting directory exists for function
+    """
+    def wrapper(plot_fun):
+        def call(*args,**kwargs):
+            call_data = fun_call_labeler(plot_fun, args,kwargs)
+            try:
+                plot_dir = call_data['defined_args'][plot_dir_arg_name]
+            except KeyError:
+                plot_dir = default_plot_dir
+            if not os.path.exists(plot_dir):
+                os.makedirs(plot_dir)
+            it = plot_fun(*args,**kwargs)
+            #plt.save(plot_dir+"foo.pdf")
+            return it
+        call.__name__ = plot_fun.__name__
+        return call
+    return wrapper
 
 def experiment(plot_fun,plot_dir="./plots/"):
     def handler(procedure):
