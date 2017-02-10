@@ -1,7 +1,7 @@
 from __future__ import division
 import pandas as pd
 import seaborn as sns
-from experiment_utils import multi_call,experiment
+from experiment_utils import multi_call,experiment,plotter
 import numpy as np
 from indirect_reciprocity import World,default_params,generate_proportional_genomes,default_genome
 from indirect_reciprocity import ReciprocalAgent,SelfishAgent,AltruisticAgent
@@ -21,6 +21,7 @@ def fitness_v_selfish_plot(data,save_file):
     plt.savefig(save_file); plt.close()
 
 #@multi_call()
+
 @experiment(fitness_v_selfish_plot)
 def fitness_v_selfish(RA_K = [1], proportion = [round(n,5) for n in np.linspace(.1,.9,5)], N_agents = 10, visibility = "private", observability = .5, trial = range(10), RA_prior = .80, p_tremble = 0, agent_type = ReciprocalAgent, rounds = 10):
 
@@ -56,10 +57,12 @@ def fitness_v_selfish(RA_K = [1], proportion = [round(n,5) for n in np.linspace(
     relative_avg_fitness = fitnesses[agent_type]/fitnesses[SelfishAgent]
 
     return relative_avg_fitness
-@multi_call()
+
+
+
+@multi_call(unordered = ['agent_types'])
 def binary_matchup(agent_types=[(ReciprocalAgent,SelfishAgent)],RA_prior=[.25,.50,.75],trial=100,rounds=range(1,20),cost=[0,1,2,3],benefit=[0,1,2,3]):
     condition = locals()
-    condition['agent_types']=agent_types
     condition['games'] = RepeatedPrisonersTournament(**condition)
     params = default_params(**condition)
     genomes = [default_genome(params,agent_type) for agent_type in agent_types]
@@ -68,7 +71,28 @@ def binary_matchup(agent_types=[(ReciprocalAgent,SelfishAgent)],RA_prior=[.25,.5
     fitness,history = world.run()
     return fitness
 
-binary_matchup(trial=10,agent_types=[(ReciprocalAgent,AltruisticAgent)])
+print binary_matchup(trial=10, rounds = 10)
+
+@plotter()
+def binary_matchup_plot(data=binary_matchup(rounds=10,cost=1,benefit=3,trial=1000), save_dir="./plots/", save_file="binary_matchup.pdf"):
+    dicts = data.to_dict('index')
+    types = []
+    l=[]
+    for row in dicts.itervalues():
+        types = agent_types = [str(a) for a in row['agent_types']]
+        new_entries = dict(zip(agent_types,row['return']))
+        row.update(new_entries)
+        l.append(row)
+    ndata = pd.DataFrame(l)
+    #print ndata['SelfishAgent']
+    #sns.factorplot(data=ndata,x='SelfishAgent',y='ReciprocalAgent',row='RA_prior', kind='point')
+    for RA_prior in set(ndata['RA_prior']):
+        print ndata.query('RA_prior == %s' % RA_prior)
+        sns.jointplot("ReciprocalAgent","SelfishAgent",data=ndata.query('RA_prior == %s' % RA_prior) ,kind = 'kde',color="g")
+        save_str = "binary_matchup - prior=%s.pdf" % RA_prior
+        plt.savefig(save_dir+save_str)
+
+
 
 @multi_call()
 def first_impressions(RA_K=2,RA_prior=[.25,.5,.75], rational_type = ReciprocalAgent, agent_types = [[ReciprocalAgent,SelfishAgent]],N_cooperation=5):
@@ -105,4 +129,4 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75], rational_type = ReciprocalAg
 
 
 #fitness_v_selfish(N_agents = 20,trial =  range(10))
-
+binary_matchup_plot()
