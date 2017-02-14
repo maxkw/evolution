@@ -8,6 +8,7 @@ from indirect_reciprocity import ReciprocalAgent,SelfishAgent,AltruisticAgent
 from experiment_utils import is_sequency
 from games import RepeatedPrisonersTournament
 from collections import defaultdict
+from itertools import combinations_with_replacement as combinations
 import matplotlib.pyplot as plt
 
 #print is_sequency(np.linspace(.1,.9,5))
@@ -73,7 +74,9 @@ def binary_matchup(agent_types=[(ReciprocalAgent,SelfishAgent)],RA_prior=[.25,.5
 
 
 @plotter()
-def binary_matchup_plot(data=binary_matchup(rounds=10,cost=1,benefit=3,trial=1000), save_dir="./plots/", save_file="binary_matchup.pdf"):
+def binary_matchup_plot(data = None, save_dir="./plots/", save_file="binary_matchup.pdf"):
+    if data == None:
+        data = binary_matchup(rounds=10,cost=1,benefit=3,trial=1000)
     dicts = data.to_dict('index')
     types = []
     l=[]
@@ -91,8 +94,9 @@ def binary_matchup_plot(data=binary_matchup(rounds=10,cost=1,benefit=3,trial=100
     ticks = range(min_tick, max_tick,2)#np.linspace(min_tick,max_tick,12)
     for RA_prior in set(ndata['RA_prior']):
         print ndata.query('RA_prior == %s' % RA_prior)
-        figure = sns.jointplot("ReciprocalAgent","SelfishAgent",data=ndata.query('RA_prior == %s' % RA_prior), color="g",
-                                xlim=(min_tick,max_tick),ylim=(min_tick,max_tick), kind = "kde")
+        figure = sns.jointplot("ReciprocalAgent","SelfishAgent",kind = "kde", data=ndata.query('RA_prior == %s' % RA_prior), color="g",
+                                #xlim=(min_tick,max_tick),ylim=(min_tick,max_tick), kind = "kde"
+        )
         #plt.ylim([min_tick,max_tick])
         #plt.xlim([min_tick,max_tick])
         print type(figure)
@@ -137,4 +141,20 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75], rational_type = ReciprocalAg
 
 
 #fitness_v_selfish(N_agents = 20,trial =  range(10))
-binary_matchup_plot()
+
+
+#DecisionSeq([(Symmetric(BinaryDictator(cost=cost,benefit=benefit)),[0,1]) for cost,benefit in cb_list])
+
+priors_for_RAvRA = map(sorted,combinations(np.linspace(.75,.25,3),2))
+
+print priors_for_RAvRA
+
+def RAvRA(priors = priors_for_RAvRA, agent_types = [[ReciprocalAgent,SelfishAgent,AltruisticAgent],[ReciprocalAgent,SelfishAgent]]):
+    params = default_params(**locals())
+    genomes = [default_genome(agent_type = ReciprocalAgent,RA_prior = prior) for prior in priors]
+    world = World(params = params, genomes = genomes)
+    fitness,history = world.run()
+
+    return fitness
+#binary_matchup_plot(binary_matchup(rounds=10,cost=1,benefit=3,trial=1000))
+
