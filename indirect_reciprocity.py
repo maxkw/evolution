@@ -448,18 +448,6 @@ class RationalAgent(Agent):
             # SelfishAgent.__name__ : 1-out.x[0]
         # }
 
-    def use_npArrays(self):
-        self.genome['prior'] = np.array(self.genome['prior'])
-        
-        self.uniform_likelihood = np.array(self.uniform_likelihood)
-        self.pop_prior = np.array(self.pop_prior)
-        for id in self.belief:
-            self.belief[id] = np.array(self.belief[id])
-        for id in self.likelihood:
-            self.likelihood[id] = np.array(self.likelihood[id])
-        for id, model in self.models.items():
-            model.use_npArrays()
-
 class IngroupAgent(RationalAgent):
     def __init__(self, genome, world_id=None):
         super(IngroupAgent, self).__init__(genome, world_id)
@@ -609,7 +597,6 @@ def prior_generator(agent_types,RA_prior=False):
     agent_types = tuple(agent_types)
     type2index = dict(map(reversed,enumerate(agent_types)))
     size = len(agent_types)
-    NamedArray = namedArrayConstructor(agent_types)
     rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
     if not (RA_prior or rational_types):
         return np.array(np.ones(size)/size)
