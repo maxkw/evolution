@@ -181,7 +181,7 @@ def multi_call(static=[],unordered=[],verbose = 2):
                 print "...done"
 
 
-            print all_arg_calls
+            
             arg_hashes = map(dict_hash,all_arg_calls)
             uncomputed_arg_calls = []; append_calls =  uncomputed_arg_calls.extend
             for arg_hash, arg_call in zip(arg_hashes,all_arg_calls):
