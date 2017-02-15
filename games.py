@@ -3,6 +3,16 @@ from itertools import product,combinations,permutations
 from numpy import array
 from copy import copy,deepcopy
 import numpy as np
+from experiment_utils import fun_call_labeler
+
+def literal(constructor):
+    def call(*args,**kwargs):
+        fun_call_string = fun_call_labeler(constructor,args,kwargs)['defined_call']
+        call.__name__ = constructor.__name__
+        ret = constructor(*args,**kwargs)
+        ret.name = ret._name = fun_call_string
+        return ret
+    return call
 
 class Playable(object):
     """
@@ -56,6 +66,10 @@ class Playable(object):
         
         observations = [(decision,participant_ids,observer_ids,action)]
         return payoffs, observations, None
+    def __repr__(self):
+        return self.name
+    def __hash__(self):
+        return hash(self.name)
 
 """
 Observation Modifiers
@@ -85,7 +99,7 @@ class PrivatelyObserved(Playable):
     def play(self,participants,observers=[], tremble=0):
         payoffs, observations,notes = self.playable.play(participants,[],tremble)
         for observer in list(participants):
-            observer.observe_k(observations,observer.genome['RA_K'], tremble)
+            observer.observe(observations)
         return payoffs, observations, notes
 
 class PubliclyObserved(Playable):
@@ -101,7 +115,7 @@ class PubliclyObserved(Playable):
     def play(self,participants,observers=[], tremble=0):
         payoffs, observations, notes = self.playable.play(participants,observers,tremble)
         for observer in set(list(observers)+list(participants)):       
-            observer.observe_k(observations,observer.genome['RA_K'], tremble)
+            observer.observe(observations)
         return payoffs, observations, notes
     
 class RandomlyObserved(Playable):
@@ -158,10 +172,20 @@ class Decision(Playable):
         self.actions = actions
         self.action_lookup = dict(map(reversed,enumerate(actions)))
         self.payoffs = payoffDict
-        
+
     def __call__(self,action):
         self.last_action = action
         return array(self.payoffs[action])
+
+class Dynamic(Playable):
+    def __init__(self,playable_generator):
+        self.generator = playable_generator
+        instance = playable_generator()
+        self.N_players = instance.N_players
+
+    def play(self,participants,observers=[], tremble=0):
+        playable = self.generator()
+        return playable.play(participants,observers, tremble)
 
 def BinaryDictatorDict(endowment = 0, cost = 1, benefit = 2):
     return {
@@ -538,6 +562,17 @@ class IndefiniteHorizonGame(DecisionSeq):
         while flip(gamma):
             yield game,ordering
 
+
+
+@literal
+def DynamicPrisonersTournament(endowment = 0, cost = 1, benefit = 3, gamma = 1):
+    f = np.random.exponential
+    def DilemmaGenerator():
+        return PrisonersDilemma(endowment = endowment * f(gamma), cost = cost * f(gamma), benefit = benefit * f(gamma))
+    return Dynamic(DilemmaGenerator)
+
+
+
 def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = 1, benefit = 3)
     return Repeated(rounds,Symmetric(PrivatelyObserved(BD)))
@@ -551,9 +586,17 @@ def RepeatedPrisonersTournament(rounds = 10,visibility = "private",observability
     if visibility == "public":
         return Repeated(rounds, PubliclyObserved(PD))
 
+
+
 if __name__ == "__main__":
+    from indirect_reciprocity import ReciprocalAgent
+    from params import default_genome
+    
     from indirect_reciprocity import Puppet
-    puppets = array([Puppet("Alpha"),Puppet("Beta")])
-    game = UltimatumGame(3)
-    payoff = game.play(puppets,[])[0]
+    #puppets = array([Puppet("Alpha"),Puppet("Beta"),Puppet("C")])
+    agents = array([ReciprocalAgent(default_genome(),world_id = n) for n in range(3)])
+    game = Repeated(10,PrivatelyObserved(DynamicPrisonersTournament()))
+    print hash(game)
+    payoff,history,records = game.play(agents)
     print "Final Payoff:",payoff
+    print len(list(set(g for g,a,b,c in history)))
