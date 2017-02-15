@@ -195,10 +195,11 @@ def multi_call(static=[],unordered=[],verbose = 2):
 
                     assert (not uncached_trials) or len(list(product(uncached_trials,[(arg_hash,arg_call)]))) == len(trials)
                 except:
+                    "If there are any uncached trials"
                     it  = list(product(uncached_trials,[(arg_hash,arg_call)]))
                     print "the thing"
-                    print it
-                    print trials
+                    #print it
+                    #print uncached_trials
 
                 if uncached_trials:
                     append_calls(product(uncached_trials,[(arg_hash,arg_call)]))
