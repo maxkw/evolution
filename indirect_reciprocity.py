@@ -19,7 +19,6 @@ from operator import mul as multiply
 from copy import copy, deepcopy
 from functools import partial
 from utils import unpickled, pickled
-from games import RepeatedPrisonersTournament
 
 
 sns.set_style('white')
@@ -31,7 +30,7 @@ import warnings
 warnings.filterwarnings("ignore",category=np.VisibleDeprecationWarning)
 
 from itertools import ifilterfalse
-from games import RepeatedPrisonersTournament
+#from games import RepeatedPrisonersTournament
 
 
 """
@@ -101,13 +100,16 @@ class Agent(object):
         return game.actions[action_id]
 
     #For uniformity with Rational Agents
-    
+
+    def observe(self,observations):
+        pass
     def observe_k(self, observations, k, tremble = 0):
         pass
 
 class Puppet(Agent):
     def __init__(self, world_id = 'puppet'):
         self.world_id = world_id
+        self.belief = self.likelihood = None
         
     def decide(self,decision,agent_ids):
         print decision.name
@@ -507,163 +509,6 @@ def discount_stop_condition(x,n):
 def constant_stop_condition(x,n):
     return n >= x
 
-def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticAgent],
-                   RA_prior = .8, N_agents= 10, p_tremble = 0,rounds = 10, **kwargs):
-    """
-    generates clean dict containing rules that determine agent qualities
-    this dict provides a simple way to change conditions of experiments
-
-    `games`: Instance of a StageGame object to be used as the default if no game is specified. 
-
-    `stop_condition`: The current `World` matches players together for either a single or a repeated interaction. This expects a reference to a function that takes in the number of rounds played (`n`). The function returns True if the interaction should stop and false if the interaction should continue. 
-
-    `constant_stop_condition`: means that each dyad plays a fixed number of round together up to X. 
-
-    `discount_stop condition`: randomly terminates the interaction with probability `x` and hence does not depend on the round number. 
-
-    `agent_types`: Default agent types which will be initialized through `generate_random_genomes`.
-
-    `beta`: is the beta in the softmax function for the agent decision making. When beta is Inf the agents always select the option that maximizes utility when beta is 0, the agents choose actions randomly. 
-
-    `moran_beta`: is the beta in the evolutionary selection. When moran_beta is 0 the next generation randomly copies from the previous generation. When moran_beta is Inf, all agents in the next generation copy the best agent in the previous generation. 
-
-    I've been using the `RA_` prefix to denote parameters that are special to the reciprocal agent time. 
-
-    `RA_prior`: The prior probability that a ReciprocalAgent has on another agent also being a ReciprocalAgent. The higher this value, the more likely the ReciprocalAgent is to believe the other agent is also ReciprocalAgent without observing any of their actions. 
-    TODO: This will probability need to be generalized a bit to handle other Agent types.
-
-    `prior_precision`: This is how confident the agent is in its prior (its like a hyperprior). If it is 0, there is no uncertainty and the prior never changes. If this is non-zero, then `RA_prior` is just the mean of a distribution. The agent will learn the `RA_prior` as it interacts with more and more agents. 
-
-    `p_tremble`: probability of noise in between forming a decision and making an action. 
-
-    `RA_K`: is the number of theory-of-mind recursions to carry out. When RA_K is 0 the agent just tries to infer the type directly, when it is 1, you first infer what each agent knows and then infer what you know based on those agents and so on. 
-
-    """
-    #agent_types =  [
-    #    SelfishAgent,
-    #    NiceReciprocalAgent,
-    #    AltruisticAgent
-    #]
-
-    given_values = locals()
-    given_values.update(kwargs)
-    
-    values =  {
-        'N_agents':N_agents,
-        'games': RepeatedPrisonersTournament(10), 
-        'stop_condition': [constant_stop_condition,rounds],
-        'agent_types' : agent_types,
-        'beta': 3,
-        'moran_beta': .1,
-        'RA_prior': RA_prior,
-        'prior_precision': 0, # setting this to 0 turns off updating the prior
-        'p_tremble': 0.0,
-        'RA_K': 1,
-        'agent_types_world': agent_types
-    }
-
-    for key in given_values:
-        if key in values:
-            values[key] = given_values[key]
-
-    return values
-
-
-def generate_random_genomes(N_agents, agent_types_world, agent_types, RA_prior, prior_precision,p_tremble, beta, **keys):
-    genomes = []
-    
-    prior = prior_generator(agent_types,RA_prior)
-    for _ in range(N_agents):
-        genomes.append({
-            'type': np.random.choice(agent_types_world),
-            'agent_types': agent_types,
-            'prior': prior,
-            'RA_prior': RA_prior,
-            'prior_precision': prior_precision,
-            'beta': beta,
-            'RA_K': 1,
-            'tremble': p_tremble,
-        })
-        
-    return genomes
-
-def prior_generator(agent_types,RA_prior=False):
-    """
-    if RA_prior is False it generates a uniform prior over types
-    if RA_prior is a dict from agent_type to a number it assigns those types
-    the corresponding number
-    if RA_prior is a number it divides that number uniformly among all rational types
-    """
-    
-    agent_types = tuple(agent_types)
-    type2index = dict(map(reversed,enumerate(agent_types)))
-    size = len(agent_types)
-    rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
-    if not (RA_prior or rational_types):
-        return np.array(np.ones(size)/size)
-    else:
-        try:
-            normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
-            prior = [RA_prior[agent_type] if agent_type in RA_prior
-                     else normal_prior for agent_type in agent_types]
-            #print prior
-        except AttributeError:
-            rational_size = len(rational_types)
-            rational_prior = RA_prior/float(rational_size)
-            normal_prior = (1.0-RA_prior)/(size-rational_size)
-            prior = [rational_prior if agent_type in rational_types
-                     else normal_prior for agent_type in agent_types]
-        return np.array(prior)
-    
-def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **extra_args):
-
-    if not agent_types:
-        agent_types = default_params["agent_types"]
-    if not agent_type:
-        agent_type = np.random.choice(agent_types)
-
-    genome = {
-        'type': agent_type,
-        'RA_prior': RA_prior,
-        'prior_precision': 0,
-        'beta': .3,
-        'prior': prior_generator(agent_types,RA_prior),
-        "agent_types":agent_types,
-        'RA_K':2,
-        'p_tremble':0
-    }
-
-    for key in extra_args:
-        if key in genome:
-            genome[key] = extra_args[key]
-
-    return genome
-
-def generate_proportional_genomes(params = default_params(), agent_proportions = None):
-    """
-    returns a number of genomes roughly proportional to 'N_agents' in the supplied params.
-
-    'params' is a dict
-    'agent_proportions' is a dict of agent_type to a fraction
-    ideally all fractions add up to 1 but this is not enforced nor will anything break if unobserved
-    
-    WARNING:
-    this function does not try to preserve the value of "N_agents" it will round up fractions of the population.
-    
-    for example, if given 'N_agents' = 1, and agent proportions of 1/3,1/3,1/3 the actual population will be 3.
-    """
-    if not agent_proportions:
-        return generate_random_genomes(**params)
-    agent_list = []
-    pop_size = params['N_agents']
-    for agent_type in sorted(agent_proportions.keys()):
-        number = int(math.ceil(pop_size*agent_proportions[agent_type]))
-        agent_list.extend([default_genome(params,agent_type) for _ in xrange(number)])
-    return agent_list
-
-
-
-
 """
 End Essential Auxiliary Definitions
 """
@@ -765,7 +610,7 @@ def diagnostics():
 
     w = World(params, [default_genome(params,NiceReciprocalAgent)])
 
-    g = RepeatedPrisonersTournament().game
+    #g = RepeatedPrisonersTournament().game
     #print g.name
     #for key,val in g.__dict__.items():
     #    print key,val
