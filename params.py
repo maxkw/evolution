@@ -1,5 +1,7 @@
 import numpy as np
-def default_params(agent_types = [SelfishAgent, NiceReciprocalAgent, AltruisticAgent],
+from indirect_reciprocity import SelfishAgent,ReciprocalAgent,NiceReciprocalAgent,AltruisticAgent,RationalAgent
+from games import RepeatedPrisonersTournament
+def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent),
                    RA_prior = .75, N_agents= 10, p_tremble = 0,rounds = 10, **kwargs):
     """
     generates clean dict containing rules that determine agent qualities
@@ -84,6 +86,8 @@ def prior_generator(agent_types,RA_prior=False):
             prior = [rational_prior if agent_type in rational_types
                      else normal_prior for agent_type in agent_types]
         return np.array(prior)
+print prior_generator((ReciprocalAgent,SelfishAgent),.75)[0]
+assert prior_generator((ReciprocalAgent,SelfishAgent),.75)[0] == 0.75
 
 def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **extra_args):
 
@@ -91,7 +95,8 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         agent_types = default_params["agent_types"]
     if not agent_type:
         agent_type = np.random.choice(agent_types)
-
+    #print "args",agent_types,RA_prior
+    #print "result",prior_generator(agent_types,RA_prior),
     genome = {
         'type': agent_type,
         'RA_prior': RA_prior,
@@ -100,9 +105,10 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         'prior': prior_generator(agent_types,RA_prior),
         "agent_types":agent_types,
         'RA_K':2,
-        'tremble':0
+        'p_tremble':0
     }
 
+    #print "keys\n\n\n",extra_args.keys()
     for key in extra_args:
         if key in genome:
             genome[key] = extra_args[key]

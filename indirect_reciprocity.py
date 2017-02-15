@@ -222,7 +222,7 @@ class RationalAgent(Agent):
         #NamedArray mapping agent_type to odds that an arbitrary agent is of that type
         self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
         self.pop_prior = copy(self.genome['prior'])
-        
+
         self.uniform_likelihood = normalized(self.pop_prior*0+1)
         self.model = AgentDict(genome)
         
@@ -455,6 +455,7 @@ class IngroupAgent(RationalAgent):
                                          for agent_type in self.ingroup()
                                          if agent_type in genome['agent_types']])
         
+        
     def sample_alpha(self,agent_id):
         if agent_id == self.world_id:
             return 1
@@ -614,25 +615,29 @@ def prior_generator(agent_types,RA_prior=False):
                      else normal_prior for agent_type in agent_types]
         return np.array(prior)
     
-def default_genome(params = default_params() ,agent_type = False):
-    agent_types = params["agent_types"]
-    
-    if agent_type:
-        #assert agent_type in agent_types
-        pass
-    else:
+def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **extra_args):
+
+    if not agent_types:
+        agent_types = default_params["agent_types"]
+    if not agent_type:
         agent_type = np.random.choice(agent_types)
-        
-    return {
+
+    genome = {
         'type': agent_type,
-        'RA_prior': params['RA_prior'],
-        'prior_precision': params['prior_precision'],
-        'beta': params['beta'],
-        'prior': prior_generator(agent_types,params['RA_prior']),
+        'RA_prior': RA_prior,
+        'prior_precision': 0,
+        'beta': .3,
+        'prior': prior_generator(agent_types,RA_prior),
         "agent_types":agent_types,
-        'RA_K':params['RA_K'],
-        'tremble':params['p_tremble']
+        'RA_K':2,
+        'p_tremble':0
     }
+
+    for key in extra_args:
+        if key in genome:
+            genome[key] = extra_args[key]
+
+    return genome
 
 def generate_proportional_genomes(params = default_params(), agent_proportions = None):
     """
@@ -678,7 +683,7 @@ class World(object):
         self.pop_size = len(self.agents)
         self.tremble = params['p_tremble']
         self.game = params['games']
-        self._stop_condition = params['stop_condition']
+        #self._stop_condition = params['stop_condition']
         #self.stop_condition = partial(*params['stop_condition'])
         self.params = params
         self.last_run_results = {}
