@@ -3,16 +3,15 @@ import pandas as pd
 import seaborn as sns
 from experiment_utils import multi_call,experiment,plotter
 import numpy as np
+
 from params import default_params,generate_proportional_genomes,default_genome
 from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent
-from experiment_utils import is_sequency
 from games import RepeatedPrisonersTournament
 from collections import defaultdict
 from itertools import combinations_with_replacement as combinations
-from itertools import product,chain
+from itertools import product
 import matplotlib.pyplot as plt
 
-#print is_sequency(np.linspace(.1,.9,5))
 
 ###multi_call
 
@@ -147,8 +146,9 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75], rational_type = ReciprocalAg
 #DecisionSeq([(Symmetric(BinaryDictator(cost=cost,benefit=benefit)),[0,1]) for cost,benefit in cb_list])
 
 priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
+diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
 
-@multi_call(unordered = ['agent_types'])
+@multi_call(unordered = ['agent_types'],verbose=3)
 def RAvRA(priors = priors_for_RAvRA, agent_types = [(ReciprocalAgent,SelfishAgent,AltruisticAgent),(ReciprocalAgent,SelfishAgent)],trial = 100):
     condition = locals()
     params = default_params(**condition)
@@ -194,7 +194,7 @@ def RAvRA_plot(data, save_dir="./plots/", save_file="RAvRA.pdf"):
         rewards = sorted(list(set(sum(map(list,data['return']),[]))))
         lims = (min(rewards),max(rewards))
         agents = ["ReciprocalAgent #%s Reward" % prior for prior in range(2)]
-        figure = sns.jointplot(agents[0],agents[1], data=data, color="g",kind = 'hex', xlim=lims,ylim=lims)
+        figure = sns.jointplot(agents[0],agents[1], data=data, color="g",kind = 'kde', xlim=lims,ylim=lims)
         figure.set_axis_labels(*["RA(prior = %s)" % prior for prior in priors])
         #plt.ylim([min_tick,max_tick])
         #plt.xlim([min_tick,max_tick])
@@ -202,6 +202,25 @@ def RAvRA_plot(data, save_dir="./plots/", save_file="RAvRA.pdf"):
         #figure.set(yticks = ticks,xticks = ticks)
         save_str = "RAvRA(priors = %s, agent_types = %s,trials = %s).pdf" % (priors,agent_types,len(data))
         plt.savefig(save_dir+save_str)
-RAvRA_plot(RAvRA(trial=1000,priors = [(.25,.75)],agent_types = [(SelfishAgent,ReciprocalAgent)]))
-RAvRA_plot(RAvRA())
+
+def compare_RA():
+    from numpy import array
+    prior_lst = [.25,.5,.75]
+    prior_2_index = dict(map(reversed,enumerate(prior_lst)))
+    lookup = lambda p: prior_2_index[p]
+    data = RAvRA(priors = priors_for_RAvRA, trial = 200, agent_types = [(SelfishAgent,ReciprocalAgent)])
+    lst = []
+    
+    arr = np.empty([3,3])
+    for priors,group in data.groupby('priors'):
+        p0,p1 = map(lookup,priors)
+        r0,r1 = group['return'].mean()
+        arr[(p0,p1)] = r0
+        arr[(p1,p0)] = r1
+    print prior_lst
+    print arr
+
+compare_RA()
+#RAvRA_plot(RAvRA(priors = diagonal_priors,trial = 1000))
+#RAvRA_plot(RAvRA())
 #print RAvRA(trial=1)
