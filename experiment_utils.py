@@ -197,7 +197,7 @@ def multi_call(static=[],unordered=[],verbose = 2):
                 except:
                     "If there are any uncached trials"
                     it  = list(product(uncached_trials,[(arg_hash,arg_call)]))
-                    print "the thing"
+                    #print "the thing"
                     #print it
                     #print uncached_trials
 
