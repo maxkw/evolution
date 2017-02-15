@@ -77,7 +77,7 @@ def fun_call_labeler(method,args,kwargs):
             "keywords":keywords,
             "default_values":default_values}
 
-def multi_call(static=[],unordered=[]):
+def multi_call(static=[],unordered=[],verbose = 2):
     def wrapper(method):
         """
         the keys of the OrderedDict are the names of the arguments,
@@ -181,6 +181,7 @@ def multi_call(static=[],unordered=[]):
                 print "...done"
 
 
+            print all_arg_calls
             arg_hashes = map(dict_hash,all_arg_calls)
             uncomputed_arg_calls = []; append_calls =  uncomputed_arg_calls.extend
             for arg_hash, arg_call in zip(arg_hashes,all_arg_calls):
@@ -205,12 +206,14 @@ def multi_call(static=[],unordered=[]):
             results = []
             number_of_calls = len(uncomputed_arg_calls)
 
-            print "There are", number_of_calls, "uncomputed method calls out of",len(all_arg_calls)*len(trials)
+            if verbose:
+                print "There are", number_of_calls, "uncomputed method calls out of",len(all_arg_calls)*len(trials)
 
             for n,(trial,(arg_hash,arg_call)) in enumerate(uncomputed_arg_calls):
                 arg_call = deepcopy(arg_call)
-                print n+1,"/",number_of_calls
-                print "current arg call:",arg_call
+                if verbose>1:
+                    print n+1,"/",number_of_calls
+                    print "current arg call:",arg_call
                 
                 np.random.seed(trial)
                 
@@ -227,7 +230,8 @@ def multi_call(static=[],unordered=[]):
 
                 arg_call.update({"arg_hash":arg_hash, "trial":trial})
 
-                print "returned:",arg_call["return"]
+                if verbose>1:
+                    print "returned:",arg_call["return"]
 
                 results.append(arg_call)
 
@@ -246,7 +250,7 @@ def multi_call(static=[],unordered=[]):
                         print to_cache
 
                 #actually add the results to the existing table
-                cache = cache.append(to_cache)
+                cache = cache.append(to_cache)#,ignore_index=True)
 
                 if not os.path.exists(data_dir):
                     os.makedirs(data_dir)
@@ -262,7 +266,7 @@ def multi_call(static=[],unordered=[]):
             #print arg_hashes
             #result = cache[cache.isin({'arg_hash': arg_hashes})]
             #result = cache.query('arg_hash in %s' % map(float,arg_hashes))
-            result = cache.query('arg_hash in %s' % arg_hashes)
+            result = cache.query('arg_hash in %s' % arg_hashes).query('trial in %s' % trials)
             #import pdb; pdb.set_trace()
             #result = cache[cache.arg_hash.isin(arg_hashes)]
             #print result
