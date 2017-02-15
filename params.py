@@ -86,7 +86,7 @@ def prior_generator(agent_types,RA_prior=False):
             prior = [rational_prior if agent_type in rational_types
                      else normal_prior for agent_type in agent_types]
         return np.array(prior)
-print prior_generator((ReciprocalAgent,SelfishAgent),.75)[0]
+
 assert prior_generator((ReciprocalAgent,SelfishAgent),.75)[0] == 0.75
 
 def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **extra_args):
@@ -132,4 +132,3 @@ def generate_proportional_genomes(agent_proportions,**extra_args):
         number = int(math.ceil(pop_size*agent_proportions[agent_type]))
         agent_list.extend([default_genome(agent_type,**extra_args) for _ in xrange(number)])
     return agent_list
-
