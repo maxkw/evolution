@@ -203,4 +203,5 @@ def RAvRA_plot(data, save_dir="./plots/", save_file="RAvRA.pdf"):
         save_str = "RAvRA(priors = %s, agent_types = %s,trials = %s).pdf" % (priors,agent_types,len(data))
         plt.savefig(save_dir+save_str)
 RAvRA_plot(RAvRA(trial=1000,priors = [(.25,.75)],agent_types = [(SelfishAgent,ReciprocalAgent)]))
+RAvRA_plot(RAvRA())
 #print RAvRA(trial=1)
