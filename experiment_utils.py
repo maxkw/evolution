@@ -68,14 +68,16 @@ def fun_call_labeler(method,args,kwargs):
 
     defined_args = multiRefOrderedDict((arg,known_args[arg]) for arg in arg_names)
     undefined_args = {key:val for key,val in known_args.iteritems() if key not in defined_args}
-
+ 
     return {"known_args":known_args,
             "defined_args":defined_args,
             "undefined_args":undefined_args,
             "arg_names":arg_names,
             "varargs":varargs,
             "keywords":keywords,
-            "default_values":default_values}
+            "default_values":default_values,
+            "defined_call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in defined_args.iteritems()])
+    }
 
 def multi_call(static=[],unordered=[],verbose = 2):
     def wrapper(method):
@@ -180,8 +182,6 @@ def multi_call(static=[],unordered=[],verbose = 2):
                 cache["arg_hash"] = cache["arg_hash"].astype(np.int64)
                 print "...done"
 
-
-            
             arg_hashes = map(dict_hash,all_arg_calls)
             uncomputed_arg_calls = []; append_calls =  uncomputed_arg_calls.extend
             for arg_hash, arg_call in zip(arg_hashes,all_arg_calls):
@@ -333,6 +333,14 @@ def save_prompt(obj,path):
     else:
         print "object not saved"
 
+def literal(constructor):
+    def call(*args,**kwargs):
+        fun_call_string = fun_call_labeler(constructor,args,kwargs)['defined_call']
+        call.__name__ = constructor.__name__
+        ret = constructor(*args,**kwargs)
+        ret.name = ret._name = fun_call_string
+        return ret
+    return call
 
 
 
