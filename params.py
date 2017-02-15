@@ -92,7 +92,7 @@ assert prior_generator((ReciprocalAgent,SelfishAgent),.75)[0] == 0.75
 def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **extra_args):
 
     if not agent_types:
-        agent_types = default_params["agent_types"]
+        agent_types = default_params()["agent_types"]
     if not agent_type:
         agent_type = np.random.choice(agent_types)
     #print "args",agent_types,RA_prior
@@ -105,12 +105,12 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         'prior': prior_generator(agent_types,RA_prior),
         "agent_types":agent_types,
         'RA_K':2,
-        'p_tremble':0
+        'tremble':0
     }
 
     #print "keys\n\n\n",extra_args.keys()
     for key in extra_args:
-        if key in genome:
+        if key in genome and key is not 'prior':
             genome[key] = extra_args[key]
 
     return genome
