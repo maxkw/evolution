@@ -145,11 +145,13 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75], rational_type = ReciprocalAg
 
 #DecisionSeq([(Symmetric(BinaryDictator(cost=cost,benefit=benefit)),[0,1]) for cost,benefit in cb_list])
 
+def unordered_prior_combinations(prior_list = np.linspace(.75,.25,3)):
+    return map(tuple,map(sorted,combinations(prior_list,2)))
 priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
 diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
 
-@multi_call(unordered = ['agent_types'],verbose=3)
-def RAvRA(priors = priors_for_RAvRA, agent_types = [(ReciprocalAgent,SelfishAgent,AltruisticAgent),(ReciprocalAgent,SelfishAgent)],trial = 100):
+@multi_call(unordered = ['agent_types'],verbose=1)
+def RAvRA(priors = priors_for_RAvRA, agent_types = [(ReciprocalAgent,SelfishAgent,AltruisticAgent),(ReciprocalAgent,SelfishAgent)],trial = 100, RA_K = 1):
     condition = locals()
     params = default_params(**condition)
     genomes = [default_genome(agent_type = ReciprocalAgent,RA_prior = prior,**condition) for prior in priors]
@@ -205,20 +207,25 @@ def RAvRA_plot(data, save_dir="./plots/", save_file="RAvRA.pdf"):
 
 def compare_RA():
     from numpy import array
-    prior_lst = [.25,.5,.75]
+
+    prior_lst = list(np.linspace(.25,.75,7))
+    size = [len(prior_lst)]*2
     prior_2_index = dict(map(reversed,enumerate(prior_lst)))
     lookup = lambda p: prior_2_index[p]
-    data = RAvRA(priors = priors_for_RAvRA, trial = 200, agent_types = [(SelfishAgent,ReciprocalAgent)])
-    lst = []
+
+    data = RAvRA(priors = unordered_prior_combinations(prior_lst), trial = 100, RA_K = 1,
+                 agent_types = [(SelfishAgent,ReciprocalAgent)])
     
-    arr = np.empty([3,3])
+    
+    arr = np.empty(size)
     for priors,group in data.groupby('priors'):
         p0,p1 = map(lookup,priors)
-        r0,r1 = group['return'].mean()
-        arr[(p0,p1)] = r0
-        arr[(p1,p0)] = r1
-    print prior_lst
+        r0,r1 = list(group['return'].mean())
+        arr[(p0,p1)] = round(r0,4)
+        arr[(p1,p0)] = round(r1,4)
+    print [round(n,3) for n in prior_lst]
     print arr
+    return arr
 
 compare_RA()
 #RAvRA_plot(RAvRA(priors = diagonal_priors,trial = 1000))
