@@ -11,6 +11,7 @@ from collections import defaultdict
 from itertools import combinations_with_replacement as combinations
 from itertools import product
 import matplotlib.pyplot as plt
+from numpy import array
 
 
 ###multi_call
@@ -147,11 +148,13 @@ def first_impressions(RA_K=2,RA_prior=[.25,.5,.75], rational_type = ReciprocalAg
 
 def unordered_prior_combinations(prior_list = np.linspace(.75,.25,3)):
     return map(tuple,map(sorted,combinations(prior_list,2)))
+
 priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
+print priors_for_RAvRA
 diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
 
 @multi_call(unordered = ['agent_types'],verbose=1)
-def RAvRA(priors = priors_for_RAvRA, agent_types = [(ReciprocalAgent,SelfishAgent,AltruisticAgent),(ReciprocalAgent,SelfishAgent)],trial = 100, RA_K = 1):
+def RAvRA(priors = priors_for_RAvRA, agent_types = [(ReciprocalAgent,SelfishAgent,AltruisticAgent),(ReciprocalAgent,SelfishAgent)],trial = 100, RA_K = 1,games = RepeatedPrisonersTournament()):
     condition = locals()
     params = default_params(**condition)
     genomes = [default_genome(agent_type = ReciprocalAgent,RA_prior = prior,**condition) for prior in priors]
@@ -162,9 +165,6 @@ def RAvRA(priors = priors_for_RAvRA, agent_types = [(ReciprocalAgent,SelfishAgen
     fitness,history = world.run()
 
     return fitness
-
-#print RAvRA()
-#print binary_matchup_plot(binary_matchup(rounds=10,cost=1,benefit=3,trial=1000))
 
 @plotter()
 def RAvRA_plot(data, save_dir="./plots/", save_file="RAvRA.pdf"):
@@ -196,7 +196,9 @@ def RAvRA_plot(data, save_dir="./plots/", save_file="RAvRA.pdf"):
         rewards = sorted(list(set(sum(map(list,data['return']),[]))))
         lims = (min(rewards),max(rewards))
         agents = ["ReciprocalAgent #%s Reward" % prior for prior in range(2)]
-        figure = sns.jointplot(agents[0],agents[1], data=data, color="g",kind = 'kde', xlim=lims,ylim=lims)
+        figure = sns.jointplot(agents[0],agents[1], data=data, color="g",kind = 'kde',xlim=lims,ylim=lims,bw=(.75,.75),
+                               n_levels = 15
+        )
         figure.set_axis_labels(*["RA(prior = %s)" % prior for prior in priors])
         #plt.ylim([min_tick,max_tick])
         #plt.xlim([min_tick,max_tick])
@@ -205,29 +207,52 @@ def RAvRA_plot(data, save_dir="./plots/", save_file="RAvRA.pdf"):
         save_str = "RAvRA(priors = %s, agent_types = %s,trials = %s).pdf" % (priors,agent_types,len(data))
         plt.savefig(save_dir+save_str)
 
-def compare_RA():
-    from numpy import array
-
-    prior_lst = list(np.linspace(.25,.75,7))
+from games import RepeatedDynamicPrisoners
+def compare_RA(prior_lst = np.linspace(.25,.75,7)):
+    
+    
     size = [len(prior_lst)]*2
     prior_2_index = dict(map(reversed,enumerate(prior_lst)))
     lookup = lambda p: prior_2_index[p]
+    priors = unordered_prior_combinations(prior_lst)
+    data = RAvRA(priors = priors, trial = 100, RA_K = 1, agent_types = [(SelfishAgent,ReciprocalAgent)])
 
-    data = RAvRA(priors = unordered_prior_combinations(prior_lst), trial = 100, RA_K = 1,
-                 agent_types = [(SelfishAgent,ReciprocalAgent)])
-    
-    
     arr = np.empty(size)
     for priors,group in data.groupby('priors'):
         p0,p1 = map(lookup,priors)
         r0,r1 = list(group['return'].mean())
         arr[(p0,p1)] = round(r0,4)
         arr[(p1,p0)] = round(r1,4)
+
     print [round(n,3) for n in prior_lst]
     print arr
     return arr
 
-compare_RA()
-#RAvRA_plot(RAvRA(priors = diagonal_priors,trial = 1000))
+from games import RepeatedSequentialBinary
+def comparison_plotter(prior_list = [.25,.50,.75]):
+    priors = unordered_prior_combinations(prior_list)
+    print priors
+    game = RepeatedDynamicPrisoners()#RepeatedSequentialBinary()
+    data = RAvRA(priors = priors, trial = 500, RA_K = 1, agent_types = [(SelfishAgent,ReciprocalAgent)],games = game)
+    record = []
+
+    rewards = sorted(list(set(sum(map(list,data['return']),[]))))
+    for priors,group in data.groupby('priors'):
+        p0,p1 = priors
+        for r0,r1 in group['return']:
+            record.append({'recipient prior':p0,'opponent prior':p1,'reward':r0})
+            record.append({'recipient prior':p1,'opponent prior':p0,'reward':r1})
+    data = pd.DataFrame(record)
+
+    def meandrawer(data,**kwargs):
+        plt.axvline(data.mean())
+    g = sns.FacetGrid(data,row='recipient prior',col='opponent prior',margin_titles=True)
+    g = (g.map(sns.kdeplot,"reward")
+        .map(meandrawer,"reward"))
+    plt.savefig("./plots/compare.pdf")
+
+#compare_RA()
+#RAvRA_plot(RAvRA(trial = 1000))
+comparison_plotter()
 #RAvRA_plot(RAvRA())
 #print RAvRA(trial=1)
