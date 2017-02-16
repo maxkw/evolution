@@ -43,7 +43,7 @@ def fun_call_labeler(method,args,kwargs):
     try:
         arg_names,varargs,keywords,default_values = method.__getargspec__
     except:
-        arg_names,varargs,keywords,default_values = getargspec(method)
+        arg_names,varargs,keywords,default_values = method.__getargspec__ = getargspec(method)
     given_values = args
 
     #the dict is first populated with the default values if there are any
@@ -211,7 +211,12 @@ def multi_call(static=[],unordered=[],verbose = 2):
                 print "There are", number_of_calls, "uncomputed method calls out of",len(all_arg_calls)*len(trials)
 
             for n,(trial,(arg_hash,arg_call)) in enumerate(uncomputed_arg_calls):
-                arg_call = deepcopy(arg_call)
+                try:
+                    arg_call = deepcopy(arg_call)
+                except Exception as e:
+                    print arg_call
+                    print e
+                    raise e
                 if verbose>1:
                     print n+1,"/",number_of_calls
                     print "current arg call:",arg_call
@@ -255,7 +260,12 @@ def multi_call(static=[],unordered=[],verbose = 2):
 
                 if not os.path.exists(data_dir):
                     os.makedirs(data_dir)
-                cache.to_pickle(data_file)
+                try:
+                    cache.to_pickle(data_file)
+                except Exception as e:
+                    print e
+                    print cache
+                    raise e
             #print arg_hashes
             #print "cache",cache
             #print 'arg_hash == %s' % arg_hashes
