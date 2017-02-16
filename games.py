@@ -6,11 +6,34 @@ import numpy as np
 from experiment_utils import fun_call_labeler
 
 def literal(constructor):
+    """
+    use this decorator for functions that generate playables
+    this function names the playable after the function call that makes it
+    """
     def call(*args,**kwargs):
         fun_call_string = fun_call_labeler(constructor,args,kwargs)['defined_call']
         call.__name__ = constructor.__name__
+        call.__getargspec__ = constructor.__getargspec__
         ret = constructor(*args,**kwargs)
         ret.name = ret._name = fun_call_string
+        return ret
+    return call
+
+def implicit(constructor):
+    """
+    use this to correctly label functions that take as their first element another function
+    and use args/kwargs to capture the arguments to said function while explicitly naming their own
+    """
+    def call(*args,**kwargs):
+        const_call_data = fun_call_labeler(constructor,args,kwargs)
+        fun_key, fun = const_call_data['defined_args'].items()[0]
+        const_call_data['defined_args'][fun_key] = fun.__name__
+        fun_call_data = fun_call_labeler(fun,[],const_call_data['undefined_args'])
+
+        doubly_unused = [item for item in const_call_data['undefined_args'].items() if item in fun_call_data['undefined_args'].items()] 
+        items = const_call_data['defined_args'].items()+fun_call_data['defined_args'].items()+doubly_unused
+        ret = constructor(*args,**kwargs)
+        ret.name = ret._name = constructor.__name__+"(%s)" % ", ".join(['%s' % items[0][1]]+["%s=%s" % item for item in items[1:]])
         return ret
     return call
 
@@ -177,15 +200,7 @@ class Decision(Playable):
         self.last_action = action
         return array(self.payoffs[action])
 
-class Dynamic(Playable):
-    def __init__(self,playable_generator):
-        self.generator = playable_generator
-        instance = playable_generator()
-        self.N_players = instance.N_players
 
-    def play(self,participants,observers=[], tremble=0):
-        playable = self.generator()
-        return playable.play(participants,observers, tremble)
 
 def BinaryDictatorDict(endowment = 0, cost = 1, benefit = 2):
     return {
@@ -200,10 +215,6 @@ def BinaryDictator(endowment = 0, cost = 1, benefit = 2):
     decision = Decision(BinaryDictatorDict(endowment,cost,benefit))
     decision.name = decision._name = "BinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))
     return decision
-
-def decision_test():
-    """make an agent, have it make a decision"""
-    pass
 
 """
 Decision Seqs
@@ -381,11 +392,9 @@ class EveryoneDecidesMatchup(object):
 class EveryoneDecides(EveryoneDecidesMatchup,DecisionSeq):
     pass
 
-
-def PrisonersDilemma(endowment = 0, cost = 1, benefit = 2):
-    game = Symmetric(BinaryDictator(endowment,cost,benefit))
-    game.name = "PrisonersDilemma(%s)" % ",".join(map(str,[endowment,cost,benefit]))
-    return game
+@literal
+def PrisonersDilemma(endowment = 0, cost = 1, benefit = 3):
+    return Symmetric(BinaryDictator(endowment,cost,benefit))
 
 
 
@@ -562,16 +571,94 @@ class IndefiniteHorizonGame(DecisionSeq):
         while flip(gamma):
             yield game,ordering
 
+class thunk(object):
+    def __init__(self,fun,*args,**kwargs):
+        self.__dict__.update(locals())
+    def __call__(self):
+        return self.fun(*self.args,**self.kwargs)
+
+class const(object):
+    def __init__(self,val):
+        self.val = val
+    def __call__(self):
+        return self.val
+
+class Dynamic(Playable):
+    """
+    takes a playable-making function
+    and a thunk that generates parameters for it
+    whenever it's 'play' method is called, it generates
+    new arguments and serves up a playable made with them
+    """
+    def __init__(self,playable_constructor,gen):
+        self.constructor = playable_constructor
+        self.arg_gen = gen
+        instance = playable_constructor(**gen())
+        self.N_players = instance.N_players
+
+    def new(self):
+        return self.constructor(**self.arg_gen())
+
+    def play(self,participants,observers=[], tremble=0):
+        playable = self.constructor(**self.arg_gen())
+        return playable.play(participants,observers, tremble)
 
 
-@literal
-def DynamicPrisonersTournament(endowment = 0, cost = 1, benefit = 3, gamma = 1):
-    f = np.random.exponential
-    def DilemmaGenerator():
-        return PrisonersDilemma(endowment = endowment * f(gamma), cost = cost * f(gamma), benefit = benefit * f(gamma))
-    return Dynamic(DilemmaGenerator)
+def exponential(scale,gamma=1):
+    return np.random.exponential(gamma)*scale
+def constant(x):
+    return lambda: x
 
+def dict_map(f,d,val_name = False, **kwargs):
+    if val_name:
+        return {key:f(**dict({val_name:val},**kwargs)) for key,val in d.iteritems()}
+    else:
+        return {key:f(val,**kwargs) for key,val in d.iteritems()}
 
+@implicit
+def MonoDist(game,dist,*args,**kwargs):
+    """
+    Given a game, a distribution, the parameters to the game (may be left blank if game provides own),
+    and any additional parameters consumed by the distribution
+    the distribution is used to generate new values to be fed into the game on each call of play
+    """
+    call_data = fun_call_labeler(game,args,kwargs)
+    init_args = call_data['defined_args']
+    dist_args = call_data['undefined_args']
+    return Dynamic(game,thunk(dict_map, dist, init_args, **dist_args))
+
+@implicit
+def Exponential(game,gamma=1,*args,**kwargs):
+    return MonoDist(game,exponential,gamma=1,*args,**kwargs)
+
+def dict_thunker(d):
+    """
+    given a dict where all values are thunks
+    generates a dictionary with the same key but
+    where the value is generated by running the thunk
+    """
+    return {key:val() for key,val in d.iteritems()}
+
+@implicit
+def MultiDist(game,*args,**kwargs):
+    """
+    assumes supplied values for the game are thunks, runs each independently
+    respects the original ordering of the game
+    MultiDist(PrisonersDilemma,cost=thunk(exponential,1))
+    """
+    call_data = fun_call_labeler(game,args,kwargs)
+    init_args = call_data['defined_args']
+    for key,val in init_args.iteritems():
+        try:
+            val()
+        except TypeError:
+            init_args[key]=constant(val)
+    return Dynamic(game,thunk(dict_thunker,init_args))
+
+#@literal
+def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = 1, benefit = 3, gamma = 1):
+    return Repeated(rounds,PrivatelyObserved(Exponential(PrisonersDilemma)))
+    #return Repeated(rounds,PrivatelyObserved(DynamicPD()))
 
 def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = 1, benefit = 3)
@@ -586,16 +673,15 @@ def RepeatedPrisonersTournament(rounds = 10,visibility = "private",observability
     if visibility == "public":
         return Repeated(rounds, PubliclyObserved(PD))
 
-
-
 if __name__ == "__main__":
     from indirect_reciprocity import ReciprocalAgent
     from params import default_genome
     
     from indirect_reciprocity import Puppet
-    #puppets = array([Puppet("Alpha"),Puppet("Beta"),Puppet("C")])
+    puppets = array([Puppet("Alpha"),Puppet("Beta"),Puppet("C")])
     agents = array([ReciprocalAgent(default_genome(),world_id = n) for n in range(3)])
-    game = Repeated(10,PrivatelyObserved(DynamicPrisonersTournament()))
+    game = RepeatedDynamicPrisoners(10)
+    print game
     print hash(game)
     payoff,history,records = game.play(agents)
     print "Final Payoff:",payoff
