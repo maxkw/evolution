@@ -260,7 +260,7 @@ def comparison_plotter(prior_list = [.25,.50,.75]):
     plt.savefig("./plots/compare.pdf")
 
 
-@multi_call(unordered = ['agent_types'])
+@multi_call(unpack = 'record',unordered = ['agent_types'])
 def first_impressions(RA_K = 2, RA_prior = .75, preactions = 5, kind = 'seq', agent_type = ReciprocalAgent, agent_types = [(ReciprocalAgent, SelfishAgent)],passive = False,trial = 50):
     condition = locals()
     params = default_params(game = RepeatedPrisonersTournament(10),**condition)
@@ -289,6 +289,9 @@ def first_impressions(RA_K = 2, RA_prior = .75, preactions = 5, kind = 'seq', ag
     def observations(actions_string):
         return map(char_to_observation,actions_string)
 
+    a_ids = [list(islice(cycle(l),0,n)) for l,n in product([(0,1),(1,0)],range(2,RA_K+3))]
+    a_ids = [(l[0],l[1:]) for l in a_ids]
+
     record = []
     #have agents observe the prehistoric observations
     #if second agent gets to react, have them act appropriately
@@ -303,6 +306,7 @@ def first_impressions(RA_K = 2, RA_prior = .75, preactions = 5, kind = 'seq', ag
             'belief': [copy(a.belief) for a in world.agents],
             'prior': RA_prior,
             'players': [deepcopy(agent) for agent in world.agents],
+            'action':action_string
         }]
 
         for r,observation in enumerate(observations(action_string),-(action_len-1)):
@@ -317,11 +321,25 @@ def first_impressions(RA_K = 2, RA_prior = .75, preactions = 5, kind = 'seq', ag
                 'belief': [copy(a.belief) for a in world.agents],
                 'prior': RA_prior,
                 'players': [deepcopy(agent) for agent in world.agents],
+                'action':action_string,
             })
 
-        fitness,history = world.run()
-        record.append((action_string,prehistory+history))
-    
+        fitness,history = world.run(notes = {'action':action_string})
+
+        
+        for event in prehistory+history:
+            for agent_id,ids in a_ids:
+                    agent = event['players'][agent_id]
+                    k = len(ids)-1
+                    record.append({
+                        'K': RA_K,
+                        'k':k,
+                        'round': event['round'],
+                        'actions': event['action'],
+                        'belief': agent.k_belief(ids,ReciprocalAgent),
+                        'believer':agent_id,
+                        'type': "RA",
+                        })
     return record
 
 def fi_data_slice(data):
@@ -331,7 +349,7 @@ def fi_data_slice(data):
         K = int(record['RA_K'])
         a_ids = [list(islice(cycle(l),0,n)) for l,n in product([(0,1),(1,0)],range(2,K+3))]
         a_ids = [(l[0],l[1:]) for l in a_ids]
-        for action, history in record['return']:
+        for history in record['return']:
             for event in history:
                 for agent_id,ids in a_ids:
                     agent = event['players'][agent_id]
@@ -340,7 +358,7 @@ def fi_data_slice(data):
                         'K': K,
                         'k':k,
                         'round': event['round'],
-                        'actions': action,
+                        'actions': event['action'],
                         'belief': agent.k_belief(ids,ReciprocalAgent),
                         'believer':agent_id,
                         'type': "RA",
@@ -352,7 +370,7 @@ def fi_data_slice(data):
 
 def first_impressions_plotter(out_dir = "./plots/"):
     K = 1
-    data = fi_data_slice(first_impressions(trial = 100,kind = 'seq', RA_prior = .75, preactions = 3, RA_K=K,passive=False))
+    data = first_impressions(trial = 100,kind = 'seq', RA_prior = .75, preactions = 3, RA_K=K,passive=False)
     figure = sns.factorplot('round','belief', hue = 'type',#'actions',
                             col='believer',row='k',data=data, ci=68,legend = False,aspect = 1, size = 4.5, #kind = 'point')
                             kind = 'violin',scale ='area', width=.9,cut = 0,inner = 'point',bw = .2)

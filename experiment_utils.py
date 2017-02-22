@@ -79,7 +79,7 @@ def fun_call_labeler(method,args,kwargs):
             "defined_call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in defined_args.iteritems()])
     }
 
-def multi_call(static=[],unordered=[],verbose = 2):
+def multi_call(static=[],unordered=[], unpack = False, verbose = 2):
     #print verbose
     def wrapper(method):
         """
@@ -223,25 +223,33 @@ def multi_call(static=[],unordered=[],verbose = 2):
                     print "current arg call:",arg_call
                 
                 np.random.seed(trial)
-                
+
                 if keywords:
                     reference = copy(arg_call)
-                    arg_call["result"] = method(trial = trial, expected_args = reference,**arg_call)
+                    result = method(trial = trial, expected_args = reference,**arg_call)
 
                 else:
                     try:
                         #print arg_call
-                        arg_call["return"] = method(trial = trial,**arg_call)
+                        result = method(trial = trial,**arg_call)
                     except Exception as e:
-                        arg_call["return"] = method(**arg_call)
-
-                arg_call.update({"arg_hash":arg_hash, "trial":trial})
+                        result = method(**arg_call)
 
                 if verbose>1:
-                    print "returned:",arg_call["return"]
+                    print "returned:",result
 
-                results.append(arg_call)
-
+                arg_call.update({"arg_hash":arg_hash, "trial":trial})
+                if not unpack:
+                    arg_call['return'] = result
+                    results.append(arg_call)
+                elif unpack == 'dict':
+                    arg_call.update(result)
+                    results.append(arg_call)
+                elif unpack == 'record':
+                    for record in result:
+                        new_arg_call = deepcopy(arg_call)
+                        new_arg_call.update(record)
+                        results.append(new_arg_call)
             if results:
                 #make a df with the results
                 to_cache = pd.DataFrame(results)
