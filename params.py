@@ -46,9 +46,7 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
         'N_agents':N_agents,
         'games': RepeatedPrisonersTournament(10),
         'agent_types' : agent_types,
-        'beta': 3,
         'moran_beta': .1,
-        'RA_prior': RA_prior,
         'p_tremble': 0.0,
         'agent_types_world': agent_types
     }
@@ -95,8 +93,7 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         agent_types = default_params()["agent_types"]
     if not agent_type:
         agent_type = np.random.choice(agent_types)
-    #print "args",agent_types,RA_prior
-    #print "result",prior_generator(agent_types,RA_prior),
+   
     genome = {
         'type': agent_type,
         'RA_prior': RA_prior,
@@ -108,7 +105,6 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         'tremble':0
     }
 
-    #print "keys\n\n\n",extra_args.keys()
     for key in extra_args:
         if key in genome and key is not 'prior':
             genome[key] = extra_args[key]
