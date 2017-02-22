@@ -38,6 +38,8 @@ def implicit(constructor):
         ret.name = ret._name = constructor.__name__+"(%s)" % ", ".join(['%s' % items[0][1]]+["%s=%s" % item for item in items[1:]])
         
         return ret
+    call.__name__ = constructor.__name__
+    #call.__getargspec__ = getargspec(constructor)
     return call
 
 class Playable(object):
@@ -665,54 +667,19 @@ def Randomly(game,*args,**kwargs):
 
     dist_args = dict({'dist':constant},**call_data['undefined_args'])
     return Dynamic(game,thunk(dict_thunker,thunk_dict(game_args,**dist_args)))
-                   #thunk(dist_dict,game_args,**dist_args))
-                   
-@implicit
-def MonoDist(game,dist,*args,**kwargs):
-    """
-    Given a game, a distribution, the parameters to the game (may be left blank if game provides own),
-    and any additional parameters consumed by the distribution
-    the distribution is used to generate new values to be fed into the game on each call of play
-    """
-    call_data = fun_call_labeler(game,args,kwargs)
-    init_args = call_data['defined_args']
-    dist_args = call_data['undefined_args']
-    return Dynamic(game,thunk(dict_map, dist, init_args, **dist_args))
+                   #thunk(dist_dict,game_args,**dist_args))game = Randomly(PrisonersDilemma)
 
 @implicit
 def Exponential(game,gamma=1,*args,**kwargs):
-    return Randomly(game, dist = exponential, gamma=gamma, *args, **kwargs)
+    return Randomly(game, dist = exponential, gamma = gamma, *args, **kwargs)
 
-game = Exponential(PrisonersDilemma)
-
-print game.new()
-from utils import pickled
-
-pickled(game,"./game.pkl")
 
 """
 example:
 
-Exponential(PrisonersDilemma, cost = {'gamma':9,'scale':3},benefit = {'gamma':3,'scale'=3})
+Exponential(PrisonersDilemma, cost = {'gamma':9,'scale':3}, benefit = {'gamma':3,'scale':4})
 
 """
-
-
-@implicit
-def MultiDist(game,*args,**kwargs):
-    """
-    assumes supplied values for the game are thunks, runs each independently
-    respects the original ordering of the game
-    MultiDist(PrisonersDilemma,cost=thunk(exponential,1))
-    """
-    call_data = fun_call_labeler(game,args,kwargs)
-    init_args = call_data['defined_args']
-    for key,val in init_args.iteritems():
-        try:
-            val()
-        except TypeError:
-            init_args[key]=constant(val)
-    return Dynamic(game,thunk(dict_thunker,init_args))
 
 #@literal
 def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = 1, benefit = 3, gamma = 1):
@@ -721,7 +688,7 @@ def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = 1, benefit = 3, 
 
 def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = 1, benefit = 3)
-    return Repeated(rounds,Symmetric(PrivatelyObserved(BD)))
+    return Repeated(rounds,PrivatelyObserved(Symmetric(BD)))
 
 def RepeatedPrisonersTournament(rounds = 10,visibility = "private",observability = .5, cost=1, benefit=3,**junk):
     PD = PrisonersDilemma(cost = cost, benefit = benefit)
