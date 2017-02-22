@@ -80,6 +80,7 @@ def fun_call_labeler(method,args,kwargs):
     }
 
 def multi_call(static=[],unordered=[],verbose = 2):
+    #print verbose
     def wrapper(method):
         """
         the keys of the OrderedDict are the names of the arguments,
@@ -256,7 +257,7 @@ def multi_call(static=[],unordered=[],verbose = 2):
                         print to_cache
 
                 #actually add the results to the existing table
-                cache = cache.append(to_cache)#,ignore_index=True)
+                cache = cache.append(to_cache)#ignore_index=True)
 
                 if not os.path.exists(data_dir):
                     os.makedirs(data_dir)
