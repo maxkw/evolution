@@ -89,7 +89,7 @@ class Agent(object):
         # a logit response for simultaneous move games.
         Us = np.array([deciding_agent.utility(game.payoffs[action], agents)
                        for action in game.actions])
-        
+
         return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
 
         
@@ -239,7 +239,19 @@ class RationalAgent(Agent):
         return self.belief[a_id][self._type_to_index[a_type]]
     def likelihood_that(self, a_id,a_type):
         return self.likelihood[a_id][self._type_to_index[a_type]]
-
+    def k_belief(self,a_ids,a_type):
+        """
+        call with list of agent_ids. If you want A's belief that B believes A is reciprocal
+        agent_A.k_belief(('B','A'),ReciprocalAgent)
+        """
+        try:
+            [a_id] = a_ids
+            return self.belief_that(a_id, a_type)
+        except ValueError:
+            a_id = a_ids[0]
+            a_ids = a_ids[1:]
+            return self.model[a_id].agent.k_belief(a_ids,a_type)
+        
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
         for id in (id for id in ids if id in set(self.model.keys())): 

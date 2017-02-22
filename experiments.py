@@ -10,7 +10,7 @@ from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyO
 from collections import defaultdict
 from itertools import combinations_with_replacement as combinations
 from itertools import permutations
-from itertools import product
+from itertools import product,islice,cycle
 import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy,deepcopy
@@ -274,7 +274,6 @@ def first_impressions(RA_K = 2, RA_prior = .75, preactions = 5, kind = 'seq', ag
             """
             return ("{0:0"+str(preactions)+"b}").format(number).replace('1','C').replace('0','D')
 
-
     if kind == 'seq':
         action_strings = ["C"*preactions+"D"]
         #action_strings = ["D"*3]
@@ -289,9 +288,6 @@ def first_impressions(RA_K = 2, RA_prior = .75, preactions = 5, kind = 'seq', ag
 
     def observations(actions_string):
         return map(char_to_observation,actions_string)
-
-
-
 
     record = []
     #have agents observe the prehistoric observations
@@ -330,30 +326,24 @@ def first_impressions(RA_K = 2, RA_prior = .75, preactions = 5, kind = 'seq', ag
 
 def fi_data_slice(data):
 
-    def belief_getter(agent,a_id,k):
-        o_id = (a_id+1)%2
-        #print k,n_id
-        if k == 0:
-            return agent.belief_that(o_id,ReciprocalAgent)
-        else:
-            return belief_getter(agent.model[o_id].agent,o_id,k-1)
-
     ret = []
     for record in data.to_dict('records'):
-        K = record['RA_K']
+        K = int(record['RA_K'])
+        a_ids = [list(islice(cycle(l),0,n)) for l,n in product([(0,1),(1,0)],range(2,K+3))]
+        a_ids = [(l[0],l[1:]) for l in a_ids]
         for action, history in record['return']:
             for event in history:
-                for agent_id in [0,1]:
+                for agent_id,ids in a_ids:
                     agent = event['players'][agent_id]
-                    for k in range(int(K)+1):
-                        ret.append({
-                            'K': K,
-                            'k':k,
-                            'round': event['round'],
-                            'actions': action,
-                            'belief': belief_getter(agent,agent_id,k),
-                            'believer':agent_id,
-                            'type': "RA",
+                    k = len(ids)-1
+                    ret.append({
+                        'K': K,
+                        'k':k,
+                        'round': event['round'],
+                        'actions': action,
+                        'belief': agent.k_belief(ids,ReciprocalAgent),
+                        'believer':agent_id,
+                        'type': "RA",
                         })
 
     return pd.DataFrame(ret)
