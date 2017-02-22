@@ -89,6 +89,7 @@ class Agent(object):
         # a logit response for simultaneous move games.
         Us = np.array([deciding_agent.utility(game.payoffs[action], agents)
                        for action in game.actions])
+        
         return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
 
         
