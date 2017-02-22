@@ -101,7 +101,7 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         'type': agent_type,
         'RA_prior': RA_prior,
         'prior_precision': 0,
-        'beta': .3,
+        'beta': 3,
         'prior': prior_generator(agent_types,RA_prior),
         "agent_types":agent_types,
         'RA_K':2,
