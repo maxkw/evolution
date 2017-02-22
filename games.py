@@ -501,7 +501,7 @@ class AnnotatedDS(DecisionSeq):
     def annotate(self,participants,payoff,observations,record):
         raise NotImplementedError
     
-    def play(self,participants,observers=[],tremble=0):
+    def play(self,participants,observers=[],tremble=0,notes={}):
         #initialize accumulators
         observations = []
         record = []
@@ -515,7 +515,7 @@ class AnnotatedDS(DecisionSeq):
         for game,ordering in self.matchups(participants):
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
-            extend_rec(annotate(participants,payoffs,obs,rec))
+            extend_rec(annotate(participants,payoffs,obs,rec,notes))
             extend_obs(obs)
 
         return payoffs,observations,record
@@ -541,7 +541,7 @@ class Repeated(AnnotatedDS):
         self.repetitions = repetitions
         self.N_players = game.N_players
 
-    def annotate(self,participants,payoff,observations,record):
+    def annotate(self,participants,payoff,observations,record,notes):
         note = {
             'round':self.current_round,
             'players':tuple(deepcopy(agent) for agent in participants),
@@ -550,6 +550,7 @@ class Repeated(AnnotatedDS):
             'belief': tuple(copy(agent.belief) for agent in participants),
             'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
             }
+        note.update(notes)
         return note
     
     def matchups(self,participants):

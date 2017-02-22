@@ -251,7 +251,7 @@ class RationalAgent(Agent):
             a_id = a_ids[0]
             a_ids = a_ids[1:]
             return self.model[a_id].agent.k_belief(a_ids,a_type)
-        
+
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
         for id in (id for id in ids if id in set(self.model.keys())): 
@@ -603,9 +603,12 @@ class World(object):
         """
         pass
 
-    def run(self):
+    def run(self,agents = None,observers = None,notes = None):
         agents = np.array(self.agents)
-        payoff,observations,record = self.game.play(agents,agents,tremble=self.params['p_tremble'])
+        if notes:
+            payoff, observations, record = self.game.play(agents, agents, tremble=self.params['p_tremble'],notes = notes)
+        else:
+            payoff, observations, record = self.game.play(agents ,agents, tremble=self.params['p_tremble'])
         return payoff, record
 
 def diagnostics():
