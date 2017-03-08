@@ -20,12 +20,12 @@ from copy import copy,deepcopy
 def justcaps(t):
     return filter(str.isupper,t.__name__)
 
-@multi_call(unordered = ['agent_types'], twinned = ['player_types','priors'])
+@multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'])
 @experiment(unpack = 'dict', trials = 100)
-def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), agent_types = (ReciprocalAgent,SelfishAgent),**kwargs):
+def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), agent_types = (NiceReciprocalAgent,SelfishAgent),**kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
-    genomes = [default_genome(agent_type = t, RA_prior=p, **condition) for t,p in zip(player_types,priors)]
+    genomes = [default_genome(agent_type = t, RA_prior=p ,RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
     world = World(params,genomes)
 
     fitness,history = world.run()
@@ -51,8 +51,8 @@ def joint_fitness_plot(player_types,priors,data = []):
     for rec in data.to_dict('record'):
         record.append(dict(zip(agents,rec['fitness'])))
     data = pd.DataFrame(record)
-
-    sns.jointplot(agents[0], agents[1], data,kind = 'kde')
+    bw = .5
+    sns.jointplot(agents[0], agents[1], data, kind = 'kde',bw = bw,marginal_kws = {"bw":bw})
 
 def unordered_prior_combinations(prior_list = np.linspace(.75,.25,3)):
     return map(tuple,map(sorted,combinations(prior_list,2)))
@@ -79,7 +79,6 @@ def compare_plot(data = []):
     sns.heatmap(meaned,annot=True,fmt="0.2f")
 
 priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
-print priors_for_RAvRA
 diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
 
 
@@ -94,6 +93,44 @@ def history_maker(observations,agents,start=0,annotation = {}):
             'round':r,
             'players':deepcopy(agents)},**annotation))
     return history
+
+letter_to_id = dict(map(reversed,enumerate("ABCDEFGHIJK")))
+letter_to_action = {"C":'give',"D":'keep'}
+@multi_call()
+@experiment(unpack = 'record', unordered = ['agent_types'])
+def scenarios(RA_K = 1, agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAgent),**kwargs):
+    condition = dict(locals(),**kwargs)
+    genome = default_genome(**condition)
+    game = BinaryDictator()
+    def vs(players,action,observers = "ABO"):
+        players = [letter_to_id[p] for p in players]
+        observers = [letter_to_id.get(p,p) for p in observers]
+        print observers
+        action = letter_to_action[action]
+        return [(game,players,observers,action)]
+
+    scenarios = ["C","D","CD","CC","DD","DC"]
+    scenario_dict = {}
+    for actions in scenarios:
+        scenario_dict[actions] = []
+        for action,players in reversed(zip(reversed(actions),["AB","BA"])):
+            scenario_dict[actions].append(vs(players,action))
+
+    record = []
+    for name, observations in scenario_dict.iteritems():
+        observer = RationalAgent(genome = genome ,world_id = "O")
+        for observation in observations:
+            observer.observe(observation)
+        for agent_type in agent_types:
+            record.append({
+                'scenario':name,
+                'belief':observer.belief_that(0,agent_type),
+                'type':justcaps(agent_type),
+            })
+    return record
+@plotter(scenarios)
+def scene_plot(agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAgent), RA_K = MultiArg([0,1]), data = []):
+    sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', kind = 'bar', hue = 'type', hue_order = ["RA","AA","SA"])
 
 @multi_call()
 @experiment(unordered = ['agent_types'])
@@ -125,18 +162,38 @@ def forgiveness(player_types,RA_Ks,RA_priors,defections,**kwargs):
                 'round':event['round'],
             })
 
-#@plotter(binary_matchup)
-def belief_plot(RA_Ks=0,data=[]):
 
-    K = 2
+id_to_letter = dict(enumerate("ABCDEF"))
+@plotter(binary_matchup)
+def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]):
+    K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
-    print t_ids
-    assert False
+    
     record = []
     for d in data.to_dict('record'):
         for event in d['history']:
-            pass
-
+            for a_id, believer in enumerate(event['players']):
+                for ids in t_ids[a_id]:
+                    k = K-len(ids)+1
+                    record.append({
+                        "believer":a_id,
+                        "k":k,
+                        "belief":believer.k_belief(ids,believed_type),
+                        "target_id":ids[-1],
+                        "round":event['round'],
+                        "type":justcaps(believed_type),
+                    })
+    bdata = pd.DataFrame(record)
+    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin', hue = 'type',
+                   facet_kws = {'ylim':(0,1)})
+    f_grid.map(sns.pointplot,'round','belief')
+    for a_id,k in product([0,1],range(K+1)):
+        ids = t_ids[a_id][k]
+        axis = f_grid.facet_axis(k,a_id)
+        axis.set(#xlabel='# of interactions',
+            ylabel = '$\mathrm{Pr_{%s}( T_{%s} = RA | O_{1:n} )}$'% (k,id_to_letter[ids[-1]]),
+            title = ''.join([id_to_letter[l] for l in [a_id]+ids]))
+        
 letter_2_index = dict(map(reversed,enumerate('ABCDEFG')))
 @multi_call()
 @experiment(unordered = ['agent_types'], unpack = 'record', memoize = False)
@@ -160,25 +217,28 @@ def first_impressions(max_cooperations, agent_types, RA_prior, **kwargs):
             record.append({'cooperations': cooperations,
                            'belief': observer.belief_that(0,agent_type),
                            'type': justcaps(agent_type)})
+
+    plt.subplots_adjust(top = 0.93)
+    figure.fig.suptitle("A and B's beliefs that the other is RA when A's first 3 moves are D")
     return record
 
 @plotter(first_impressions)
 def first_impressions_plot(max_cooperations = 5, agent_types = (NiceReciprocalAgent,AltruisticAgent,SelfishAgent),
                            RA_prior =.75, data = []):
-    fplot = sns.factorplot(data = data, x='cooperations', y='belief', col='RA_prior',
+    fplot = sns.factorplot(data = data, x='cooperations', y='belief', col='RA_prior', bw = .1,
                            hue = 'type', hue_order = map(justcaps,agent_types),
                            facet_kws = {'ylim':(0,1)})
     #fplot.set(yticklabels = np.linspace(0,1,5))
 
 #first_impressions_plot()#RA_prior = MultiArg([.25,.5,.75]))
 #binary_matchup(player_types = ReciprocalAgent)
-joint_fitness_plot(ReciprocalAgent,(.25,.75),agent_types = (ReciprocalAgent,SelfishAgent))
-compare_plot(rational_type = ReciprocalAgent, agent_types = (ReciprocalAgent,SelfishAgent))
-#belief_plot()
-#compare_RA()
-#RAvRA_plot(RAvRA(trial = 1000))
-#comparison_plotter(np.linspace(0,1,5))
-#RAvRA_plot(RAvRA())
-#print RAvRA(trial=1)
+
+#compare_plot(rational_type = ReciprocalAgent, Ks = 0,  agent_types = (ReciprocalAgent,SelfishAgent), trials = 1000)
+#joint_fitness_plot(player_types = ReciprocalAgent, priors = .25, Ks =(0,0), agent_types = (ReciprocalAgent,SelfishAgent),trials = 1000)
 
 
+#belief_plot(priors = (.25,0),Ks = 0)
+#belief_plot(priors = (.75,0),Ks = 0)
+#belief_plot(priors = (.75,.25))
+
+scene_plot()
