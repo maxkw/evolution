@@ -246,6 +246,9 @@ def pop_matchup(player_types = (ReciprocalAgent,SelfishAgent), pop_size = 50, pr
     for t,f in zip(pop_types, fitness):
         fitnesses[t] += f
 
+    for t in fitnesses:
+        fitnesses[t] = fitnesses[t]/pop_types.count(t)
+
     return {'fitness ratio':fitnesses[player_types[0]]/float(fitnesses[player_types[1]])}
 
 @cplotter(pop_matchup, plot_args = ['data'])
@@ -273,4 +276,4 @@ pop_fitness_plot(
     proportion = MultiArg([i/10.0 for i in range(1,10)]),
     player_types = (ReciprocalAgent,SelfishAgent),
     agent_types = (ReciprocalAgent,SelfishAgent),
-    trials = 10, pop_size = 20)
+    trials = 50, pop_size = 10,RA_prior = .8)
