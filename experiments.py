@@ -98,14 +98,13 @@ letter_to_id = dict(map(reversed,enumerate("ABCDEFGHIJK")))
 letter_to_action = {"C":'give',"D":'keep'}
 @multi_call()
 @experiment(unpack = 'record', unordered = ['agent_types'])
-def scenarios(RA_K = 1, agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAgent),**kwargs):
+def scenarios(RA_K = 1, agent_types = (NiceReciprocalAgent,SelfishAgent,AltruisticAgent),**kwargs):
     condition = dict(locals(),**kwargs)
     genome = default_genome(**condition)
     game = BinaryDictator()
     def vs(players,action,observers = "ABO"):
         players = [letter_to_id[p] for p in players]
         observers = [letter_to_id.get(p,p) for p in observers]
-        print observers
         action = letter_to_action[action]
         return [(game,players,observers,action)]
 
@@ -113,8 +112,8 @@ def scenarios(RA_K = 1, agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAg
     scenario_dict = {}
     for actions in scenarios:
         scenario_dict[actions] = []
-        for action,players in reversed(zip(reversed(actions),["AB","BA"])):
-            scenario_dict[actions].append(vs(players,action))
+        for action,players,times  in reversed(zip(reversed(actions),["AB","BA"],[1,1])):
+            scenario_dict[actions].append(vs(players,action)*times)
 
     record = []
     for name, observations in scenario_dict.iteritems():
@@ -129,11 +128,22 @@ def scenarios(RA_K = 1, agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAg
             })
     return record
 
-@plotter(scenarios)
-def scene_plot(agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAgent), RA_K = MultiArg([0,1]), data = []):
-    sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', kind = 'bar', hue = 'type', hue_order = ["RA","AA","SA"])
+@cplotter(scenarios,plot_args = ['data'])
+def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
+    sns.set_context("poster",font_scale = 1.5)
+    f_grid = sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', row = "RA_prior", kind = 'bar', hue = 'type', hue_order = ["NRA","AA","SA"],col_order = ["C","D","DD","DC","CD","CC"],
+                            aspect = 1.5,
+                            facet_kws = {'ylim': (0,1),
+                                         'margin_titles':True})
+    def draw_prior(data,**kwargs):
+        plt.axhline(data.mean(),linestyle = ":")
+    f_grid.map(draw_prior,'RA_prior')
+    f_grid.set_xlabels("")
+    f_grid.set(yticks=np.linspace(0,1,5))
+    f_grid.set_yticklabels(['','0.25','0.50','0.75','1.0'])
+    #f_grid.despine(bottom=True)
 
-@multi_call()
+@multi_call(twinned = [''])
 @experiment(unordered = ['agent_types'])
 def forgiveness(player_types,RA_Ks,RA_priors,defections,**kwargs):
     condition = dict(locals(),**kwargs)
@@ -271,9 +281,11 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 #belief_plot(priors = (.75,0),Ks = 0)
 #belief_plot(priors = (.75,.25))
 
-#scene_plot()
-pop_fitness_plot(
-    proportion = MultiArg([i/10.0 for i in range(1,10)]),
-    player_types = (ReciprocalAgent,SelfishAgent),
-    agent_types = (ReciprocalAgent,SelfishAgent),
-    trials = 50, pop_size = 10,RA_prior = .8)
+#scene_plot(beta = 4)
+#pop_fitness_plot(
+#    proportion = MultiArg([i/10.0 for i in range(1,10)]),
+#    player_types = (ReciprocalAgent,SelfishAgent),
+#    agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAgent),
+#    trials = 50, pop_size = 10,RA_prior = .8)
+
+#belief_plot(RA_prior = .8, )
