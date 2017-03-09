@@ -32,6 +32,39 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
     return {'fitness':fitness,
             'history':history}
 
+id_to_letter = dict(enumerate("ABCDEF"))
+@cplotter(binary_matchup,plot_args = ['data','believed_type'])
+def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]):
+    K = max(Ks)
+    t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
+    print t_ids
+
+    record = []
+    for d in data.to_dict('record'):
+        for event in d['history']:
+            for a_id, believer in enumerate(event['players']):
+                a_id = believer.world_id
+                for ids in t_ids[a_id]:
+                    k = len(ids)-1
+                    record.append({
+                        "believer":a_id,
+                        "k":k,
+                        "belief":believer.k_belief(ids,believed_type),
+                        "target_id":ids[-1],
+                        "round":event['round'],
+                        "type":justcaps(believed_type),
+                    })
+    bdata = pd.DataFrame(record)
+    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin', hue = 'type', row_order = range(K+1),
+                   facet_kws = {'ylim':(0,1)})
+    f_grid.map(sns.pointplot,'round','belief')
+    for a_id,k in product([0,1],range(K+1)):
+        ids = t_ids[a_id][k]
+        axis = f_grid.facet_axis(k,a_id)
+        axis.set(#xlabel='# of interactions',
+            ylabel = '$\mathrm{Pr_{%s}( T_{%s} = RA | O_{1:n} )}$'% (k,id_to_letter[ids[-1]]),
+            title = ''.join([id_to_letter[l] for l in [a_id]+ids]))
+
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,data = []):
     agents = []
@@ -174,36 +207,7 @@ def forgiveness(player_types,RA_Ks,RA_priors,defections,**kwargs):
             })
 
 
-id_to_letter = dict(enumerate("ABCDEF"))
-@plotter(binary_matchup)
-def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]):
-    K = max(Ks)
-    t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
-    
-    record = []
-    for d in data.to_dict('record'):
-        for event in d['history']:
-            for a_id, believer in enumerate(event['players']):
-                for ids in t_ids[a_id]:
-                    k = K-len(ids)+1
-                    record.append({
-                        "believer":a_id,
-                        "k":k,
-                        "belief":believer.k_belief(ids,believed_type),
-                        "target_id":ids[-1],
-                        "round":event['round'],
-                        "type":justcaps(believed_type),
-                    })
-    bdata = pd.DataFrame(record)
-    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin', hue = 'type',
-                   facet_kws = {'ylim':(0,1)})
-    f_grid.map(sns.pointplot,'round','belief')
-    for a_id,k in product([0,1],range(K+1)):
-        ids = t_ids[a_id][k]
-        axis = f_grid.facet_axis(k,a_id)
-        axis.set(#xlabel='# of interactions',
-            ylabel = '$\mathrm{Pr_{%s}( T_{%s} = RA | O_{1:n} )}$'% (k,id_to_letter[ids[-1]]),
-            title = ''.join([id_to_letter[l] for l in [a_id]+ids]))
+
         
 letter_2_index = dict(map(reversed,enumerate('ABCDEFG')))
 @multi_call()
@@ -279,7 +283,7 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 
 #belief_plot(priors = (.25,0),Ks = 0)
 #belief_plot(priors = (.75,0),Ks = 0)
-belief_plot(priors = (.8, 0),Ks = 0)
+#belief_plot(priors = (.8, 0),Ks = 0)
 belief_plot(priors = (.8, 0),Ks = 1)
 #belief_plot(priors = (.75,.25))
 
