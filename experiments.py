@@ -246,12 +246,12 @@ def pop_matchup(player_types = (ReciprocalAgent,SelfishAgent), pop_size = 50, pr
     condition = dict(locals(),**kwargs)
     proportions = dict(zip(player_types,[proportion,1-proportion]))
     genomes = generate_proportional_genomes(agent_proportions = proportions, **condition)
-    params = default_params(**kwargs)
+    params = default_params(**condition)
     world = World(params,genomes)
 
     pop_types = [g['type'] for g in genomes]
     fitness, history = world.run()
-
+    import ipdb; ipdb.set_trace()
     fitnesses = defaultdict(int)
     for t,f in zip(pop_types, fitness):
         fitnesses[t] += f
@@ -279,7 +279,10 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 
 #belief_plot(priors = (.25,0),Ks = 0)
 #belief_plot(priors = (.75,0),Ks = 0)
+belief_plot(priors = (.8, 0),Ks = 0)
+belief_plot(priors = (.8, 0),Ks = 1)
 #belief_plot(priors = (.75,.25))
+
 
 #scene_plot(beta = 4)
 #pop_fitness_plot(
@@ -289,3 +292,4 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 #    trials = 50, pop_size = 10,RA_prior = .8)
 
 #belief_plot(RA_prior = .8, )
+
