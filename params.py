@@ -1,6 +1,7 @@
 import numpy as np
 from indirect_reciprocity import SelfishAgent,ReciprocalAgent,NiceReciprocalAgent,AltruisticAgent,RationalAgent
 from games import RepeatedPrisonersTournament
+import math
 def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent),
                    RA_prior = .75, N_agents= 10, p_tremble = 0,rounds = 10, **kwargs):
     """
@@ -114,7 +115,7 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
 def generate_random_genomes(N_agents, agent_types_world, **kwargs):
     return [default_genome(agent_type = np.random.choice(agent_types_world),**kwargs) for _ in range(N_agents)]
 
-def generate_proportional_genomes(agent_proportions,**extra_args):
+def generate_proportional_genomes(pop_size, agent_proportions, **extra_args):
     if not agent_proportions:
         try:
             return generate_random_genomes(**extra_args)
@@ -123,7 +124,6 @@ def generate_proportional_genomes(agent_proportions,**extra_args):
             raise
 
     agent_list = []
-    pop_size = params['N_agents']
     for agent_type in sorted(agent_proportions.keys()):
         number = int(math.ceil(pop_size*agent_proportions[agent_type]))
         agent_list.extend([default_genome(agent_type,**extra_args) for _ in xrange(number)])
