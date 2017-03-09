@@ -76,17 +76,20 @@ def fun_call_labeler(method,args,kwargs,intolerant = True):
     #defined_args = OrderedDict((arg,known_args[arg]) for arg in arg_names)
     undefined_args = OrderedDict((k,v) for k,v in sorted(known_args.iteritems(),key=itemgetter(0)) if k not in defined_args)
     known_args = OrderedDict(defined_args.items()+undefined_args.items())
-    return {"args":known_args,
-            "defined_args":defined_args,
-            "undefined_args":undefined_args,
-            "valid_args":known_args if keywords else defined_args,
-            "arg_names":arg_names,
-            "varargs":varargs,
-            "keywords":keywords,
-            "default_values":default_values,
-            "defined_call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in defined_args.iteritems()]),
-            "call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in known_args.iteritems()])
+    call_data =  {
+        "args":known_args,
+        "defined_args":defined_args,
+        "undefined_args":undefined_args,
+        "valid_args":known_args if keywords else defined_args,
+        "arg_names":arg_names,
+        "varargs":varargs,
+        "keywords":keywords,
+        "default_values":default_values,
+        "defined_call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in defined_args.iteritems()]),
+        "call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in known_args.iteritems()]),
+        "make_call_str" : lambda d: method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in d.iteritems()])
     }
+    return call_data
 
 
 class MultiArg(list):
@@ -215,7 +218,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             results = []
             total_calls = float(len(uncached_trials))
             landmark = step = .1
-            total_ticks = 50
+            total_ticks = 63
             if verbose == 3:
                 pass
                 #print ""
@@ -316,7 +319,7 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
                 dfs = []
                 total_calls = float(len(arg_calls))
                 landmark = step = .1
-                total_ticks = 50
+                total_ticks = 63
                 for n,arg_call in enumerate(arg_calls,start = 1):
                     dfs.append(function(**arg_call))
                     if verbose == 3:
@@ -333,9 +336,6 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
                 ret = pd.concat(dfs)#[function(**arg_call) for arg_call in arg_calls])
             else:
                 raise NotImplemented
-
-            if verbose and verbose>0:
-                print "...done!\n"
 
             
             return ret
@@ -465,7 +465,7 @@ class cplotter(Decorator):
         plot_fun = self.decorated
         try:
             plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
-            print plot_fun_call_data['arg_names']
+            #print plot_fun_call_data['arg_names']
 
         except TypeError as e:
             incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
@@ -476,6 +476,11 @@ class cplotter(Decorator):
             #print "in",incomplete_plot_fun_args
             fun_args = fun_call_labeler(experiment,[],incomplete_plot_fun_args)['args']
             #print 'fun',fun_args
+            try:
+                if not fun_args['data']:
+                    del fun_args['data']
+            except:
+                pass
             plot_fun_call_data = fun_call_labeler(plot_fun,[],fun_args)
         return plot_fun_call_data
 
@@ -520,7 +525,10 @@ class cplotter(Decorator):
                 pass
             
             ret = plot_fun(**dict(plot_args,**{'data':data}))
-            save_file = self.plot_dir+call_data['call']+".pdf"#save_file % experiment_call_data['call']
+            call_args = call_data['args']
+            del call_args['data']
+            
+            save_file = self.plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
             plt.savefig(save_file)
 
 def save_prompt(obj,path):

@@ -231,7 +231,7 @@ def first_impressions_plot(max_cooperations = 5, agent_types = (NiceReciprocalAg
     fplot.fig.suptitle("A and B's beliefs that the other is RA")
 
 @multi_call(unordered = ['agent_types'], verbose = 3)
-@experiment(trials = 500, unpack = 'dict', verbose = 3)
+@experiment(trials = 500, unpack = 'dict', verbose = 0)
 def pop_matchup(player_types = (ReciprocalAgent,SelfishAgent), pop_size = 50, proportion = .5, agent_types = (SelfishAgent,ReciprocalAgent), **kwargs):
     condition = dict(locals(),**kwargs)
     proportions = dict(zip(player_types,[proportion,1-proportion]))
@@ -270,4 +270,6 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 
 #scene_plot()
 pop_fitness_plot(#proportion = MultiArg([i/10.0 for i in range(1,10)]),
-                 trials = 400, pop_size = 10)
+    player_types = (ReciprocalAgent,SelfishAgent),
+    agent_types = (ReciprocalAgent,SelfishAgent),
+    trials = 500, pop_size = 10)
