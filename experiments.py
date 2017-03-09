@@ -37,7 +37,6 @@ id_to_letter = dict(enumerate("ABCDEF"))
 def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]):
     K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
-    print t_ids
 
     record = []
     for d in data.to_dict('record'):
@@ -176,7 +175,7 @@ def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
     f_grid.set_yticklabels(['','0.25','0.50','0.75','1.0'])
     #f_grid.despine(bottom=True)
 
-@multi_call(twinned = [''])
+@multi_call()
 @experiment(unordered = ['agent_types'])
 def forgiveness(player_types,RA_Ks,RA_priors,defections,**kwargs):
     condition = dict(locals(),**kwargs)
@@ -205,10 +204,8 @@ def forgiveness(player_types,RA_Ks,RA_priors,defections,**kwargs):
                 'type':genome_args[a_id][0],
                 'round':event['round'],
             })
+    return rec
 
-
-
-        
 letter_2_index = dict(map(reversed,enumerate('ABCDEFG')))
 @multi_call()
 @experiment(unordered = ['agent_types'], unpack = 'record', memoize = False)
@@ -284,7 +281,8 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 #belief_plot(priors = (.25,0),Ks = 0)
 #belief_plot(priors = (.75,0),Ks = 0)
 #belief_plot(priors = (.8, 0),Ks = 0)
-belief_plot(priors = (.8, 0),Ks = 1)
+for k in range(3):
+    belief_plot(priors = (.8,0), Ks = k)
 #belief_plot(priors = (.75,.25))
 
 
