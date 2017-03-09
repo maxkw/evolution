@@ -45,7 +45,7 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
     
     values =  {
         'N_agents':N_agents,
-        'games': RepeatedPrisonersTournament(10),
+        'games': RepeatedPrisonersTournament(rounds),
         'agent_types' : agent_types,
         'moran_beta': .1,
         'p_tremble': 0.0,
