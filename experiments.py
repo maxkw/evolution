@@ -1,7 +1,7 @@
 from __future__ import division
 import pandas as pd
 import seaborn as sns
-from experiment_utils import multi_call,experiment,plotter,MultiArg
+from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
 from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent
@@ -128,6 +128,7 @@ def scenarios(RA_K = 1, agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAg
                 'type':justcaps(agent_type),
             })
     return record
+
 @plotter(scenarios)
 def scene_plot(agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAgent), RA_K = MultiArg([0,1]), data = []):
     sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', kind = 'bar', hue = 'type', hue_order = ["RA","AA","SA"])
@@ -219,15 +220,41 @@ def first_impressions(max_cooperations, agent_types, RA_prior, **kwargs):
                            'type': justcaps(agent_type)})
 
     plt.subplots_adjust(top = 0.93)
-    figure.fig.suptitle("A and B's beliefs that the other is RA when A's first 3 moves are D")
     return record
 
-@plotter(first_impressions)
+@cplotter(first_impressions)
 def first_impressions_plot(max_cooperations = 5, agent_types = (NiceReciprocalAgent,AltruisticAgent,SelfishAgent),
-                           RA_prior =.75, data = []):
+                           RA_prior =.75, data = None):
     fplot = sns.factorplot(data = data, x='cooperations', y='belief', col='RA_prior', bw = .1,
                            hue = 'type', hue_order = map(justcaps,agent_types),
                            facet_kws = {'ylim':(0,1)})
+    fplot.fig.suptitle("A and B's beliefs that the other is RA")
+
+@multi_call(unordered = ['agent_types'], verbose = 3)
+@experiment(trials = 500, unpack = 'dict', verbose = 3)
+def pop_matchup(player_types = (ReciprocalAgent,SelfishAgent), pop_size = 50, proportion = .5, agent_types = (SelfishAgent,ReciprocalAgent), **kwargs):
+    condition = dict(locals(),**kwargs)
+    proportions = dict(zip(player_types,[proportion,1-proportion]))
+    genomes = generate_proportional_genomes(agent_proportions = proportions, **condition)
+    params = default_params(**kwargs)
+    world = World(params,genomes)
+
+    pop_types = [g['type'] for g in genomes]
+    fitness, history = world.run()
+
+    fitnesses = defaultdict(int)
+    for t,f in zip(pop_types, fitness):
+        fitnesses[t] += f
+
+    return {'fitness ratio':fitnesses[player_types[0]]/float(fitnesses[player_types[1]])}
+
+@cplotter(pop_matchup, plot_args = ['data'])
+def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = MultiArg([0,1,2]), data = None):
+    #print data
+    #ndata = data.groupby(['RA_K','proportion']).mean().unstack()
+    #print ndata
+    sns.pointplot(data = data, x = "proportion", y = "fitness ratio", hue = "RA_K")
+    #print locals()
     #fplot.set(yticklabels = np.linspace(0,1,5))
 
 #first_impressions_plot()#RA_prior = MultiArg([.25,.5,.75]))
@@ -241,4 +268,6 @@ def first_impressions_plot(max_cooperations = 5, agent_types = (NiceReciprocalAg
 #belief_plot(priors = (.75,0),Ks = 0)
 #belief_plot(priors = (.75,.25))
 
-scene_plot()
+#scene_plot()
+pop_fitness_plot(#proportion = MultiArg([i/10.0 for i in range(1,10)]),
+                 trials = 400, pop_size = 10)

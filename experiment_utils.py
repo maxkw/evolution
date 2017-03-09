@@ -9,7 +9,8 @@ from copy import copy,deepcopy
 from utils import pickled, unpickled
 from operator import itemgetter
 import matplotlib.pyplot as plt
-
+from types import FunctionType
+import sys
 ### for experiments
 def is_sequency(obj):
     if isinstance(obj,basestring):
@@ -33,7 +34,7 @@ def product_of_vals(orderedDict):
 def dict_hash(dict):
     return hash(tuple(sorted(dict.iteritems())))
 
-def fun_call_labeler(method,args,kwargs):
+def fun_call_labeler(method,args,kwargs,intolerant = True):
     """
     given a defined method to be called as 'method(*args,**kwargs)'
     this function returns 3 dicts where the keys are the argument names and the vals those provided
@@ -65,13 +66,16 @@ def fun_call_labeler(method,args,kwargs):
 
     #if there are fewer than the expected number of arguments
     #call the wrapped function and let it handle the exception
-    if len(known_args) < len(arg_names):
-        method(*args,**kwargs)
 
-    defined_args = OrderedDict((arg,known_args[arg]) for arg in arg_names)
+    expected_arg_missing = not all(name in known_args for name in arg_names)
+    if expected_arg_missing and intolerant:
+        method(**known_args)
+
+    expected_args = [(k,v) for k,v in known_args.iteritems() if k in arg_names]
+    defined_args = OrderedDict(sorted(expected_args, key = lambda(k,v): arg_names.index(k)))
+    #defined_args = OrderedDict((arg,known_args[arg]) for arg in arg_names)
     undefined_args = OrderedDict((k,v) for k,v in sorted(known_args.iteritems(),key=itemgetter(0)) if k not in defined_args)
     known_args = OrderedDict(defined_args.items()+undefined_args.items())
-
     return {"args":known_args,
             "defined_args":defined_args,
             "undefined_args":undefined_args,
@@ -151,7 +155,7 @@ def apply_to_inputs(**fun_name_to_arg_names):
             fun_to_arg_names[name_to_fun[k]] = v
 
 experiment_transformer = transform_inputs(unordered,twinned)
-def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, **kwargs):
+def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, verbose = 0,**kwargs):
     data_dir = './memo_cache/'
     default_trials = trials
 
@@ -161,8 +165,8 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, **
             call_data = fun_call_labeler(function,args,kwargs)
 
             arg_dict = call_data['args']
-            print "Processing: "
-            print call_data['defined_call']
+            if verbose >=1:
+                print "\nExperiment",call_data['call']
 
             try:
                 trials = range(arg_dict['trials'])
@@ -170,7 +174,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, **
                 trials = arg_dict['trials']
             except KeyError:
                 trials = range(default_trials)
-            print "trials:%s" % len(trials)
+            #print "trials:%s" % len(trials)
 
             try:
                 del arg_dict['trials']
@@ -183,7 +187,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, **
             try:
                 arg_hash = dict_hash(args)
             except TypeError as te:
-                print args
+                print "these are the provided args\n",args
                 raise te
 
             if memoize and not os.path.exists(data_dir):
@@ -209,7 +213,13 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, **
                 uncached_trials = trials
 
             results = []
-            for trial in uncached_trials:
+            total_calls = float(len(uncached_trials))
+            landmark = step = .1
+            total_ticks = 50
+            if verbose == 3:
+                pass
+                #print ""
+            for n,trial in enumerate(uncached_trials,start = 1):
                 np.random.seed(trial)
                 result = function(**copy(args))
                 args['trial'] = trial
@@ -221,6 +231,19 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, **
                     for d in result:
                         results.append(dict(args,**d))
 
+                if verbose == 3:
+                    ticks = int(total_ticks*n/total_calls)
+                    bar = 'trial progress ['+'='*ticks+' '*(total_ticks-ticks)+']'
+                    sys.stdout.write("\r%s"%bar)
+                    sys.stdout.flush()
+                if n/total_calls >= landmark:
+                    if verbose ==2:
+                        print "%s/%s trials completed" % (n,int(total_calls))
+            if verbose == 3:
+                if len(uncached_trials)==0:
+                    print "Trials loaded from cache!"
+                else:
+                    print ""
             #consolidate new and old results and save
             cache = pd.concat([cache,pd.DataFrame(results)])
             if memoize:
@@ -233,6 +256,9 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, **
         call._decorator = 'experiment'
         return call
     return wrapper
+
+
+            
 
 def multi_call(unpack = False, verbose = 2, **kwargs):
 
@@ -263,7 +289,8 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
 
         def call(*args,**kwargs):
             if verbose and verbose>0:
-                print "Expanding multicall for function "+function.__name__
+                pass
+                #print "Expanding multicall for function "+function.__name__
             call_data = fun_call_labeler(function,args,kwargs)
 
             expected_args = call_data['valid_args']
@@ -283,10 +310,27 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
             else:
                 arg_calls = [static_args]
 
-            if verbose and verbose>0:
+            if verbose and verbose>=1:
                 print "Processing %s calls..." % len(arg_calls)
             if unpack_ == 'DataFrame':
-                ret = pd.concat([function(**arg_call) for arg_call in arg_calls])
+                dfs = []
+                total_calls = float(len(arg_calls))
+                landmark = step = .1
+                total_ticks = 50
+                for n,arg_call in enumerate(arg_calls,start = 1):
+                    dfs.append(function(**arg_call))
+                    if verbose == 3:
+                        ticks = int(total_ticks*n/total_calls)
+                        bar = 'call progress  ['+'='*ticks+' '*(total_ticks-ticks)+']'
+                        sys.stdout.write("\r%s"%bar)
+                        sys.stdout.flush()
+                    if n/total_calls >= landmark:
+                        landmark += step
+                        if verbose == 2:
+                            print "%s/%s of calls computed" % (n,int(total_calls))
+                if verbose == 3:
+                    print ""
+                ret = pd.concat(dfs)#[function(**arg_call) for arg_call in arg_calls])
             else:
                 raise NotImplemented
 
@@ -311,13 +355,14 @@ def plotter(experiment,plot_dir="./plots/"):
         except:
             print "wrapped function must have a 'data' argument"
             raise
-        def call(*args,**kwargs):
+        def call(*args, **kwargs):
             save_file = plot_fun.__name__+"(%s).pdf"
             try:
                 plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
             except TypeError as e:
-                fun_args = fun_call_labeler(experiment,args,kwargs)['defined_args']
-                plot_fun_call_data = fun_call_labeler(plot_fun,[],dict(kwargs,**fun_args))
+                incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
+                fun_args = fun_call_labeler(experiment,[],incomplete_plot_fun_args)['defined_args']
+                plot_fun_call_data = fun_call_labeler(plot_fun,[],fun_args)
 
             plot_args = plot_fun_call_data['valid_args']
 
@@ -357,6 +402,126 @@ def plotter(experiment,plot_dir="./plots/"):
             plt.close()
         return call
     return wrapper
+
+def get_arg_dicts(fun,args,kwargs):
+    try:
+        return fun.make_arg_dicts(args,kwargs)
+    except Exception as e:
+        print e
+        return fun_call_labeler(fun,args,kwargs)
+
+class Decorator(object):
+    def __init__(self,*args,**kwargs):
+        pass
+
+    def __call__(self,function):
+        self.decorated = function
+        if isinstance(function,Decorator):
+            self.base_fun = function.base_fun
+        return self.call_with_arg_dicts
+
+    def call_with_arg_dicts(self,*args,**kwargs):
+        return self.call(self.make_arg_dicts(args,kwargs))
+    def make_arg_dicts(self,args,kwargs):
+        return fun_call_labeler(self.decorated,args,kwargs)
+
+    def call(self,call_data):
+        return self.decorated(**call_data['valid_args'])
+
+def apply_to_args(**function_name_to_args):
+    transform_arg_dict = experiment_transformer(kwargs)
+    def wrapper(function):
+        def call(*args,**kwarg):
+            fun_call_data = fun_call_labeler(function,args,kwargs)
+
+def dict_key_map(d,fun_to_arg):
+    mapped_d = deepcopy(d)
+    for arg_name, arg_val in d.iteritems():
+        for function, arg_names in fun_to_arg.iteritems():
+            if arg_name in arg_names:
+                if isinstance(arg_val, MultiArg):
+                    mapped_d[arg_name] = MultiArg(map(function,arg_val))
+                else:
+                    mapped_d[arg_name] = function(arg_val)
+    return mapped_d
+
+class apply_to_args(Decorator):
+    """
+    takes funcion=list-of-argnames pairs, the functions will be applied to all arguments passed to
+    the decorated functon that are mapped to the provided argnames
+    """
+    def __init__(self, **f_to_argnames):
+        f_to_argnames = {eval(name):argnames for name,argnames in f_to_argnames.iteritems()}
+        self.transform = lambda d: dict_key_map(d,f_to_argnames)#experiment_transformer(f_to_argnames)
+    def make_arg_dicts(self,args,kwargs):
+        arg_dict = self.transform(get_arg_dicts(self.decorated,args,kwargs)['args'])
+        return get_arg_dicts(self.decorated,[],arg_dict)
+
+class cplotter(Decorator):
+    def __init__(self, default_experiment, experiment_args = [], plot_args = True, plot_dir = "./plots/"):
+        self.__dict__.update(locals())
+
+    def make_arg_dicts(self,args,kwargs):
+        plot_fun = self.decorated
+        try:
+            plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
+            print plot_fun_call_data['arg_names']
+
+        except TypeError as e:
+            incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
+            if 'experiment' in incomplete_plot_fun_args:
+                experiment = plot_fun_call_data['args']['experiment']
+            else:
+                experiment = self.default_experiment
+            #print "in",incomplete_plot_fun_args
+            fun_args = fun_call_labeler(experiment,[],incomplete_plot_fun_args)['args']
+            #print 'fun',fun_args
+            plot_fun_call_data = fun_call_labeler(plot_fun,[],fun_args)
+        return plot_fun_call_data
+
+    def call(self,call_data):
+        plot_fun = self.decorated
+        plot_args = call_data['valid_args']
+        if call_data['defined_args'].get('data',False):
+            ret = plot_fun(**call_data['valid_args'])
+            raise NotImplemented
+            #plt.savefig(plot_fun.__name__+"(%s)"%str(hash()))
+        else:
+            if 'experiment' in call_data['args']:
+                fun = call_data['args']['experiment']
+            else:
+                fun = self.default_experiment
+
+            if self.plot_args:
+                try:
+                    
+                    experiment_args = {k:v for k,v in call_data['args'].iteritems() if k not in self.plot_args}
+                except TypeError:
+                    given_args = call_data['args']
+
+                    experiment_argnames = get_arg_dicts(fun,[],given_args)['defined_args']
+                    plot_exclusive_argnames = [k for k in given_args
+                                               if k in call_data['defined_args'] and
+                                               k not in experiment_argnames.keys()+self.experiment_args]
+                    experiment_args = dict((key,val) for key,val in given_args.items() if key not in plot_exclusive_argnames)
+                experiment_call_data = get_arg_dicts(fun,[],experiment_args)
+                call_args = experiment_call_data['valid_args']
+            else:
+                call_args = get_arg_dicts(fun,[],call_data['args'])['valid_args']
+            data = fun(**call_args)
+            plot_args = call_data['defined_args']
+
+            #this tries to capture what ACTUALLY made it into the function that was called
+            try:
+                for key,val in fun._last_args.iteritems():
+                    if key in plot_args:
+                        plot_args[key] = val
+            except:
+                pass
+            
+            ret = plot_fun(**dict(plot_args,**{'data':data}))
+            save_file = self.plot_dir+call_data['call']+".pdf"#save_file % experiment_call_data['call']
+            plt.savefig(save_file)
 
 def save_prompt(obj,path):
     print obj
