@@ -13,6 +13,7 @@ from itertools import product,islice,cycle
 import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy,deepcopy
+from utils import softmax_utility
 
 
 ###multi_call
@@ -20,9 +21,9 @@ from copy import copy,deepcopy
 def justcaps(t):
     return filter(str.isupper,t.__name__)
 
-@multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'])
-@experiment(unpack = 'dict', trials = 100)
-def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), agent_types = (NiceReciprocalAgent,SelfishAgent),**kwargs):
+@multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'], verbose=3)
+@experiment(unpack = 'dict', trials = 100, verbose = 3)
+def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), agent_types = (NiceReciprocalAgent,SelfishAgent), **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
     genomes = [default_genome(agent_type = t, RA_prior=p ,RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
@@ -88,9 +89,8 @@ def joint_fitness_plot(player_types,priors,data = []):
 
 def unordered_prior_combinations(prior_list = np.linspace(.75,.25,3)):
     return map(tuple,map(sorted,combinations(prior_list,2)))
-
-def comparison_grid(rational_type, priors = np.linspace(0,1,5),**kwargs):
-    player_types = (rational_type,rational_type)
+#@apply_to_args(twinning = ['player_types'])
+def comparison_grid(player_types, priors = np.linspace(0,1,5),**kwargs):
     priors = MultiArg(unordered_prior_combinations(priors))
     condition = dict(kwargs,**locals())
     del condition['kwargs']
@@ -98,7 +98,7 @@ def comparison_grid(rational_type, priors = np.linspace(0,1,5),**kwargs):
     return binary_matchup(**condition)
 
 @plotter(comparison_grid)
-def compare_plot(data = []):
+def reward_table(data = []):
     record = []
     for priors,group in data.groupby('priors'):
         p0,p1 = priors
@@ -106,7 +106,7 @@ def compare_plot(data = []):
             record.append({'recipient prior':p0, 'opponent prior':p1, 'reward':r0})
             record.append({'recipient prior':p1, 'opponent prior':p0, 'reward':r1})
     data = pd.DataFrame(record)
-    
+
     meaned = data.groupby(['recipient prior','opponent prior']).mean().unstack()
     sns.heatmap(meaned,annot=True,fmt="0.2f")
 
@@ -176,7 +176,7 @@ def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
     #f_grid.despine(bottom=True)
 
 @multi_call()
-@experiment(unordered = ['agent_types'])
+@experiment(unordered = ['agent_types'],)
 def forgiveness(player_types,RA_Ks,RA_priors,defections,**kwargs):
     condition = dict(locals(),**kwargs)
 
@@ -252,21 +252,47 @@ def pop_matchup(player_types = (ReciprocalAgent,SelfishAgent), pop_size = 50, pr
 
     pop_types = [g['type'] for g in genomes]
     fitness, history = world.run()
-    import ipdb; ipdb.set_trace()
-    fitnesses = defaultdict(int)
-    for t,f in zip(pop_types, fitness):
-        fitnesses[t] += f
 
-    for t in fitnesses:
-        fitnesses[t] = fitnesses[t]/pop_types.count(t)
+    return {'type_fitness_pairs':zip(pop_types,fitness)}
+    #fitnesses = defaultdict(int)
+    #for t,f in zip(pop_types, fitness):
+    #    fitnesses[t] += f
 
-    return {'fitness ratio':fitnesses[player_types[0]]/float(fitnesses[player_types[1]])}
+    #for t in fitnesses:
+    #    fitnesses[t] = fitnesses[t]/pop_types.count(t)
 
-@cplotter(pop_matchup, plot_args = ['data'])
-def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = MultiArg([0,1,2]), data = None):
+    #fitnesses = softmax_utility(fitnesses,.1)
+
+    #return {'fitness ratio':fitnesses[player_types[0]]}
+
+def pop_fitness_ratios(player_types=(ReciprocalAgent,SelfishAgent),pop_size=50,proportion=.5,**kwargs):
+    condition = dict(locals(),**kwargs)
+    del condition['kwargs']
+    data = pop_matchup(**condition)
+    record = []
+    for r in data.to_dict('record'):
+        fitness = r['type_fitness_pairs']
+        types,fits = zip(*fitness)
+        fitnesses = defaultdict(int)
+        for t,f in fitness:
+            fitnesses[t] += f
+
+        for t in fitnesses:
+            fitnesses[t] = fitnesses[t]/types.count(t)
+
+        fitnesses = softmax_utility(fitnesses,.1)
+
+        r['fitness ratio']= fitnesses[player_types[0]]
+
+        record.append(r)
+
+    return pd.DataFrame(record)
+@cplotter(pop_fitness_ratios, plot_args = ['data'])
+def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = MultiArg([0,1]), data = None):
     #print data
     #ndata = data.groupby(['RA_K','proportion']).mean().unstack()
     #print ndata
+    
     sns.pointplot(data = data, x = "proportion", y = "fitness ratio", hue = "RA_K")
     #print locals()
     #fplot.set(yticklabels = np.linspace(0,1,5))
@@ -281,17 +307,27 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 #belief_plot(priors = (.25,0),Ks = 0)
 #belief_plot(priors = (.75,0),Ks = 0)
 #belief_plot(priors = (.8, 0),Ks = 0)
-for k in range(3):
-    belief_plot(priors = (.8,0), Ks = k)
+#for k in range(3):
+#    belief_plot(priors = (.8,0), Ks = k)
 #belief_plot(priors = (.75,.25))
-
+#compare_plot(rational_type = ReciprocalAgent, Ks = 1,beta = 1,trials = 50)
 
 #scene_plot(beta = 4)
-#pop_fitness_plot(
-#    proportion = MultiArg([i/10.0 for i in range(1,10)]),
-#    player_types = (ReciprocalAgent,SelfishAgent),
-#    agent_types = (ReciprocalAgent,SelfishAgent,AltruisticAgent),
-#    trials = 50, pop_size = 10,RA_prior = .8)
 
-#belief_plot(RA_prior = .8, )
+for n in range(1,20):
+    """
+    this outputs a plot for every 10 trials, progressively refining the quality of the plot
+    """
+    ticks = 9
+    props = np.round(np.linspace(0,1,ticks+2)[1:-1],2)
+    pop_fitness_plot(
+        proportion = MultiArg(props),
+        player_types = (ReciprocalAgent,SelfishAgent),
+        agent_types = (ReciprocalAgent,SelfishAgent),
+        trials = 10*n, pop_size = 10, RA_prior = .8, beta=1)
+
+#belief_plot(priors = (), )
+
+#reward_table(player_types = ReciprocalAgent, Ks = 1, agent_types = (ReciprocalAgent,SelfishAgent), beta = 3)
+#reward_table(player_types = ReciprocalAgent, Ks = 0, agent_types = (ReciprocalAgent,SelfishAgent), beta = 1)
 

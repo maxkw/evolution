@@ -355,6 +355,28 @@ def plotter(experiment,plot_dir="./plots/"):
         except:
             print "wrapped function must have a 'data' argument"
             raise
+
+        def make_arg_dicts(args,kwargs):
+            plot_fun = self.decorated
+            try:
+                plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
+                #print plot_fun_call_data['arg_names']
+
+            except TypeError as e:
+                incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
+                if 'experiment' in incomplete_plot_fun_args:
+                    experiment = plot_fun_call_data['args']['experiment']
+                else:
+                    experiment = experiment
+                fun_args = fun_call_labeler(experiment,[],incomplete_plot_fun_args)['args']
+                try:
+                    if not fun_args['data']:
+                        del fun_args['data']
+                except:
+                    pass
+                plot_fun_call_data = fun_call_labeler(plot_fun,[],fun_args)
+            return plot_fun_call_data
+
         def call(*args, **kwargs):
             save_file = plot_fun.__name__+"(%s).pdf"
             try:
@@ -400,6 +422,7 @@ def plotter(experiment,plot_dir="./plots/"):
                 save_file = plot_dir+save_file % experiment_call_data['call']
                 plt.savefig(save_file)
             plt.close()
+        call.make_arg_dicts = make_arg_dicts
         return call
     return wrapper
 
@@ -418,6 +441,7 @@ class Decorator(object):
         self.decorated = function
         if isinstance(function,Decorator):
             self.base_fun = function.base_fun
+        self.call_with_arg_dicts.__dict__['make_arg_dicts'] = self.make_arg_dicts
         return self.call_with_arg_dicts
 
     def call_with_arg_dicts(self,*args,**kwargs):
@@ -455,7 +479,9 @@ class apply_to_args(Decorator):
         self.transform = lambda d: dict_key_map(d,f_to_argnames)#experiment_transformer(f_to_argnames)
     def make_arg_dicts(self,args,kwargs):
         arg_dict = self.transform(get_arg_dicts(self.decorated,args,kwargs)['args'])
-        return get_arg_dicts(self.decorated,[],arg_dict)
+        call_data = get_arg_dicts(self.decorated,[],arg_dict)
+        print call_data['args']
+        return call_data
 
 class cplotter(Decorator):
     def __init__(self, default_experiment, experiment_args = [], plot_args = True, plot_dir = "./plots/"):
@@ -530,6 +556,7 @@ class cplotter(Decorator):
             
             save_file = self.plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
             plt.savefig(save_file)
+            plt.close()
 
 def save_prompt(obj,path):
     print obj
