@@ -132,6 +132,22 @@ def transform(functions):
                 if k in name_2_fun:
                     {name_2_fun[k]:arg_dict[k] for k in arg_dict if k in name_2_fun}
 
+
+
+
+def copy_function_identity(parent,decorator = None):
+    def inherit_attributes(inheritor):
+        inheritor.__name__ = parent.__name__
+        try:
+            inheritor.__getargspec__ = parent.__getargspec__
+        except:
+            inheritor.__getargspec__ = getargspec(parent)
+        if decorator:
+            inheritor._decorator = decorator
+        return inheritor
+    return inherit_attributes
+
+
 def transform_inputs(*functions):
     """
     takes a list of functions returns a function that when given a dictionary
@@ -254,14 +270,10 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
 
             #return only those trials that were asked for
             return cache.query('trial in %s' % trials)
-        call.__name__ = function.__name__
-        call.__getargspec__ = getargspec(function)
         call._decorator = 'experiment'
         return call
     return wrapper
 
-
-            
 
 def multi_call(unpack = False, verbose = 2, **kwargs):
 
@@ -290,6 +302,7 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
         if decorator == 'experiment':
             unpack_ = 'DataFrame'
 
+        @copy_function_identity(function)
         def call(*args,**kwargs):
             if verbose and verbose>0:
                 pass
@@ -336,19 +349,17 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
                 ret = pd.concat(dfs)#[function(**arg_call) for arg_call in arg_calls])
             else:
                 raise NotImplemented
-
-            
             return ret
 
-        call.__name__ = function.__name__
-        call.__getargspec__ = function.__getargspec__
+        #call.__name__ = function.__name__
+        #call.__getargspec__ = function.__getargspec__
         return call
     return wrapper
 
 def or_query(field,ls):
     return " or ".join(["%s == %s" % (field, i) for i in ls])
 
-def plotter(experiment,plot_dir="./plots/"):
+def plotter(experiment,default_plot_dir="./plots/",experiment_args=[], plot_exclusive_args = True):
     def wrapper(plot_fun):
         try:
             assert 'data' in getargspec(plot_fun)[0]
@@ -357,11 +368,8 @@ def plotter(experiment,plot_dir="./plots/"):
             raise
 
         def make_arg_dicts(args,kwargs):
-            plot_fun = self.decorated
             try:
                 plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
-                #print plot_fun_call_data['arg_names']
-
             except TypeError as e:
                 incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
                 if 'experiment' in incomplete_plot_fun_args:
@@ -378,39 +386,36 @@ def plotter(experiment,plot_dir="./plots/"):
             return plot_fun_call_data
 
         def call(*args, **kwargs):
-            save_file = plot_fun.__name__+"(%s).pdf"
+            plot_dir = kwargs.get("plot_dir",default_plot_dir)
             try:
-                plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
-            except TypeError as e:
-                incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
-                fun_args = fun_call_labeler(experiment,[],incomplete_plot_fun_args)['defined_args']
-                plot_fun_call_data = fun_call_labeler(plot_fun,[],fun_args)
+                del kwargs['plot_dir']
+            except:
+                pass
+            save_file = plot_fun.__name__+"(%s).pdf"
+            call_data = make_arg_dicts(args,kwargs)
+            plot_args = call_data['valid_args']
 
-            plot_args = plot_fun_call_data['valid_args']
-
-            if plot_fun_call_data['defined_args'].get('data',False):
-                ret = plot_fun(**plot_fun_call_data['defined_args'])
+            if call_data['defined_args'].get('data',False):
+                ret = plot_fun(**call_data['defined_args'])
             else:
-                if 'experiment' in plot_fun_call_data['args']:
-                    fun = plot_fun_call_data['args']['experiment']
+                fun = call_data['args'].get('experiment',experiment)
+
+                if plot_exclusive_args:
+                    try:
+                        experiment_args = {k:v for k,v in call_data['args'].iteritems() if k not in plot_exclusive_args}
+                    except TypeError:
+                        given_args = call_data['args']
+                        experiment_argnames = get_arg_dicts(fun,[],given_args)['defined_args']
+                        plot_exclusive_argnames = [k for k in given_args
+                                                   if k in call_data['defined_args'] and
+                                                   k not in experiment_argnames.keys()+experiment_args]
+                        experiment_args = dict((key,val) for key,val in given_args.items() if key not in plot_exclusive_argnames)
+                    experiment_call_data = fun_call_labeler(fun,[],experiment_args)
+                    call_args = experiment_call_data['valid_args']
                 else:
-                    fun = experiment
-
-                given_args = plot_fun_call_data['args']
-
-                experiment_argnames = fun_call_labeler(fun,[],given_args)['defined_args']
-
-                plot_exclusive_argnames = [k for k in given_args
-                                           if k in plot_fun_call_data['defined_args'] and
-                                           k not in experiment_argnames]
-
-                experiment_args = dict((key,val) for key,val in given_args.items() if key not in plot_exclusive_argnames)
-                experiment_call_data = fun_call_labeler(fun,[],experiment_args)
-
-                call_args = experiment_call_data['valid_args']
+                    call_args = get_arg_dicts(fun,[],call_data['args]'])['valid_args']
                 data = fun(**call_args)
-
-                plot_args = plot_fun_call_data['defined_args']
+                plot_args = call_data['defined_args']
 
                 try:
                     for key,val in fun._last_args.iteritems():
@@ -419,8 +424,11 @@ def plotter(experiment,plot_dir="./plots/"):
                 except:
                     pass
                 ret = plot_fun(**dict(plot_args,**{'data':data}))
-                save_file = plot_dir+save_file % experiment_call_data['call']
-                plt.savefig(save_file)
+            save_file = plot_dir+call_data['make_call_str'](call_args)+'.pdf'
+            if not os.path.exists(plot_dir):
+                os.makedirs(plot_dir)
+
+            plt.savefig(save_file)
             plt.close()
         call.make_arg_dicts = make_arg_dicts
         return call
@@ -554,7 +562,8 @@ class cplotter(Decorator):
             call_args = call_data['args']
             del call_args['data']
             
-            save_file = self.plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
+            save_file = plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
+
             plt.savefig(save_file)
             plt.close()
 

@@ -34,7 +34,7 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
             'history':history}
 
 id_to_letter = dict(enumerate("ABCDEF"))
-@cplotter(binary_matchup,plot_args = ['data','believed_type'])
+@plotter(binary_matchup,plot_exclusive_args = ['data','believed_type'])
 def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]):
     K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
@@ -87,17 +87,20 @@ def joint_fitness_plot(player_types,priors,data = []):
     bw = .5
     sns.jointplot(agents[0], agents[1], data, kind = 'kde',bw = bw,marginal_kws = {"bw":bw})
 
-def unordered_prior_combinations(prior_list = np.linspace(.75,.25,3)):
+def unordered_prior_combinations(prior_list):
     return map(tuple,map(sorted,combinations(prior_list,2)))
 #@apply_to_args(twinning = ['player_types'])
-def comparison_grid(player_types, priors = np.linspace(0,1,5),**kwargs):
+
+#@multi_call()
+def comparison_grid(size = 5, **kwargs):
+    priors = [round(n,2) for n in np.linspace(0,1,size)]
     priors = MultiArg(unordered_prior_combinations(priors))
     condition = dict(kwargs,**locals())
     del condition['kwargs']
 
     return binary_matchup(**condition)
 
-@plotter(comparison_grid)
+@plotter(comparison_grid, plot_exclusive_args = ['data'])
 def reward_table(data = []):
     record = []
     for priors,group in data.groupby('priors'):
@@ -314,17 +317,17 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
 
 #scene_plot(beta = 4)
 
-for n in range(1,20):
-    """
-    this outputs a plot for every 10 trials, progressively refining the quality of the plot
-    """
-    ticks = 9
-    props = np.round(np.linspace(0,1,ticks+2)[1:-1],2)
-    pop_fitness_plot(
-        proportion = MultiArg(props),
-        player_types = (ReciprocalAgent,SelfishAgent),
-        agent_types = (ReciprocalAgent,SelfishAgent),
-        trials = 10*n, pop_size = 10, RA_prior = .8, beta=1)
+#for n in range(1,20):
+#    """
+#    this outputs a plot for every 10 trials, progressively refining the quality of the plot
+#    """
+#    ticks = 9
+#    props = np.round(np.linspace(0,1,ticks+2)[1:-1],2)
+#    pop_fitness_plot(
+#        proportion = MultiArg(props),
+#        player_types = (ReciprocalAgent,SelfishAgent),
+#        agent_types = (ReciprocalAgent,SelfishAgent),
+#        trials = 10*n, pop_size = 10, RA_prior = .8, beta=1)
 
 #belief_plot(priors = (), )
 
