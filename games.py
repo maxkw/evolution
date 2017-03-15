@@ -500,7 +500,7 @@ class AnnotatedDS(DecisionSeq):
     """
     def annotate(self,participants,payoff,observations,record):
         raise NotImplementedError
-    
+
     def play(self,participants,observers=[],tremble=0,notes={}):
         #initialize accumulators
         observations = []
@@ -511,7 +511,9 @@ class AnnotatedDS(DecisionSeq):
         extend_obs = observations.extend
         extend_rec = record.append
         annotate = self.annotate
-        
+
+        extend_rec(annotate(participants,payoffs,[],[],notes))
+
         for game,ordering in self.matchups(participants):
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
@@ -519,20 +521,20 @@ class AnnotatedDS(DecisionSeq):
             extend_obs(obs)
 
         return payoffs,observations,record
-    
+
     _play = play
 
 
 class Repeated(AnnotatedDS):
     """
     Specified by a game and a number of repetitions
-    
+
     this class' annotations contain: the number of times played, the players, the actions, the running payoff at the moment, a copy of all agent's beliefs and likelihoods after each game.
-    
+
     actions in an annotation correspond to all actions taken in sub-games this round
 
     payoffs, beliefs, likelihoods are ordered according to the ordering of players
-    
+
     note that if the repeated game is, for example, a sequence, then the beliefs and likelihoods are those after the entire sequence has been played. if the sequence is not observed they will not change.
     """
     def __init__(self,repetitions,game):
@@ -540,12 +542,14 @@ class Repeated(AnnotatedDS):
         self.game = game
         self.repetitions = repetitions
         self.N_players = game.N_players
+        self.current_round = 0
 
     def annotate(self,participants,payoff,observations,record,notes):
         note = {
             'round':self.current_round,
             'players':tuple(deepcopy(agent) for agent in participants),
             'actions':tuple(observation[3] for observation in observations),
+            'actors':tuple(observation[1] for observation in observations),
             'payoff': copy(payoff),
             'belief': tuple(copy(agent.belief) for agent in participants),
             'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
@@ -690,8 +694,10 @@ def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = 1, benefit = 3, 
 def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = 1, benefit = 3)
     return Repeated(rounds,PrivatelyObserved(Symmetric(BD)))
-
-def RepeatedPrisonersTournament(rounds = 10,visibility = "private",observability = .5, cost=1, benefit=3,**junk):
+@literal
+def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3,**junk):
+    visibility = "private"
+    observability = .5
     PD = PrisonersDilemma(cost = cost, benefit = benefit)
     if visibility == "private":
         return Repeated(rounds, PrivatelyObserved(PD))
