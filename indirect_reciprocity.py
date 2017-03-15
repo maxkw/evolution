@@ -96,7 +96,7 @@ class Agent(object):
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
         # the world, not the agent
-        ps = self.decide_likelihood(self, game, agent_ids, tremble = 0)
+        ps = self.decide_likelihood(self, game, agent_ids, tremble = self.genome['tremble'])
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         return game.actions[action_id]
 
@@ -236,7 +236,11 @@ class RationalAgent(Agent):
     the following are wrappers for convenience
     """
     def belief_that(self, a_id,a_type):
-        return self.belief[a_id][self._type_to_index[a_type]]
+        try:
+            return self.belief[a_id][self._type_to_index[a_type]]
+        except KeyError:
+            return 0
+
     def likelihood_that(self, a_id,a_type):
         return self.likelihood[a_id][self._type_to_index[a_type]]
     def k_belief(self,a_ids,a_type):
@@ -324,7 +328,10 @@ class RationalAgent(Agent):
 
     #@profile
     def observe(self,observations):
+        if self.genome['RA_prior'] in [1,0]:
+            return
         self.observe_k(observations,self.genome['RA_K'],self.genome['tremble'])
+
     def observe_k(self, observations, K, tremble = 0):
         """
         takes in
@@ -476,6 +483,8 @@ class IngroupAgent(RationalAgent):
             return 1
         try:
             return sum(self.belief[agent_id][self.ingroup_indices])
+        except IndexError:
+            return sum([self.belief_that(agent_id,t) for t in self.ingroup()])
         except KeyError:
             self.belief[agent_id] = self.initialize_prior()
             return sum(self.belief[agent_id][self.ingroup_indices])
@@ -603,7 +612,7 @@ class World(object):
         """
         pass
 
-    def run(self,agents = None,observers = None,notes = None):
+    def run(self,agents = None,observers = None,notes = {}):
         agents = np.array(self.agents)
         if notes:
             payoff, observations, record = self.game.play(agents, agents, tremble=self.params['p_tremble'],notes = notes)
