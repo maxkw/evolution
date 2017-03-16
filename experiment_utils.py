@@ -180,7 +180,12 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
         @copy_function_identity(function)
         def experiment_call(*args,**kwargs):
             call_data = fun_call_labeler(function,args,kwargs)
-
+            return_keys = call_data['args'].get('return_keys', None)
+            try:
+                del call_data['args']['return_keys']
+                call_data = fun_call_labeler(function,[],call_data['args'])
+            except:
+                pass
             arg_dict = call_data['args']
             if verbose >=1:
                 print "\nExperiment",call_data['call']
@@ -198,17 +203,20 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             except:
                 pass
 
-            #if it can handle keywords, give it everything
             args = experiment_call._last_args = transform_arg_dict(call_data['valid_args'])
 
             try:
-                arg_hash = dict_hash(args)
+                if return_keys:
+                    arg_hash = dict_hash(dict(args,**{'return_keys':return_keys}))
+                else:
+                    arg_hash = dict_hash(args)
             except TypeError as te:
                 print "these are the provided args\n",args
                 raise te
 
             if memoize and not os.path.exists(data_dir):
                 os.makedirs(data_dir)
+
             cache_file =data_dir+str(arg_hash)+".pkl"
             #print "Loading cache..."
             try:
@@ -243,7 +251,10 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                 if not unpack:
                     results.append(dict(args,**{'result':result}))
                 elif unpack == 'dict':
-                    results.append(dict(args,**result))
+                    if return_keys:
+                        results.append(dict(args,**{k:v for k,v in result.iteritems() if k in return_keys}))
+                    else:
+                        results.append(dict(args,**result))
                 elif unpack == 'record':
                     for d in result:
                         results.append(dict(args,**d))

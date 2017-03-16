@@ -59,7 +59,6 @@ id_to_letter = dict(enumerate("ABCDEF"))
 @apply_to_args(twinned = ['player_types','priors','Ks'])
 @plotter(binary_matchup,plot_exclusive_args = ['data','believed_type'])
 def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[],**kwargs):
-    print kwargs
     K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
     print data
@@ -101,11 +100,11 @@ def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[],**k
             else:
                 agents.append(str(t))
     #print agents
-    plt.subplots_adjust(top = 0.9)
-    if kwargs.get('experiment',False) == 'forgiveness':
-        f_grid.fig.suptitle("A and B's beliefs that the other is %s after A defects some number of times\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
-    else:
-        f_grid.fig.suptitle("A and B's beliefs that the other is %s\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
+    #plt.subplots_adjust(top = 0.9)
+    #if kwargs.get('experiment',False) == 'forgiveness':
+     #   f_grid.fig.suptitle("A and B's beliefs that the other is %s after A defects some number of times\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
+    #else:
+    #f_grid.fig.suptitle("A and B's beliefs that the other is %s\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
 
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,data = []):
@@ -140,7 +139,7 @@ def comparison_grid(size = 5, **kwargs):
     condition = dict(kwargs,**locals())
     del condition['kwargs']
 
-    return binary_matchup(**condition)
+    return binary_matchup(return_keys = 'fitness',**condition)
 
 @plotter(comparison_grid, plot_exclusive_args = ['data'])
 def reward_table(data = []):
@@ -331,8 +330,8 @@ def simulator(type_to_population, **kwargs):
     return {'type_to_fitness':zip(type_list,fitness)}
 
 
-
-belief_plot(experiment = forgiveness,trials = 100,player_types = (ReciprocalAgent,ReciprocalAgent),agent_types = (ReciprocalAgent,SelfishAgent))
+#for k in range(3):
+#    belief_plot(experiment = forgiveness,trials = 100,player_types = (ReciprocalAgent,ReciprocalAgent),agent_types = (ReciprocalAgent,SelfishAgent), beta = 3, Ks = k)
 
 #print binary_matchup(player_types = ReciprocalAgent,agent_types = (ReciprocalAgent,SelfishAgent),trials = 100)
 
@@ -372,6 +371,6 @@ belief_plot(experiment = forgiveness,trials = 100,player_types = (ReciprocalAgen
 
 #belief_plot(priors = (), )
 
-#reward_table(player_types = ReciprocalAgent, Ks = 1, agent_types = (ReciprocalAgent,SelfishAgent), beta = 3)
+reward_table(player_types = ReciprocalAgent, Ks = 1, agent_types = (ReciprocalAgent,SelfishAgent), beta = 3,size = 11)
 #reward_table(player_types = ReciprocalAgent, Ks = 0, agent_types = (ReciprocalAgent,SelfishAgent), beta = 1)
 
