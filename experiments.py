@@ -44,37 +44,22 @@ def history_maker(observations,agents,start=0,annotation = {}):
 @experiment(unordered = ['agent_types'],unpack = 'dict')
 def forgiveness(player_types = NiceReciprocalAgent, Ks= 1, priors=(.75,.75), defections=3, **kwargs):
     condition = dict(locals(),**kwargs)
-
     params = default_params(**condition)
-
     game = BinaryDictator()
-
     genomes = [default_genome(agent_type = t, RA_K = k, RA_prior = p,**condition) for t,p,k in zip(player_types,priors,Ks)]
-
     world = World(params,genomes)
     agents = world.agents
-
     observations = [[(game,[0,1],[0,1],'keep')]]*defections
     prehistory = history_maker(observations,agents,start = -defections)
-
     fitness, history = world.run()
     history = prehistory+history
-
-    #rec = []
-    #for event in history:
-    #    for a_id, agent in enumerate(event['players']):
-    #        rec.append({
-    #            'K':genome_args[a_id][1],
-    #            'type':genome_args[a_id][0],
-    #            'round':event['round'],
-    #        })
-    #return rec
     return {'history':history}
 
 id_to_letter = dict(enumerate("ABCDEF"))
 @apply_to_args(twinned = ['player_types','priors','Ks'])
 @plotter(binary_matchup,plot_exclusive_args = ['data','believed_type'])
-def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[]):
+def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[],**kwargs):
+    print kwargs
     K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
     print data
@@ -101,7 +86,7 @@ def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[]):
         ids = t_ids[a_id][k]
         axis = f_grid.facet_axis(k,a_id)
         axis.set(#xlabel='# of interactions',
-            ylabel = '$\mathrm{Pr_{%s}( T_{%s} = RA | O_{1:n} )}$'% (k,id_to_letter[ids[-1]]),
+            ylabel = '$\mathrm{Pr_{%s}( T_{%s} = %s | O_{1:n} )}$'% (k,id_to_letter[ids[-1]],justcaps(believed_type)),
             title = ''.join([id_to_letter[l] for l in [a_id]+ids]))
     agents = []
     for n,(t,p) in enumerate(zip(player_types,priors)):
@@ -117,7 +102,10 @@ def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[]):
                 agents.append(str(t))
     #print agents
     plt.subplots_adjust(top = 0.9)
-    f_grid.fig.suptitle("A and B's beliefs that the other is RA\nA=%s B=%s" % (agents[0],agents[1]))
+    if kwargs.get('experiment',False) == 'forgiveness':
+        f_grid.fig.suptitle("A and B's beliefs that the other is %s after A defects some number of times\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
+    else:
+        f_grid.fig.suptitle("A and B's beliefs that the other is %s\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
 
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,data = []):

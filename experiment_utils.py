@@ -416,7 +416,7 @@ def plotter(experiment,default_plot_dir="./plots/",experiment_args=[], plot_excl
                 if 'experiment' in call_args:
                     call_args['experiment'] = call_args['experiment'].__name__
                 data = fun(**call_args)
-                plot_args = call_data['defined_args']
+                plot_args = call_data['valid_args']
 
                 try:
                     for key,val in fun._last_args.iteritems():
