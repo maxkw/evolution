@@ -1,7 +1,7 @@
 from __future__ import division
 import pandas as pd
 import seaborn as sns
-from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter
+from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
 from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent
@@ -14,9 +14,6 @@ import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy,deepcopy
 from utils import softmax_utility
-
-
-###multi_call
 
 def justcaps(t):
     return filter(str.isupper,t.__name__)
@@ -299,6 +296,44 @@ def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = M
     sns.pointplot(data = data, x = "proportion", y = "fitness ratio", hue = "RA_K")
     #print locals()
     #fplot.set(yticklabels = np.linspace(0,1,5))
+import operator
+
+
+memo_bin_matchup = memoize(binary_matchup)
+@apply_to_args(hashableDict = ['type_to_population'])
+@experiment(unpack = 'dict', trials = 100)
+def simulator(type_to_population, **kwargs):
+    for item in ['type_to_population','matchup_function','trials','trial']:
+        try:
+            del kwargs[item]
+        except:
+            pass
+    condition = kwargs
+    agent_types = sorted(type_to_population.keys())
+    type_list = sum(([agent_type]*type_to_population[agent_type] for agent_type in agent_types),[])
+    agent_list = list(enumerate(type_list))
+    pop_size = len(agent_list)
+    agent_matchups = [map(tuple,zip(*sorted(item,key = operator.itemgetter(1)))) for item in permutations(agent_list,2)]
+    fitness = np.zeros(pop_size)
+    type_matchups = [tuple(sorted(item)) for item in combinations(agent_types,2)]
+    matchup_to_fitnesses = {matchup : map(tuple,memo_bin_matchup(player_types = matchup, **condition)['fitness'])
+                            for matchup in type_matchups}
+    trials = len(matchup_to_fitnesses.values()[0])
+
+    for ids,types in agent_matchups:
+        i = np.random.random_integers(0,high = trials-1)
+        fitness[array(ids)] = matchup_to_fitnesses[types][i]
+
+    return {'type_to_fitness':zip(type_list,fitness)}
+
+
+
+#print binary_matchup(player_types = ReciprocalAgent,agent_types = (ReciprocalAgent,SelfishAgent),trials = 100)
+
+a = simulator({ReciprocalAgent:10,SelfishAgent:10},
+                trials = 1000,
+                agent_types = (ReciprocalAgent,SelfishAgent))
+print a
 
 #first_impressions_plot()#RA_prior = MultiArg([.25,.5,.75]))
 #binary_matchup(player_types = ReciprocalAgent)

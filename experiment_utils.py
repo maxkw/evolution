@@ -11,6 +11,7 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 from types import FunctionType
 import sys
+from functools import wraps
 ### for experiments
 def is_sequency(obj):
     if isinstance(obj,basestring):
@@ -33,6 +34,10 @@ def product_of_vals(orderedDict):
 
 def dict_hash(dict):
     return hash(tuple(sorted(dict.iteritems())))
+
+class hashableDict(dict):
+    def __hash__(self):
+        return dict_hash(self)
 
 def fun_call_labeler(method,args,kwargs,intolerant = True):
     """
@@ -165,14 +170,6 @@ def transform_inputs(*functions):
         return transform_args
     return transformer
 
-input_transformers = [twinned,unordered]
-def apply_to_inputs(**fun_name_to_arg_names):
-    name_to_fun = {f.__name__:f for f in functions}
-    fun_to_arg_names = {}
-    for k,v in fun_name_to_arg_names.iteritems():
-        if k in name_to_fun:
-            fun_to_arg_names[name_to_fun[k]] = v
-
 experiment_transformer = transform_inputs(unordered,twinned)
 def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, verbose = 0,**kwargs):
     data_dir = './memo_cache/'
@@ -180,7 +177,8 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
 
     transform_arg_dict = experiment_transformer(kwargs)
     def wrapper(function):
-        def call(*args,**kwargs):
+        @copy_function_identity(function)
+        def experiment_call(*args,**kwargs):
             call_data = fun_call_labeler(function,args,kwargs)
 
             arg_dict = call_data['args']
@@ -201,7 +199,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                 pass
 
             #if it can handle keywords, give it everything
-            args = call._last_args = transform_arg_dict(call_data['valid_args'])
+            args = experiment_call._last_args = transform_arg_dict(call_data['valid_args'])
 
             try:
                 arg_hash = dict_hash(args)
@@ -270,8 +268,8 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
 
             #return only those trials that were asked for
             return cache.query('trial in %s' % trials)
-        call._decorator = 'experiment'
-        return call
+        experiment_call._decorator = 'experiment'
+        return experiment_call
     return wrapper
 
 
@@ -384,7 +382,7 @@ def plotter(experiment,default_plot_dir="./plots/",experiment_args=[], plot_excl
                     pass
                 plot_fun_call_data = fun_call_labeler(plot_fun,[],fun_args)
             return plot_fun_call_data
-
+        
         def call(*args, **kwargs):
             plot_dir = kwargs.get("plot_dir",default_plot_dir)
             try:
@@ -460,11 +458,6 @@ class Decorator(object):
     def call(self,call_data):
         return self.decorated(**call_data['valid_args'])
 
-def apply_to_args(**function_name_to_args):
-    transform_arg_dict = experiment_transformer(kwargs)
-    def wrapper(function):
-        def call(*args,**kwarg):
-            fun_call_data = fun_call_labeler(function,args,kwargs)
 
 def dict_key_map(d,fun_to_arg):
     mapped_d = deepcopy(d)
@@ -477,19 +470,16 @@ def dict_key_map(d,fun_to_arg):
                     mapped_d[arg_name] = function(arg_val)
     return mapped_d
 
-class apply_to_args(Decorator):
-    """
-    takes funcion=list-of-argnames pairs, the functions will be applied to all arguments passed to
-    the decorated functon that are mapped to the provided argnames
-    """
-    def __init__(self, **f_to_argnames):
-        f_to_argnames = {eval(name):argnames for name,argnames in f_to_argnames.iteritems()}
-        self.transform = lambda d: dict_key_map(d,f_to_argnames)#experiment_transformer(f_to_argnames)
-    def make_arg_dicts(self,args,kwargs):
-        arg_dict = self.transform(get_arg_dicts(self.decorated,args,kwargs)['args'])
-        call_data = get_arg_dicts(self.decorated,[],arg_dict)
-        print call_data['args']
-        return call_data
+def apply_to_args(**f_to_argnames):
+    f_to_argnames = {eval(name):argnames for name,argnames in f_to_argnames.iteritems()}
+    def wrapper(function):
+        @copy_function_identity(function)
+        def call(*args,**kwargs):
+            raw_arg_dict = get_arg_dicts(function,args,kwargs)['args']
+            arg_dict = dict_key_map(raw_arg_dict,f_to_argnames)
+            return function(**arg_dict)
+        return call
+    return wrapper
 
 class cplotter(Decorator):
     def __init__(self, default_experiment, experiment_args = [], plot_args = True, plot_dir = "./plots/"):
@@ -591,6 +581,15 @@ def literal(constructor):
         return ret
     return call
 
+def memoize(obj):
+    cache = obj.cache = {}
+    @wraps(obj)
+    def memoizer(*args, **kwargs):
+        key = str(args) + str(kwargs)
+        if key not in cache:
+            cache[key] = obj(*args, **kwargs)
+        return cache[key]
+    return memoizer
 
 if __name__ == "__main__":
     a = MultiArg(i for i in range(5))
