@@ -413,6 +413,8 @@ def plotter(experiment,default_plot_dir="./plots/",experiment_args=[], plot_excl
                     call_args = experiment_call_data['valid_args']
                 else:
                     call_args = get_arg_dicts(fun,[],call_data['args]'])['valid_args']
+                if 'experiment' in call_args:
+                    call_args['experiment'] = call_args['experiment'].__name__
                 data = fun(**call_args)
                 plot_args = call_data['defined_args']
 
@@ -422,6 +424,8 @@ def plotter(experiment,default_plot_dir="./plots/",experiment_args=[], plot_excl
                             plot_args[key] = val
                 except:
                     pass
+                
+                    
                 ret = plot_fun(**dict(plot_args,**{'data':data}))
             save_file = plot_dir+call_data['make_call_str'](call_args)+'.pdf'
             if not os.path.exists(plot_dir):

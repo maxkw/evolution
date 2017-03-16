@@ -20,7 +20,7 @@ def justcaps(t):
 
 @multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'], verbose=3)
 @experiment(unpack = 'dict', trials = 100, verbose = 3)
-def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), agent_types = (NiceReciprocalAgent,SelfishAgent), **kwargs):
+def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
     genomes = [default_genome(agent_type = t, RA_prior=p ,RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
@@ -30,12 +30,54 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
     return {'fitness':fitness,
             'history':history}
 
+
+def history_maker(observations,agents,start=0,annotation = {}):
+    history = []
+    for r,observation in enumerate(observations,start):
+        [agent.observe(observation) for agent in agents]
+        history.append(dict({
+            'round':r,
+            'players':deepcopy(agents)},**annotation))
+    return history
+
+@multi_call(twinned = ['player_types','priors','Ks'])
+@experiment(unordered = ['agent_types'],unpack = 'dict')
+def forgiveness(player_types = NiceReciprocalAgent, Ks= 1, priors=(.75,.75), defections=3, **kwargs):
+    condition = dict(locals(),**kwargs)
+
+    params = default_params(**condition)
+
+    game = BinaryDictator()
+
+    genomes = [default_genome(agent_type = t, RA_K = k, RA_prior = p,**condition) for t,p,k in zip(player_types,priors,Ks)]
+
+    world = World(params,genomes)
+    agents = world.agents
+
+    observations = [[(game,[0,1],[0,1],'keep')]]*defections
+    prehistory = history_maker(observations,agents,start = -defections)
+
+    fitness, history = world.run()
+    history = prehistory+history
+
+    #rec = []
+    #for event in history:
+    #    for a_id, agent in enumerate(event['players']):
+    #        rec.append({
+    #            'K':genome_args[a_id][1],
+    #            'type':genome_args[a_id][0],
+    #            'round':event['round'],
+    #        })
+    #return rec
+    return {'history':history}
+
 id_to_letter = dict(enumerate("ABCDEF"))
+@apply_to_args(twinned = ['player_types','priors','Ks'])
 @plotter(binary_matchup,plot_exclusive_args = ['data','believed_type'])
-def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]):
+def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[]):
     K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
-
+    print data
     record = []
     for d in data.to_dict('record'):
         for event in d['history']:
@@ -52,7 +94,7 @@ def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]
                         "type":justcaps(believed_type),
                     })
     bdata = pd.DataFrame(record)
-    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin', hue = 'type', row_order = range(K+1),
+    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin',hue = 'type', row_order = range(K+1), legend = False,
                    facet_kws = {'ylim':(0,1)})
     f_grid.map(sns.pointplot,'round','belief')
     for a_id,k in product([0,1],range(K+1)):
@@ -61,6 +103,21 @@ def belief_plot(player_types,priors,Ks,believed_type=NiceReciprocalAgent,data=[]
         axis.set(#xlabel='# of interactions',
             ylabel = '$\mathrm{Pr_{%s}( T_{%s} = RA | O_{1:n} )}$'% (k,id_to_letter[ids[-1]]),
             title = ''.join([id_to_letter[l] for l in [a_id]+ids]))
+    agents = []
+    for n,(t,p) in enumerate(zip(player_types,priors)):
+        if issubclass(t,RationalAgent):
+            if player_types[0]==player_types[1] and priors[0]==priors[1]:
+                agents.append("%s(prior=%s)"%(str(t),p))
+            else:
+                agents.append("%s(prior=%s)"%(str(t),p))
+        else:
+            if player_types[0]==player_types[1]:
+                agents.append("%s" % (str(t),n))
+            else:
+                agents.append(str(t))
+    #print agents
+    plt.subplots_adjust(top = 0.9)
+    f_grid.fig.suptitle("A and B's beliefs that the other is RA\nA=%s B=%s" % (agents[0],agents[1]))
 
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,data = []):
@@ -114,18 +171,6 @@ priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
 diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
 
 
-from games import RepeatedSequentialBinary
-from indirect_reciprocity import NiceReciprocalAgent
-
-def history_maker(observations,agents,start=0,annotation = {}):
-    history = []
-    for r,observation in enumerate(observations,start):
-        [agent.observe(observation) for agent in agents]
-        history.append(dict({
-            'round':r,
-            'players':deepcopy(agents)},**annotation))
-    return history
-
 letter_to_id = dict(map(reversed,enumerate("ABCDEFGHIJK")))
 letter_to_action = {"C":'give',"D":'keep'}
 @multi_call()
@@ -175,36 +220,7 @@ def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
     f_grid.set_yticklabels(['','0.25','0.50','0.75','1.0'])
     #f_grid.despine(bottom=True)
 
-@multi_call()
-@experiment(unordered = ['agent_types'],)
-def forgiveness(player_types,RA_Ks,RA_priors,defections,**kwargs):
-    condition = dict(locals(),**kwargs)
 
-    params = default_params(**condition)
-    game = params['games']
-
-    genome_args = doubling_zip(player_types,RA_Ks,RA_priors)
-    genomes = [default_genome(agent_type = agent_type, RA_K = RA_K, RA_prior = RA_prior,**condition)
-               for agent_type, RA_K, RA_prior in genome_args]
-
-    world = World(params,genomes)
-    agents = world.agents
-
-    observations = [[(game,[0,1],[0,1],'keep')]]*defections
-    prehistory = history_maker(observations,agents,start = -defections)
-
-    fitness, history = world.run()
-    history = prehistory+history
-
-    rec = []
-    for event in history:
-        for a_id, agent in enumerate(event['players']):
-            rec.append({
-                'K':genome_args[a_id][1],
-                'type':genome_args[a_id][0],
-                'round':event['round'],
-            })
-    return rec
 
 letter_2_index = dict(map(reversed,enumerate('ABCDEFG')))
 @multi_call()
@@ -328,12 +344,14 @@ def simulator(type_to_population, **kwargs):
 
 
 
+belief_plot(experiment = forgiveness,trials = 100,player_types = (ReciprocalAgent,ReciprocalAgent),agent_types = (ReciprocalAgent,SelfishAgent))
+
 #print binary_matchup(player_types = ReciprocalAgent,agent_types = (ReciprocalAgent,SelfishAgent),trials = 100)
 
-a = simulator({ReciprocalAgent:100,SelfishAgent:100},
-                trials = 100,
-                agent_types = (ReciprocalAgent,SelfishAgent))
-print a
+#a = simulator({ReciprocalAgent:100,SelfishAgent:100},
+#                trials = 100,
+#                agent_types = (ReciprocalAgent,SelfishAgent))
+#print a
 
 #first_impressions_plot()#RA_prior = MultiArg([.25,.5,.75]))
 #binary_matchup(player_types = ReciprocalAgent)
@@ -350,7 +368,7 @@ print a
 #belief_plot(priors = (.75,.25))
 #compare_plot(rational_type = ReciprocalAgent, Ks = 1,beta = 1,trials = 50)
 
-scene_plot(beta = 4)
+#scene_plot(beta = 4)
 
 #for n in range(1,20):
 #    """
