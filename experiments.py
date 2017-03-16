@@ -160,7 +160,7 @@ def scenarios(RA_K = 1, agent_types = (NiceReciprocalAgent,SelfishAgent,Altruist
             })
     return record
 
-@cplotter(scenarios,plot_args = ['data'])
+@plotter(scenarios,plot_exclusive_args = ['data'])
 def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
     sns.set_context("poster",font_scale = 1.5)
     f_grid = sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', row = "RA_prior", kind = 'bar', hue = 'type', hue_order = ["NRA","AA","SA"],col_order = ["C","D","DD","DC","CD","CC"],
@@ -330,8 +330,8 @@ def simulator(type_to_population, **kwargs):
 
 #print binary_matchup(player_types = ReciprocalAgent,agent_types = (ReciprocalAgent,SelfishAgent),trials = 100)
 
-a = simulator({ReciprocalAgent:10,SelfishAgent:10},
-                trials = 1000,
+a = simulator({ReciprocalAgent:100,SelfishAgent:100},
+                trials = 100,
                 agent_types = (ReciprocalAgent,SelfishAgent))
 print a
 
@@ -350,7 +350,7 @@ print a
 #belief_plot(priors = (.75,.25))
 #compare_plot(rational_type = ReciprocalAgent, Ks = 1,beta = 1,trials = 50)
 
-#scene_plot(beta = 4)
+scene_plot(beta = 4)
 
 #for n in range(1,20):
 #    """

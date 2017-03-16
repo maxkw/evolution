@@ -364,16 +364,17 @@ def plotter(experiment,default_plot_dir="./plots/",experiment_args=[], plot_excl
         except:
             print "wrapped function must have a 'data' argument"
             raise
-
+        default_experiment = experiment
         def make_arg_dicts(args,kwargs):
             try:
                 plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
             except TypeError as e:
                 incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
-                if 'experiment' in incomplete_plot_fun_args:
-                    experiment = plot_fun_call_data['args']['experiment']
-                else:
-                    experiment = experiment
+                #if 'experiment' in incomplete_plot_fun_args:
+                #    experiment = plot_fun_call_data['args']['experiment']
+                #else:
+                #    experiment = dexperiment
+                experiment = incomplete_plot_fun_args.get('experiment', default_experiment)
                 fun_args = fun_call_labeler(experiment,[],incomplete_plot_fun_args)['args']
                 try:
                     if not fun_args['data']:
