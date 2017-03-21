@@ -7,17 +7,32 @@ from params import default_params,generate_proportional_genomes,default_genome
 from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent
 from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyObserved,Symmetric
 from collections import defaultdict
-from itertools import combinations_with_replacement as combinations
+from itertools import combinations_with_replacement, combinations
 from itertools import permutations
 from itertools import product,islice,cycle
 import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy,deepcopy
 from utils import softmax_utility
+import operator
+from fractions import gcd as binary_gcd
+from fractions import Fraction
+from math import ceil
+
+def gcd(*numbers):
+    """Return the greatest common divisor of the given integers"""
+    return reduce(binary_gcd, numbers)
+
+
+def lcm(*numbers):
+    """Return lowest common multiple."""
+    def lcm(a, b):
+        return (a * b) / gcd(a, b)
+    return reduce(lcm, numbers, 1)
 
 def justcaps(t):
     return filter(str.isupper,t.__name__)
-
+@memoize
 @multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'], verbose=3)
 @experiment(unpack = 'dict', trials = 100, verbose = 3)
 def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), **kwargs):
@@ -28,7 +43,8 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
 
     fitness,history = world.run()
     return {'fitness':fitness,
-            'history':history}
+            'history':history,
+            'p1_fitness':fitness[0]}
 
 
 def history_maker(observations,agents,start=0,annotation = {}):
@@ -61,7 +77,6 @@ id_to_letter = dict(enumerate("ABCDEF"))
 def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[],**kwargs):
     K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
-    print data
     record = []
     for d in data.to_dict('record'):
         for event in d['history']:
@@ -107,7 +122,7 @@ def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[],**k
     #f_grid.fig.suptitle("A and B's beliefs that the other is %s\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
 
 @plotter(binary_matchup)
-def joint_fitness_plot(player_types,priors,data = []):
+def joint_fitness_plot(player_types,priors,Ks,data = []):
     agents = []
     for n,(t,p) in enumerate(zip(player_types,priors)):
         if issubclass(t,RationalAgent):
@@ -129,29 +144,35 @@ def joint_fitness_plot(player_types,priors,data = []):
     sns.jointplot(agents[0], agents[1], data, kind = 'kde',bw = bw,marginal_kws = {"bw":bw})
 
 def unordered_prior_combinations(prior_list):
-    return map(tuple,map(sorted,combinations(prior_list,2)))
+    return map(tuple,map(sorted,combinations_with_replacement(prior_list,2)))
 #@apply_to_args(twinning = ['player_types'])
 
 #@multi_call()
 def comparison_grid(size = 5, **kwargs):
     priors = [round(n,2) for n in np.linspace(0,1,size)]
-    priors = MultiArg(unordered_prior_combinations(priors))
-    condition = dict(kwargs,**locals())
-    del condition['kwargs']
-
-    return binary_matchup(return_keys = 'fitness',**condition)
+    #priors = MultiArg(unordered_prior_combinations(priors))
+    priors = MultiArg(product(priors,priors))
+    condition = dict(kwargs,**{'priors':priors})
+    #print condition
+    ret =  binary_matchup(return_keys = ('p1_fitness','fitness'),**condition)
+    return ret
 
 @plotter(comparison_grid, plot_exclusive_args = ['data'])
-def reward_table(data = []):
+def reward_table(data = [],**kwargs):
     record = []
-    for priors,group in data.groupby('priors'):
-        p0,p1 = priors
+    r2 = []
+    priors = sorted(list(set(data['priors'])))
+    #for prior,group in data.groupby('priors'):
+    for prior in priors:
+        p0,p1 = prior
+        group = data[data['priors']==prior]
+        r2.append({'recipient prior':p0, 'opponent prior':p1, 'reward':group.mean()['p1_fitness']})
         for r0,r1 in group['fitness']:
             record.append({'recipient prior':p0, 'opponent prior':p1, 'reward':r0})
-            record.append({'recipient prior':p1, 'opponent prior':p0, 'reward':r1})
-    data = pd.DataFrame(record)
-
-    meaned = data.groupby(['recipient prior','opponent prior']).mean().unstack()
+    #data = pd.DataFrame(record)
+    #meaned = data.groupby(['recipient prior','opponent prior']).mean().unstack()
+    meaned = pd.DataFrame(r2).pivot(index = 'recipient prior',columns = 'opponent prior',values = 'reward')
+    plt.figure(figsize = (10,10))
     sns.heatmap(meaned,annot=True,fmt="0.2f")
 
 priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
@@ -232,104 +253,136 @@ def first_impressions(max_cooperations, agent_types, RA_prior, **kwargs):
             record.append({'cooperations': cooperations,
                            'belief': observer.belief_that(0,agent_type),
                            'type': justcaps(agent_type)})
-
-    plt.subplots_adjust(top = 0.93)
     return record
 
-@cplotter(first_impressions)
+@plotter(first_impressions)
 def first_impressions_plot(max_cooperations = 5, agent_types = (NiceReciprocalAgent,AltruisticAgent,SelfishAgent),
                            RA_prior =.75, data = None):
     fplot = sns.factorplot(data = data, x='cooperations', y='belief', col='RA_prior', bw = .1,
                            hue = 'type', hue_order = map(justcaps,agent_types),
                            facet_kws = {'ylim':(0,1)})
     fplot.fig.suptitle("A and B's beliefs that the other is RA")
+    plt.subplots_adjust(top = 0.85)
 
-@multi_call(unordered = ['agent_types'], verbose = 3)
-@experiment(trials = 100,unpack = 'dict', verbose = 3)
-def pop_matchup(player_types = (ReciprocalAgent,SelfishAgent), pop_size = 50, proportion = .5, agent_types = (SelfishAgent,ReciprocalAgent), **kwargs):
-    condition = dict(locals(),**kwargs)
-    proportions = dict(zip(player_types,[proportion,1-proportion]))
-    genomes = generate_proportional_genomes(agent_proportions = proportions, **condition)
-    params = default_params(**condition)
-    world = World(params,genomes)
+def minimal_ratios(ratio_dict):
+    if 1 > ratio_dict.values()[0]:
+        objs,ratios = zip(*ratio_dict.items())
+        ratios = [Fraction(r).limit_denominator(1000) for r in ratios]
+        mult = lcm(*[f.denominator for f in ratios])
+        ratios = [r*mult for r in ratios]
+        ratio_dict = dict(zip(objs,ratios))
+    divisor = gcd(*ratio_dict.values())
+    return {k:int(v/divisor) for k,v in ratio_dict.iteritems()}
 
-    pop_types = [g['type'] for g in genomes]
-    fitness, history = world.run()
-
-    return {'type_fitness_pairs':zip(pop_types,fitness)}
-    #fitnesses = defaultdict(int)
-    #for t,f in zip(pop_types, fitness):
-    #    fitnesses[t] += f
-
-    #for t in fitnesses:
-    #    fitnesses[t] = fitnesses[t]/pop_types.count(t)
-
-    #fitnesses = softmax_utility(fitnesses,.1)
-
-    #return {'fitness ratio':fitnesses[player_types[0]]}
-
-def pop_fitness_ratios(player_types=(ReciprocalAgent,SelfishAgent),pop_size=50,proportion=.5,**kwargs):
-    condition = dict(locals(),**kwargs)
-    del condition['kwargs']
-    data = pop_matchup(**condition)
-    record = []
-    for r in data.to_dict('record'):
-        fitness = r['type_fitness_pairs']
-        types,fits = zip(*fitness)
-        fitnesses = defaultdict(int)
-        for t,f in fitness:
-            fitnesses[t] += f
-
-        for t in fitnesses:
-            fitnesses[t] = fitnesses[t]/types.count(t)
-
-        fitnesses = softmax_utility(fitnesses,.1)
-
-        r['fitness ratio']= fitnesses[player_types[0]]
-
-        record.append(r)
-
-    return pd.DataFrame(record)
-@cplotter(pop_fitness_ratios, plot_args = ['data'])
-def pop_fitness_plot(player_types, proportion = MultiArg([.25,.5,.75]), RA_K = MultiArg([0,1]), data = None):
-    #print data
-    #ndata = data.groupby(['RA_K','proportion']).mean().unstack()
-    #print ndata
-    
-    sns.pointplot(data = data, x = "proportion", y = "fitness ratio", hue = "RA_K")
-    #print locals()
-    #fplot.set(yticklabels = np.linspace(0,1,5))
-import operator
 
 
 memo_bin_matchup = memoize(binary_matchup)
-@apply_to_args(hashableDict = ['type_to_population'])
-@experiment(unpack = 'dict', trials = 100)
-def simulator(type_to_population, **kwargs):
+
+def mean(*numbers):
+    return sum(numbers)/len(numbers)
+@multi_call(verbose = 3)
+@experiment(unpack = 'dict', trials = 100,verbose = 3)
+def pop_matchup_simulator(player_types=(ReciprocalAgent,SelfishAgent), min_pop_size=50, proportion=.5, **kwargs):
     for item in ['type_to_population','matchup_function','trials','trial']:
         try:
             del kwargs[item]
         except:
             pass
     condition = kwargs
+
+    proportions = minimal_ratios(dict(zip(player_types,(proportion,1-proportion))))
+
+    try:
+        #assert not proportion ==.9
+        assert proportion in [0,1] or not (0 in proportions.values() and 1 in proportions.values())
+    except Exception as e:
+        print Fraction(1-proportion).limit_denominator(1000)
+        print proportion
+        print proportions
+        raise e
+    min_legal_pop_size = sum(proportions.values())
+    if min_legal_pop_size < min_pop_size:
+        pop_scale = int(ceil(min_pop_size/min_legal_pop_size))
+        proportions = {k:v*pop_scale for k,v in proportions.iteritems()}
+
+    type_to_population = proportions
     agent_types = sorted(type_to_population.keys())
-    type_list = sum(([agent_type]*type_to_population[agent_type] for agent_type in agent_types),[])
+    try:
+        type_list = sum(([agent_type]*type_to_population[agent_type] for agent_type in agent_types),[])
+    except MemoryError as ME:
+        print proportion
+        print proportions
+        raise ME
     agent_list = list(enumerate(type_list))
     pop_size = len(agent_list)
-    agent_matchups = [map(tuple,zip(*sorted(item,key = operator.itemgetter(1)))) for item in permutations(agent_list,2)]
+    agent_matchups = [map(tuple,zip(*sorted(item,key = operator.itemgetter(1)))) for item in combinations(agent_list,2)]
     fitness = np.zeros(pop_size)
-    type_matchups = [tuple(sorted(item)) for item in combinations(agent_types,2)]
-    matchup_to_fitnesses = {matchup : map(tuple,memo_bin_matchup(player_types = matchup, **condition)['fitness'])
+    type_matchups = [tuple(sorted(item)) for item in set(combinations(map(operator.itemgetter(1),agent_list),2))]
+    matchup_to_fitnesses = {matchup : map(tuple, memo_bin_matchup(return_keys = 'fitness', trials = 500, player_types = matchup, **condition)['fitness'])
                             for matchup in type_matchups}
     trials = len(matchup_to_fitnesses.values()[0])
 
     for ids,types in agent_matchups:
         i = np.random.random_integers(0,high = trials-1)
-        fitness[array(ids)] = matchup_to_fitnesses[types][i]
+        fitness[np.array(ids)] += array(matchup_to_fitnesses[types][i])
 
-    return {'type_to_fitness':zip(type_list,fitness)}
+    fitness = zip(type_list,fitness)
+    avg_fitnesses = defaultdict(int)
+    for t,f in fitness:
+        avg_fitnesses[t] += f
+
+    for t in avg_fitnesses:
+        avg_fitnesses[t] = avg_fitnesses[t]/type_list.count(t)
+
+    fitnesses = softmax_utility(avg_fitnesses,.1)
+    return {'fitness ratio':fitnesses[player_types[0]],
+            'mean_fitness':[avg_fitnesses[t] for t in player_types],
+            'p1_fitness':avg_fitnesses[player_types[0]],
+            'type_fitness_pairs':fitness}
 
 
+
+@plotter(pop_matchup_simulator, plot_exclusive_args = ['data'])
+def pop_fitness_plot(player_types = (ReciprocalAgent,SelfishAgent), proportion = MultiArg([.25,.5,.75]), Ks = MultiArg([0,1]), data = None):
+    #print data
+    #ndata = data.groupby(['RA_K','proportion']).mean().unstack()
+    #print ndata
+    
+    sns.pointplot(data = data, x = "proportion", y = "fitness ratio", hue = "Ks")
+    #print locals()
+    #fplot.set(yticklabels = np.linspace(0,1,5))
+
+#proportions = [.01]+[round(n,3) for n in np.linspace(0,1,7)[1:-1]]+[.99]
+#n = 10
+#proportions = [float(i)/n for i in range(n)[1:]]
+#print proportions
+#pop_fitness_plot(beta = 1, proportion = MultiArg(proportions), agent_types = (ReciprocalAgent,SelfishAgent), trials = 500,min_pop_size = 10, Ks = MultiArg(range(3)))
+#cg = comparison_grid(size = 3, player_types = (ReciprocalAgent,SelfishAgent), Ks = 1, trials = 500, agent_types = (ReciprocalAgent,SelfishAgent))
+#print "cg",cg[cg['priors'] == (.5,.5)].mean()
+#priors = MultiArg([round(n,2) for n in np.linspace(0,1,3)])
+#pm = pop_matchup_simulator(player_types = (ReciprocalAgent,SelfishAgent), proportion = .5, Ks = 1, trials = 500, agent_types = (ReciprocalAgent,SelfishAgent),priors = priors, min_pop_size = 2)
+#print cg[cg['priors'] == (.5,.5)]
+#print pm
+#print "cg",cg.mean()
+#print "pm",pm.mean()
+
+#def mean(*numbers):
+#    return sum(numbers)/len(numbers)
+#trials = 100
+
+#a = memo_bin_matchup(trials = trials, return_keys = 'p1_fitness', player_types = ReciprocalAgent, priors = (.25,0),agent_types = (Self#ishAgent,ReciprocalAgent))
+#b = binary_matchup(player_types = ReciprocalAgent, return_keys = ('p1_fitness','fitness'), trials = 100, Ks = 1, agent_types = (Recipr#ocalAgent,SelfishAgent),priors = (.25,0))
+#c = comparison_grid(trials = trials, player_types = ReciprocalAgent,agent_types = (ReciprocalAgent,SelfishAgent),Ks = 1)
+#c = c[c['priors'] == (0.25,0)]['fitness']
+
+#reward_table(size = 5, player_types = ReciprocalAgent, Ks = 1, trials = trials, agent_types = (ReciprocalAgent,SelfishAgent))
+#reward_table(size = 5, player_types = (ReciprocalAgent,SelfishAgent), Ks = 1, trials = trials, agent_types = (ReciprocalAgent,SelfishAgent))
+
+#print 'b',len(b)
+
+#print a.mean()
+#print b.mean()
+#print mean(*map(operator.itemgetter(id),c))
 #for k in range(3):
 #    belief_plot(experiment = forgiveness,trials = 100,player_types = (ReciprocalAgent,ReciprocalAgent),agent_types = (ReciprocalAgent,SelfishAgent), beta = 3, Ks = k)
 
@@ -371,6 +424,6 @@ def simulator(type_to_population, **kwargs):
 
 #belief_plot(priors = (), )
 
-reward_table(player_types = ReciprocalAgent, Ks = 1, agent_types = (ReciprocalAgent,SelfishAgent), beta = 3,size = 11)
+#reward_table(player_types = ReciprocalAgent, Ks = 1, agent_types = (ReciprocalAgent,SelfishAgent), beta = 3,size = 11,trials = 200)
 #reward_table(player_types = ReciprocalAgent, Ks = 0, agent_types = (ReciprocalAgent,SelfishAgent), beta = 1)
 
