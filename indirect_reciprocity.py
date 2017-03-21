@@ -75,8 +75,8 @@ class Agent(object):
         returns:
         a probability vector representing what I think the deciding agent would do in this game?
         """
+
         # The first agent is always the deciding agent
-        
         # Only have one action so just pick it
         if len(game.actions) == 1:
             # Returning a probability a vector
@@ -92,7 +92,6 @@ class Agent(object):
 
         return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
 
-        
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
         # the world, not the agent
@@ -306,7 +305,7 @@ class RationalAgent(Agent):
         
     def utility(self, payoffs, agent_ids):
         sample_alpha = self.sample_alpha
-        weights = map(sample_alpha,agent_ids)                
+        weights = map(sample_alpha,agent_ids)
         return sum(itertools.imap(multiply,weights,payoffs))
 
     def sample_alpha(self, agent_id):
@@ -324,7 +323,8 @@ class RationalAgent(Agent):
         # just a downside of being a nice person?0
         
         # return int(flip(belief))
-        return NotImplementedError
+        print "Rational Agents don't know how to choose, subclasses do"
+        raise NotImplementedError
 
     #@profile
     def observe(self,observations):
