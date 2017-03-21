@@ -200,6 +200,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
 
             try:
                 del arg_dict['trials']
+                call_data = fun_call_labeler(function,[],arg_dict)
             except:
                 pass
 
@@ -312,7 +313,7 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
             unpack_ = 'DataFrame'
 
         @copy_function_identity(function)
-        def call(*args,**kwargs):
+        def m_call(*args,**kwargs):
             if verbose and verbose>0:
                 pass
                 #print "Expanding multicall for function "+function.__name__
@@ -321,7 +322,7 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
             expected_args = call_data['valid_args']
             expected_args = transform_arg_dict(expected_args)
 
-            call._last_args = expected_args
+            m_call._last_args = expected_args
 
             dynamic_args={}; static_args={}
             for key,val in expected_args.iteritems():
@@ -334,8 +335,10 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
                 arg_calls = [dict(static_args,**d_args) for d_args in product_of_vals(dynamic_args)]
             else:
                 arg_calls = [static_args]
+                return function(**static_args)
 
             if verbose and verbose>=1:
+                print " %s calls..." % len(arg_calls)
                 print "Processing %s calls..." % len(arg_calls)
             if unpack_ == 'DataFrame':
                 dfs = []
@@ -362,13 +365,13 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
 
         #call.__name__ = function.__name__
         #call.__getargspec__ = function.__getargspec__
-        return call
+        return m_call
     return wrapper
 
 def or_query(field,ls):
     return " or ".join(["%s == %s" % (field, i) for i in ls])
 
-def plotter(experiment,default_plot_dir="./plots/",experiment_args=[], plot_exclusive_args = True):
+def plotter(experiment,default_plot_dir="./plots/", experiment_args=[], plot_exclusive_args = ['data']):
     def wrapper(plot_fun):
         try:
             assert 'data' in getargspec(plot_fun)[0]
