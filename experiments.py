@@ -157,6 +157,20 @@ def comparison_grid(size = 5, **kwargs):
     ret =  binary_matchup(return_keys = ('p1_fitness','fitness'),**condition)
     return ret
 
+def RA_matchup_matrix(size = 5,**kwargs):
+    data = comparison_grid(size,**kwargs)
+    types = np.linspace(0,1,size)
+    prior_to_index = dict(map(reversed,enumerate(types)))
+    index_to_prior = dict(enumerate(types))
+    matrix = np.zeros((size,)*2)
+    priors = sorted(list(set(data['priors'])))
+    for prior in priors:
+        p0,p1 = (prior_to_index[p] for p in prior)
+        group = data[data['priors']==prior]
+        matrix[p0,p1] = group.mean()['p1_fitness']
+
+    return matrix,types
+
 @plotter(comparison_grid, plot_exclusive_args = ['data'])
 def reward_table(data = [],**kwargs):
     record = []
@@ -282,7 +296,7 @@ def mean(*numbers):
     return sum(numbers)/len(numbers)
 @multi_call(verbose = 3)
 @experiment(unpack = 'dict', trials = 100,verbose = 3)
-def pop_matchup_simulator(player_types=(ReciprocalAgent,SelfishAgent), min_pop_size=50, proportion=.5, **kwargs):
+def pop_matchup_simulator(player_types=(ReciprocalAgent,SelfishAgent), min_pop_size=50, moran = .01, proportion=.5, **kwargs):
     for item in ['type_to_population','matchup_function','trials','trial']:
         try:
             del kwargs[item]
@@ -334,7 +348,7 @@ def pop_matchup_simulator(player_types=(ReciprocalAgent,SelfishAgent), min_pop_s
     for t in avg_fitnesses:
         avg_fitnesses[t] = avg_fitnesses[t]/type_list.count(t)
 
-    fitnesses = softmax_utility(avg_fitnesses,.1)
+    fitnesses = softmax_utility(avg_fitnesses,moran)
     return {'fitness ratio':fitnesses[player_types[0]],
             'mean_fitness':[avg_fitnesses[t] for t in player_types],
             'p1_fitness':avg_fitnesses[player_types[0]],
@@ -353,10 +367,10 @@ def pop_fitness_plot(player_types = (ReciprocalAgent,SelfishAgent), proportion =
     #fplot.set(yticklabels = np.linspace(0,1,5))
 
 #proportions = [.01]+[round(n,3) for n in np.linspace(0,1,7)[1:-1]]+[.99]
-#n = 10
-#proportions = [float(i)/n for i in range(n)[1:]]
+n = 10
+proportions = [float(i)/n for i in range(n)[1:]]
 #print proportions
-#pop_fitness_plot(beta = 1, proportion = MultiArg(proportions), agent_types = (ReciprocalAgent,SelfishAgent), trials = 500,min_pop_size = 10, Ks = MultiArg(range(3)))
+pop_fitness_plot(beta = 3, proportion = MultiArg(proportions), agent_types = (ReciprocalAgent,SelfishAgent), trials = 100, min_pop_size = 50, Ks = MultiArg(range(3)), moran = .01)
 #cg = comparison_grid(size = 3, player_types = (ReciprocalAgent,SelfishAgent), Ks = 1, trials = 500, agent_types = (ReciprocalAgent,SelfishAgent))
 #print "cg",cg[cg['priors'] == (.5,.5)].mean()
 #priors = MultiArg([round(n,2) for n in np.linspace(0,1,3)])
