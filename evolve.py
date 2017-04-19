@@ -238,8 +238,19 @@ def testing():
     print partitions(4,3),faces(4,3)
 
 
+def steady_state(matrix):
+    vals,vecs = np.linalg.eig(matrix)
+    [steady_states] = [vec for vec,val in zip(vecs.T,vals) if val == 1]
+    return steady_states
 
 def invasion_probability(payoff, invader, dominant, pop_size,s=1):
+    """
+    calculates the odds of a single individual invading a population of dominant agents
+
+    payoff is a TxT matrix where T is the number of types, payoff[r,o] is r's expected payoff when playing against o
+    invader and dominant are integers in range(T) that shouldn't be the same
+    pop_size is the total number of individuals in the population
+    """
     def f(count):
         return (1.0-s)+s*((count-1)*payoff[invader,invader]+(pop_size-count)*payoff[invader,dominant])/(pop_size-1.0)
     def g(count):
@@ -251,38 +262,37 @@ def invasion_probability(payoff, invader, dominant, pop_size,s=1):
     return 1/accum
 
 def invasion_matrix(payoff,pop_size):
+    """
+    returns a matrix M of size TxT where M[a,b] is the probability of a homogeneous population of a becoming
+    a homogeneous population of b under weak mutation
+    types in this matrix are ordered as in 'payoff'
+    """
     type_count = len(payoff)
     transition = np.zeros((type_count,)*2)
-    #print payoff
-    #print invasion_probability(payoff,0,1,pop_size)
-    #print invasion_probability(payoff,1,0,pop_size)
-    #assert False
     for dominant,invader in permutations(range(type_count),2):
         transition[dominant,invader] = invasion_probability(payoff,invader,dominant,pop_size)
 
     for i in range(type_count):
         transition[i,i] = 1-sum(transition[:,i])
-        #print transition[:,i]
     return transition
 
-def steady_state(matrix):
-    vals,vecs = np.linalg.eig(matrix)
-    [steady_states] = [vec for vec,val in zip(vecs.T,vals) if val == 1]
+def limit_analysis(payoff,pop_size):
+    """
+    calculates the steady state under low mutation
+    where the states correspond to the homogeneous strategy in the same order as in payoff
+    """
+    type_count = len(payoff)
+    partition_count = partitions(pop_size,type_count)
+    transition = invasion_matrix(payoff,pop_size)
+    ssd = steady_state(transition)
 
-    #print matrix
-    #print vals
-    #print vecs
-    #print steady_states
-    return steady_states
-
-def pop_graph(types,pop_size):
-    composition_count = partitions(pop_size,types)
-    id = np.identity(types)
-    def get_neighbors(partition):
-        partition = np.array(partition)
-        return [tuple(partition+id[give]-id[take]) for give,take in permutations(range(types),2)]
-    
 def pop_transition_matrix(payoff,pop_size):
+    """
+    returns a matrix that returns the probability of transitioning from one population composition
+    to another
+
+    the index of a population is it's position as given by the 'all_partitions()' function
+    """
     type_count = len(payoff)
     partition_count = int(partitions(pop_size,type_count))
     I = np.identity(type_count)
@@ -312,29 +322,27 @@ def pop_transition_matrix(payoff,pop_size):
     return transition
 
 def complete_analysis(payoff,pop_size):
+    """
+    calculates the steady state distribution over population compositions
+    """
     type_count = len(payoff)
     partition_count = partitions(pop_size,type_count)
     part_to_id = dict(enumerate(all_partitions(pop_size,type_count)))
     transition = pop_transition_matrix(payoff,pop_size)
     ssd = steady_state(transition)
+
     pop_sum = np.zeros(type_count)
     for p,partition in zip(ssd,all_partitions(pop_size,type_count)):
         pop_sum += np.array(partition)*p
     print part_to_id[10]
     print pop_sum/(partition_count-1)
 
-for i,b in product(xrange(7),xrange(3)):
-    print i,b
-
 print partitions(100,3)
 a = np.array([
     [1,1],
     [1,1]
 ])
-#print a
 
-#for i in range(3):
-#    print a[:,i]
 complete_analysis(a,100)
-#steady_state(invasion_matrix(a,50))
+
 
