@@ -6,6 +6,7 @@ from utils import normalized
 from math import factorial
 import numpy as np
 from copy import copy
+import operator
 
 
 class probDict(dict):
@@ -239,11 +240,47 @@ def testing():
 
 
 def steady_state(matrix):
+    for i,c in enumerate(matrix.T):
+        np.testing.assert_approx_equal(np.sum(c),1)
+        assert all(c>=0)
     vals,vecs = np.linalg.eig(matrix)
-    [steady_states] = [vec for vec,val in zip(vecs.T,vals) if val == 1]
-    return steady_states
+    #print 'values', vals
+    #print 'vectors', vecs
+    #print 'stuff'
+    #for i in zip(vecs.T,vals):
+    #    print i
+    def almost_1(n):
+        return np.isclose(n,1,.001) or (np.isclose(n.real,1,.001) and np.isclose(n.imag,0,.001))
+    def negative_vec(vec):
+        return all([i<0 or np.isclose(i,0) for i in vec])
+    steady_states =[]
+    for vec,val in zip(vecs.T,vals):
+        #if almost_1(val):
+        #    vec = vec.real
+        #    val = val.real
+        if np.isclose(val,1):
+            if negative_vec(vec):
+                steady_states.append((val,np.absolute(vec)))
+            elif all(vec>=0):
+                steady_states.append((val,vec))
+            
+ 
+    try:
+        [steady_states] = steady_states
+        steady_states = steady_states[1]
+    except Exception as e:
+        print matrix
+        #for l,v in zip(vals,vecs.T):
+        #    print l,v
+        #print len(steady_states)
+        #print steady_states
+        #print sorted(steady_states)[0][1]
+        #return np.array(normalized(np.absolute(max(steady_states)[-1][1])))
+        #return matrix**100
+        raise e
+    return np.array(normalized([n.real for n in steady_states]))
 
-def invasion_probability(payoff, invader, dominant, pop_size,s=1):
+def invasion_probability(payoff, invader, dominant, pop_size,s=.01):
     """
     calculates the odds of a single individual invading a population of dominant agents
 
@@ -252,16 +289,18 @@ def invasion_probability(payoff, invader, dominant, pop_size,s=1):
     pop_size is the total number of individuals in the population
     """
     def f(count):
-        return (1.0-s)+s*((count-1)*payoff[invader,invader]+(pop_size-count)*payoff[invader,dominant])/(pop_size-1.0)
+        return np.exp(s*((count-1)*payoff[invader,invader]+(pop_size-count)*payoff[invader,dominant])/(pop_size-1))
     def g(count):
-        return (1.0-s)+s*(count*payoff[dominant,invader]+(pop_size-count-1)*payoff[dominant,dominant])/(pop_size-1.0)
-    accum = 1.0
-    for i in reversed(range(1,pop_size)):
-        accum *= g(i)/f(i)
+        return np.exp(s*(count*payoff[dominant,invader]+(pop_size-count-1)*payoff[dominant,dominant])/(pop_size-1))
+    accum = 1.00
+    for i in reversed(xrange(1,pop_size)):
+        g_i,f_i = g(i),f(i)
+        assert g_i>=0 and f_i>=0
+        accum *= (g_i/f_i)
         accum += 1
     return 1/accum
 
-def invasion_matrix(payoff,pop_size):
+def invasion_matrix(payoff,pop_size, s=.01):
     """
     returns a matrix M of size TxT where M[a,b] is the probability of a homogeneous population of a becoming
     a homogeneous population of b under weak mutation
@@ -270,23 +309,39 @@ def invasion_matrix(payoff,pop_size):
     type_count = len(payoff)
     transition = np.zeros((type_count,)*2)
     for dominant,invader in permutations(range(type_count),2):
-        transition[dominant,invader] = invasion_probability(payoff,invader,dominant,pop_size)
+        transition[invader,dominant] = invasion_probability(payoff,invader,dominant,pop_size,s)/(type_count-1)
 
+    #print transition
+    #assert False
     for i in range(type_count):
-        transition[i,i] = 1-sum(transition[:,i])
+        
+        transition[i,i] = 1-np.sum(transition[:,i])
+        #print transition[:,i]
+        #transition[:,i] = normalized(transition[:,i]-transition[:,i].min())
+        
+        try:
+            np.testing.assert_approx_equal(np.sum(transition[:,i]),1)
+        except:
+            print transition[:,i]
+            print np.sum(transition[:,i])
+            raise
     return transition
 
-def limit_analysis(payoff,pop_size):
+def limit_analysis(payoff,pop_size,s=.01,**kwargs):
     """
     calculates the steady state under low mutation
     where the states correspond to the homogeneous strategy in the same order as in payoff
     """
     type_count = len(payoff)
     partition_count = partitions(pop_size,type_count)
-    transition = invasion_matrix(payoff,pop_size)
+    transition = invasion_matrix(payoff,pop_size,s)
+    #print "transition"
+    #print transition
     ssd = steady_state(transition)
+    return ssd
 
-def pop_transition_matrix(payoff,pop_size):
+
+def pop_transition_matrix(payoff,pop_size,s,mu = .001,**kwargs):
     """
     returns a matrix that returns the probability of transitioning from one population composition
     to another
@@ -295,15 +350,18 @@ def pop_transition_matrix(payoff,pop_size):
     """
     type_count = len(payoff)
     partition_count = int(partitions(pop_size,type_count))
+    print partition_count
     I = np.identity(type_count)
 
-    transition = np.zeros((partition_count+1,)*2)
     part_to_id = dict(map(reversed,enumerate(all_partitions(pop_size,type_count))))
-    print part_to_id
-    print partition_count
-    print transition
+    partition_count = max(part_to_id.values())+1
+    transition = np.zeros((partition_count,)*2)
+    #print part_to_id
+    #print partition_count
+    #print transition
+    
     for i,pop in enumerate(all_partitions(pop_size,type_count)):
-        fitnesses = [np.dot(pop-I[t],payoff[t]) for t in range(type_count)]
+        fitnesses = [np.exp(s*np.dot(pop-I[t],payoff[t])) for t in range(type_count)]
         total_fitness = sum(fitnesses)
         node = np.array(pop)
         for b,d in permutations(xrange(type_count),2):
@@ -311,38 +369,119 @@ def pop_transition_matrix(payoff,pop_size):
                 pass
             else:
                 neighbor = pop+I[b]-I[d]
-                print i,part_to_id[tuple(neighbor)]
+                #print i,part_to_id[tuple(neighbor)]
                 death_odds = pop[d]/pop_size
-                birth_odds = fitnesses[b]/total_fitness
-                transition[i,part_to_id[tuple(neighbor)]]=death_odds*birth_odds
+                #birth_odds = np.fitnesses[b]/np.exp(s*(total_fitness)))#*(1-mu)+mu*(1/type_count)
+                birth_odds = fitnesses[b]/total_fitness*(1-mu)+mu*(1/type_count)
+                transition[part_to_id[tuple(neighbor)],i] = death_odds*birth_odds
+                
 
     for i in xrange(partition_count):
         transition[i,i] = 1-sum(transition[:,i])
 
     return transition
 
-def complete_analysis(payoff,pop_size):
+def complete_analysis(payoff,pop_size,s=.01,**kwargs):
     """
     calculates the steady state distribution over population compositions
     """
     type_count = len(payoff)
-    partition_count = partitions(pop_size,type_count)
+    #partition_count = partitions(pop_size,type_count)
     part_to_id = dict(enumerate(all_partitions(pop_size,type_count)))
-    transition = pop_transition_matrix(payoff,pop_size)
+    partition_count = max(part_to_id.keys())
+    transition = pop_transition_matrix(payoff,pop_size,s,**kwargs)
     ssd = steady_state(transition)
 
     pop_sum = np.zeros(type_count)
     for p,partition in zip(ssd,all_partitions(pop_size,type_count)):
         pop_sum += np.array(partition)*p
-    print part_to_id[10]
-    print pop_sum/(partition_count-1)
+    #print part_to_id[10]
+    return pop_sum/pop_size
 
-print partitions(100,3)
-a = np.array([
-    [1,1],
-    [1,1]
-])
+#print partitions(100,3)
+#rps = np.array([
+#    [0,1],
+#    [.5,0]]).T
+#print np.linalg.eig(rps)
+#rps_transition = np.array([
+#    [.9,.1,0],
+#    [0,.5,.5],
+#    [.5,.0,.5]
+    #]).T
 
-complete_analysis(a,100)
+#print np.linalg.inv(rps_transition)
+
+#def replicator(matchup,pop_vec,generations):
+#    for i in range_generations:
+#        pop_vec = pop_vec.*
+from experiments import RA_matchup_matrix,NiceReciprocalAgent,SelfishAgent,ReciprocalAgent,AltruisticAgent
+from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
+import seaborn as sns
+
+def excluding_keys(d,*keys):
+    return dict((k,v) for k,v in d.iteritems() if k not in keys)
+
+@multi_call()
+@experiment(unpack = 'record', unordered = ['agent_types'], memoize = True)
+def limit_steady_state(player_types = NiceReciprocalAgent, pop_size = 200, size = 3, agent_types = (AltruisticAgent, ReciprocalAgent, NiceReciprocalAgent, SelfishAgent), **kwargs):
+    conditions = dict(locals(),**kwargs)
+    del conditions['kwargs']
+    matchup,types = RA_matchup_matrix(**excluding_keys(conditions,'pop_size','s'))
+    ssd = limit_analysis(matchup, **conditions)
+    #priors = np.linspace(0,1,size)
+
+    return [{"agent_prior":prior,"percentage":pop} for prior,pop in zip(types,ssd)]
+
+@plotter(limit_steady_state, plot_exclusive_args = ['data'])
+def limit_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21)), data = []):
+    sns.factorplot(data = data, x = 'rounds', y = 'percentage', hue ='agent_prior', col ='player_types')
+
+def cb_limit_steady_state(player_types = NiceReciprocalAgent, pop_size = 100, size = 3, agent_types = (AltruisticAgent, ReciprocalAgent, NiceReciprocalAgent, SelfishAgent), **kwargs):
+    conditions = dict(locals(),**kwargs)
+    del conditions['kwargs']
+    matchup,types = RA_matchup_matrix(**conditions)
+    ssd = limit_analysis(matchup, **conditions)
+    #priors = np.linspace(0,1,size)
+
+    return [{"agent_prior":prior,"percentage":pop} for prior,pop in zip(types,ssd)]
+
+@plotter(cb_limit_steady_state, plot_exclusive_args = ['data'])
+def cb_limit_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21)), data = []):
+    sns.factorplot(data = data, x = 'rounds', y = 'percentage', hue ='agent_prior', col ='player_types')
 
 
+@multi_call()
+@experiment(unpack = 'record', unordered = ['agent_types'], memoize = False)
+def complete_steady_state(player_types = NiceReciprocalAgent, pop_size = 100, size = 3, agent_types = (AltruisticAgent, ReciprocalAgent, NiceReciprocalAgent, SelfishAgent), **kwargs):
+    conditions = dict(locals(),**kwargs)
+    del conditions['kwargs']
+    matchup,types = RA_matchup_matrix(**conditions)
+    ssd = complete_analysis(matchup, **conditions)
+    #priors = np.linspace(0,1,size)
+
+    return [{"agent_prior":prior,"percentage":pop} for prior,pop in zip(types,ssd)]
+
+@plotter(complete_steady_state, plot_exclusive_args = ['data'])
+def complete_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21)), data = []):
+    sns.factorplot(data = data, x = 'rounds', y = 'percentage', hue ='agent_prior', col ='player_types')
+
+def test_plots(Reciprocals = [NiceReciprocalAgent]):
+    for RA in Reciprocals:
+        limit_plotter(rounds = MultiArg(range(1,101,10)), player_types = RA, agent_types = (AltruisticAgent, RA, SelfishAgent), s = .01, Ks = 0, size = 11, pop_size = 100)
+
+test_plots([ReciprocalAgent])
+matchup,types = RA_matchup_matrix(size = 3, player_types = NiceReciprocalAgent, agent_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent))
+print types
+print "matchup"
+print matchup.round(3)
+#print "ssd"
+
+#print np.round(complete_analysis(matchup,10,.1,mu=.001), decimals = 2)
+#print np.round(limit_analysis(matchup,10,.1), decimals = 2)
+#print steady_state(rps.T)
+#print steady_state(rps)
+
+
+"""
+make s the difference between the rewards of two most matchups
+"""
