@@ -189,5 +189,23 @@ def randomly_chosen(percent,elements):
     np.random.shuffle(indices)
     return list(elements[indices])
 
+def dict_hash(dict):
+    return hash(tuple(sorted(dict.iteritems())))
 
+class HashableDict(dict):
+    def __hash__(self):
+        return dict_hash(self)
+
+def dict_to_kwarg_str(d):
+    return "(%s)" % ",".join(["%s=%s" % (key,val) for key,val in d.iteritems()])
+
+_issubclass = issubclass
+def issubclass(C,B):
+    try:
+        return _issubclass(C,B)
+    except TypeError as e:
+        try:
+            return _issubclass(C.type,B)
+        except:
+            raise e
 
