@@ -1,7 +1,9 @@
 import numpy as np
-from indirect_reciprocity import SelfishAgent,ReciprocalAgent,NiceReciprocalAgent,AltruisticAgent,RationalAgent
+from indirect_reciprocity import SelfishAgent,ReciprocalAgent,NiceReciprocalAgent,AltruisticAgent,RationalAgent,IngroupAgent,PrefabAgent, is_agent_type
 from games import RepeatedPrisonersTournament
 import math
+from utils import issubclass
+
 def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent),
                    RA_prior = .75, N_agents= 10, p_tremble = 0,rounds = 10, **kwargs):
     """
@@ -49,7 +51,11 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
         'agent_types' : agent_types,
         'moran_beta': .1,
         'p_tremble': 0.0,
-        'agent_types_world': agent_types
+        'agent_types_world': agent_types,
+        'pop_size':100,
+        's':1,
+        'mu':.001,
+        'rounds':rounds,
     }
 
     for key in given_values:
@@ -58,18 +64,25 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
 
     return values
 
-def prior_generator(agent_types,RA_prior=False):
+def prior_generator(agent_type, agent_types, RA_prior=False):
     """
     if RA_prior is False it generates a uniform prior over types
     if RA_prior is a dict from agent_type to a number it assigns those types
     the corresponding number
     if RA_prior is a number it divides that number uniformly among all rational types
     """
-    
+
+    if not issubclass(agent_type,IngroupAgent):
+        return None
+
     agent_types = tuple(agent_types)
     type2index = dict(map(reversed,enumerate(agent_types)))
     size = len(agent_types)
     rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+    ingroup = []
+    for a_type in agent_types:
+        if any([issubclass(a_type,i) for i in agent_type.ingroup()]):
+            ingroup.append(a_type)
     if not (RA_prior or rational_types):
         return np.array(np.ones(size)/size)
     else:
@@ -79,14 +92,15 @@ def prior_generator(agent_types,RA_prior=False):
                      else normal_prior for agent_type in agent_types]
             #print prior
         except AttributeError:
-            rational_size = len(rational_types)
-            rational_prior = RA_prior/float(rational_size)
-            normal_prior = (1.0-RA_prior)/(size-rational_size)
-            prior = [rational_prior if agent_type in rational_types
-                     else normal_prior for agent_type in agent_types]
+            ingroup_size = len(ingroup)
+            ingroup_prior = RA_prior/float(ingroup_size)
+            outgroup_prior = (1.0-RA_prior)/(size-ingroup_size)
+            prior = [ingroup_prior if agent_type in ingroup
+                     else outgroup_prior
+                     for agent_type in agent_types]
         return np.array(prior)
 
-assert prior_generator((ReciprocalAgent,SelfishAgent),.75)[0] == 0.75
+#assert prior_generator(ReciprocalAgent, (ReciprocalAgent,SelfishAgent), .75)[0] == 0.75
 
 def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **extra_args):
 
@@ -94,16 +108,22 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         agent_types = default_params()["agent_types"]
     if not agent_type:
         agent_type = np.random.choice(agent_types)
-   
+    try:
+        RA_prior = agent_type.genome["RA_prior"]
+    except:
+        pass
     genome = {
         'type': agent_type,
         'RA_prior': RA_prior,
         'prior_precision': 0,
         'beta': 3,
-        'prior': prior_generator(agent_types,RA_prior),
+        'prior': prior_generator(agent_type,agent_types,RA_prior),
         "agent_types":agent_types,
-        'RA_K':2,
-        'tremble':0
+        'RA_K':0,
+        'tremble':0,
+        'y':1,
+        'p':1,
+        'q':0
     }
 
     for key in extra_args:
