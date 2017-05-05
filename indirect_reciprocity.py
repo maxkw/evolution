@@ -18,7 +18,7 @@ from scipy.special import (psi, polygamma, gammaln)
 from operator import mul as multiply
 from copy import copy, deepcopy
 from functools import partial
-from utils import unpickled, pickled
+from utils import unpickled, pickled, HashableDict,issubclass
 
 
 sns.set_style('white')
@@ -47,12 +47,20 @@ class AgentType(type):
     def __str__(cls):
         return cls.__name__
     def __repr__(cls):
-        return cls.__name__
+        return str(cls)
     def __hash__(cls):
         return hash(cls.__name__)
-    
+    #def __reduce__(self):
+    #    return (eval,(self.__name__,))
+
 class Agent(object):
     __metaclass__ = AgentType
+    def __new__(cls, genome=None, world_id=None, **kwargs):
+        if not genome and kwargs:
+            return PrefabAgent(cls,**kwargs)
+        else:
+            return object.__new__(cls)
+
     def __init__(self, genome, world_id=None):
         self.genome = deepcopy(genome)
         self.beta = self.genome['beta']
@@ -218,9 +226,16 @@ class AgentDict(dict):
         return ret
         
 class RationalAgent(Agent):
-    def __init__(self, genome, world_id=None):
+    #def __new__(cls, genome = None, world_id = None, prior = None):
+    #    if not (genome or world_id) and prior:
+    #        return AgentWithPrior(cls,prior)
+    #    else:
+    #        return Agent.__new__(cls,genome,world_id)
+    def __init__(self, genome, world_id=None):#, *args, **kwargs):
         super(RationalAgent, self).__init__(genome, world_id)
-        
+        #print genome
+        #print world_id
+
         #NamedArray mapping agent_type to odds that an arbitrary agent is of that type
         self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
         self.pop_prior = copy(self.genome['prior'])
@@ -474,10 +489,9 @@ class IngroupAgent(RationalAgent):
     def __init__(self, genome, world_id=None):
         super(IngroupAgent, self).__init__(genome, world_id)
         self.ingroup_indices = np.array([self._type_to_index[agent_type]
-                                         for agent_type in self.ingroup()
-                                         if agent_type in genome['agent_types']])
-        
-        
+                                         for agent_type in genome['agent_types']
+                                         if self.is_in_ingroup(agent_type)])
+
     def sample_alpha(self,agent_id):
         if agent_id == self.world_id:
             return 1
@@ -488,15 +502,108 @@ class IngroupAgent(RationalAgent):
         except KeyError:
             self.belief[agent_id] = self.initialize_prior()
             return sum(self.belief[agent_id][self.ingroup_indices])
-            
+
+    def is_in_ingroup(self,a_type):
+        for i in self.ingroup():
+            if is_agent_type(a_type,i):
+                return True
+        return False
+
 class ReciprocalAgent(IngroupAgent):
-    def ingroup(self):
+    @staticmethod
+    def ingroup():
         return [ReciprocalAgent]
-        
 class NiceReciprocalAgent(IngroupAgent):
-    def ingroup(self):
+    @staticmethod
+    def ingroup():
         return [NiceReciprocalAgent,AltruisticAgent]
-       
+
+class prefabABC(Agent):
+    def __new__(self,genome,world_id = None):
+        return self.type(dict(genome,**self.genome), world_id = world_id)
+import copy_reg
+def pickle_prefab(prefab):
+    return eval,prefab.name
+
+class PrefabAgent2(type):
+    def __new__(cls,a_type,**genome_kwargs):
+        name = str(a_type)+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in sorted(genome_kwargs.iteritems())])
+        t = AgentType(name,(prefabABC,a_type),{"genome":genome_kwargs,"type":a_type})
+        class prefab(a_type):
+            def __new__(self,genome,world_id = None):
+                return a_type(dict(genome,**genome_kwargs), world_id = world_id)
+        prefab.name = name
+        copy_reg.pickle(prefab,pickle_prefab)
+        return prefab
+class PrefabAgent(Agent):
+    def __init__(self,a_type,**genome_kwargs):
+        self.type = a_type
+        self.genome = HashableDict(genome_kwargs)
+        self.__name__ = str(a_type)+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in sorted(genome_kwargs.iteritems())])
+
+    def __call__(self,genome,world_id = None):
+        return self.type(dict(genome,**self.genome), world_id = world_id)
+    def __str__(self):
+        return self.__name__
+    def __repr__(self):
+        return str(self)
+    def __hash__(self):
+        return hash(str(self))
+    def __eq__(self,other):
+        return hash(self)==hash(other)
+
+    def ingroup(self):
+        return self.type.ingroup()
+
+def is_agent_type(instance,base):
+    try:
+        return issubclass(instance,base)
+    except TypeError:
+        return issubclass(instance.type, base)
+
+class gTFT(Agent):
+    def __init__(self, genome, world_id = None):
+        self.y = genome['y']
+        self.p = genome['p']
+        self.q = genome['q']
+        self.world_id = world_id
+        self.genome = genome
+        self.cooperated = "First"
+
+    def decide_likelihood(self,game):
+        if self.cooperated == "First":
+            coop_prob = self.y
+        else:
+            coop_prob = self.p if self.cooperated else self.q
+        ps = []
+    
+        for action in game.actions:
+            if action == "give":
+                ps.append(coop_prob)
+            elif action == "keep":
+                ps.append(1-coop_prob)
+            else:
+                assert False
+
+        return ps
+
+    def decide(self, game, agent_ids):
+        # Tremble is always 0 for decisions since tremble happens in
+        # the world, not the agent
+        ps = self.decide_likelihood(game)
+        action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
+        action = game.actions[action_id]
+
+        return action
+
+    def observe(self,observations):
+        assert len(observations)==2
+        for observation in observations:
+            game, participants, observers, action = observation
+            decider_id = participants[0]
+            if decider_id == self.world_id: continue
+            assert participants[1] == self.world_id
+            self.cooperated = action is "give"
 
 class OpportunisticRA(RationalAgent):
     """
@@ -545,7 +652,7 @@ class World(object):
         
         self.add_agents(genomes)
 
-        self.agent_types = self.agents[0].genome['agent_types']
+        #self.agent_types = self.agents[0].genome['agent_types']
         
         self.pop_size = len(self.agents)
         self.tremble = params['p_tremble']
@@ -675,6 +782,17 @@ def diagnostics():
         assert_almost_equal(w.agents[1].belief[0],[ 0.98637196,  0.01362804])
 
 if __name__ == '__main__':
+    NRA = NiceReciprocalAgent
+    a = NiceReciprocalAgent(RA_prior = 1)
+    print a
+    print type(a)
+    print a.__name__
+    print type(eval(a.__name__))
+    d = {a:True}
+    print d[a]
+    #print a.hi
+    #print a.__str__
+    #print a.__reduce__(a)
 
     #pickled(NiceReciprocalAgent,"./agent.pkl")
     #print unpickled("./agent.pkl")
@@ -688,7 +806,8 @@ if __name__ == '__main__':
     #fitness_rounds_experiment(20,overwrite=True)
     #fitness_rounds_plot()
 
-    diagnostics()
+    #diagnostics()
+    pass
 
 """
 Trust game
