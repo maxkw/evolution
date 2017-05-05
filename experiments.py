@@ -4,7 +4,7 @@ import seaborn as sns
 from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
-from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent
+from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT
 from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyObserved,Symmetric
 from collections import defaultdict
 from itertools import combinations_with_replacement, combinations
@@ -32,20 +32,50 @@ def lcm(*numbers):
 
 def justcaps(t):
     return filter(str.isupper,t.__name__)
-@memoize
+#@memoize
 @multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'], verbose=3)
 @experiment(unpack = 'dict', trials = 100, verbose = 3)
 def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
-    genomes = [default_genome(agent_type = t, RA_prior=p ,RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
+    genomes = [default_genome(agent_type = t, RA_prior=p, RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
     world = World(params,genomes)
-
     fitness,history = world.run()
     return {'fitness':fitness,
             'history':history,
             'p1_fitness':fitness[0]}
 
+@multi_call(unordered = ['player_types','agent_types'], verbose=3)
+@experiment(unpack = 'record', trials = 100, verbose = 3)
+def matchup(player_types, **kwargs):
+    assert len(player_types)==2
+    condition = dict(locals(),**kwargs)
+    params = default_params(**condition)
+    genomes = [default_genome(agent_type = t, **condition) for t in player_types]
+    world = World(params,genomes)
+    fitness,history = world.run()
+    record = []
+    for t,f in zip(player_types,fitness):
+        record.append({"type":t,"fitness":f})
+    return record
+
+def matchup_grid(player_types,**kwargs):
+    player_types = MultiArg(combinations_with_replacement(player_types,2))
+    return matchup(player_types,**kwargs)
+
+def matchup_matrix(player_types,**kwargs):
+    data = matchup_grid(player_types,**kwargs)
+    index = dict(map(reversed,enumerate(player_types)))
+    payoffs = np.zeros((len(player_types),)*2)
+    for combination in data['player_types'].unique():
+        for matchup in permutations(combination):
+            player,opponent = matchup
+            p,o = tuple(index[t] for t in matchup)
+            trials = data[(data['player_types']==combination) & (data['type']==player)]
+            payoffs[p,o]=trials.mean()['fitness']
+    if 'rounds' in kwargs:
+        payoffs /= kwargs['rounds']
+    return payoffs
 
 def history_maker(observations,agents,start=0,annotation = {}):
     history = []
@@ -74,7 +104,9 @@ def forgiveness(player_types = NiceReciprocalAgent, Ks= 1, priors=(.75,.75), def
 id_to_letter = dict(enumerate("ABCDEF"))
 @apply_to_args(twinned = ['player_types','priors','Ks'])
 @plotter(binary_matchup,plot_exclusive_args = ['data','believed_type'])
-def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[],**kwargs):
+def belief_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
+    if not believed_types:
+        believed_types = list(set(player_types))
     K = max(Ks)
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
     record = []
@@ -84,13 +116,14 @@ def belief_plot(player_types,priors,Ks,believed_type=ReciprocalAgent,data=[],**k
                 a_id = believer.world_id
                 for ids in t_ids[a_id]:
                     k = len(ids)-1
-                    record.append({
-                        "believer":a_id,
-                        "k":k,
-                        "belief":believer.k_belief(ids,believed_type),
-                        "target_id":ids[-1],
-                        "round":event['round'],
-                        "type":justcaps(believed_type),
+                    for believed_type in believed_types:
+                        record.append({
+                            "believer":a_id,
+                            "k":k,
+                            "belief":believer.k_belief(ids,believed_type),
+                            "target_id":ids[-1],
+                            "round":event['round'],
+                            "type":justcaps(believed_type),
                     })
     bdata = pd.DataFrame(record)
     f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin',hue = 'type', row_order = range(K+1), legend = False,
@@ -150,6 +183,7 @@ def unordered_prior_combinations(prior_list):
 #@multi_call()
 def comparison_grid(size = 5, **kwargs):
     priors = [round(n,2) for n in np.linspace(0,1,size)]
+    #priors = [round(n,2) for n in [0,.001,.01,.1,.5,.75,1]]
     #priors = MultiArg(unordered_prior_combinations(priors))
     priors = MultiArg(product(priors,priors))
     condition = dict(kwargs,**{'priors':priors})
@@ -159,7 +193,9 @@ def comparison_grid(size = 5, **kwargs):
 
 def RA_matchup_matrix(size = 5,**kwargs):
     data = comparison_grid(size,**kwargs)
-    types = np.linspace(0,1,size)
+    #types = np.round(np.linspace(0,1,size),decimals = 2)
+    types = [round(n,2) for n in [0,.001,.01,.1,.5,.75,1]]
+    size = len(types)
     prior_to_index = dict(map(reversed,enumerate(types)))
     index_to_prior = dict(enumerate(types))
     matrix = np.zeros((size,)*2)
@@ -169,6 +205,8 @@ def RA_matchup_matrix(size = 5,**kwargs):
         group = data[data['priors']==prior]
         matrix[p0,p1] = group.mean()['p1_fitness']
 
+    if 'rounds' in kwargs:
+        matrix /= kwargs['rounds']
     return matrix,types
 
 @plotter(comparison_grid, plot_exclusive_args = ['data'])
@@ -366,11 +404,61 @@ def pop_fitness_plot(player_types = (ReciprocalAgent,SelfishAgent), proportion =
     #print locals()
     #fplot.set(yticklabels = np.linspace(0,1,5))
 
+#from evolve import limit_analysis
+
+def test_matchup_matrix(RA):
+    t = RA(RA_prior = .5)
+    SA = RA(RA_prior = 0)
+    AA = RA(RA_prior = 1)
+    player_types = (SA, RA, AA)
+    agent_types = (SelfishAgent, RA, AltruisticAgent)
+    print RA(y = 1)
+    TFT = gTFT(y=1,p=1,q=0)
+    TvT = matchup_matrix(player_types = (SelfishAgent,TFT),rounds = 50,trials = 500)
+    print TvT
+    assert False
+    g = default_genome()
+    
+   
+    m = matchup_matrix(player_types = (SA,t,AA), agent_types = (SelfishAgent,t,AltruisticAgent),trials = 500)
+    k = matchup_matrix(player_types = agent_types, agent_types = agent_types, RA_prior = .5,trials = 500)
+    print m
+    print k
+    a = t(default_genome(agent_type = t, agent_types = (SelfishAgent,t,AltruisticAgent)))
+    b = RA(default_genome(agent_type = RA, RA_prior = .5, agent_types = agent_types))
+    print a.model["O"][t].genome
+    print b.model["O"][RA].genome
+    pass
+if __name__ == "__main__":
+    NRA = NiceReciprocalAgent
+    MRA = ReciprocalAgent
+    
+    
+    
+    #print type(NRA)
+    
+    #print a({},"hi")
+    #assert False
+    
+    test_matchup_matrix(MRA)
+    pass
+    #belief_plot(player_type = NiceReciprocalAgent, agent_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), believed_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), priors = (0,0), Ks = 0)
+
+    ############# HEATMAPS ###############
+    #N = 5
+    #ks = [0,1]
+    #RAs = [NiceReciprocalAgent,ReciprocalAgent]
+    #for k, RA in product(ks, RAs):
+    #   reward_table(size = N, player_types = RA, Ks = k, agent_types = (AltruisticAgent,SelfishAgent,RA))
+
+#for RA,k in product([NiceReciprocalAgent,ReciprocalAgent],[0,1]):
+#    
+#limit_plotter()
 #proportions = [.01]+[round(n,3) for n in np.linspace(0,1,7)[1:-1]]+[.99]
-n = 10
-proportions = [float(i)/n for i in range(n)[1:]]
+#n = 10
+#proportions = [float(i)/n for i in range(n)[1:]]
 #print proportions
-pop_fitness_plot(beta = 3, proportion = MultiArg(proportions), agent_types = (ReciprocalAgent,SelfishAgent), trials = 100, min_pop_size = 50, Ks = MultiArg(range(3)), moran = .01)
+#pop_fitness_plot(beta = 3, proportion = MultiArg(proportions), agent_types = (ReciprocalAgent,SelfishAgent), trials = 100, min_pop_size = 50, Ks = MultiArg(range(3)), moran = .01)
 #cg = comparison_grid(size = 3, player_types = (ReciprocalAgent,SelfishAgent), Ks = 1, trials = 500, agent_types = (ReciprocalAgent,SelfishAgent))
 #print "cg",cg[cg['priors'] == (.5,.5)].mean()
 #priors = MultiArg([round(n,2) for n in np.linspace(0,1,3)])
@@ -414,7 +502,7 @@ pop_fitness_plot(beta = 3, proportion = MultiArg(proportions), agent_types = (Re
 #joint_fitness_plot(player_types = ReciprocalAgent, priors = .25, Ks =(0,0), agent_types = (ReciprocalAgent,SelfishAgent),trials = 1000)
 
 
-#belief_plot(priors = (.25,0),Ks = 0)
+#
 #belief_plot(priors = (.75,0),Ks = 0)
 #belief_plot(priors = (.8, 0),Ks = 0)
 #for k in range(3):
