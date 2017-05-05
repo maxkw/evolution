@@ -551,8 +551,8 @@ class Repeated(AnnotatedDS):
             'actions':tuple(observation[3] for observation in observations),
             'actors':tuple(observation[1] for observation in observations),
             'payoff': copy(payoff),
-            'belief': tuple(copy(agent.belief) for agent in participants),
-            'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
+            #'belief': tuple(copy(agent.belief) for agent in participants),
+            #'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
             }
         note.update(notes)
         return note
