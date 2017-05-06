@@ -371,7 +371,12 @@ def multi_call(unpack = False, verbose = 2, **kwargs):
 def or_query(field,ls):
     return " or ".join(["%s == %s" % (field, i) for i in ls])
 
-def plotter(experiment,default_plot_dir="./plots/", experiment_args=[], plot_exclusive_args = ['data']):
+def plotter(experiment, 
+            default_plot_dir="./plots/",
+            default_file_name = None,
+            default_extension = ".png",
+            experiment_args=[],
+            plot_exclusive_args = ['data']):
     def wrapper(plot_fun):
         try:
             assert 'data' in getargspec(plot_fun)[0]
@@ -400,11 +405,18 @@ def plotter(experiment,default_plot_dir="./plots/", experiment_args=[], plot_exc
         
         def call(*args, **kwargs):
             plot_dir = kwargs.get("plot_dir",default_plot_dir)
-            try:
-                del kwargs['plot_dir']
-            except:
-                pass
-            save_file = plot_fun.__name__+"(%s).pdf"
+            extension = kwargs.get("extension",default_extension)
+            file_name = kwargs.get('file_name',default_file_name)
+            
+            for kw in ["plot_dir","file_name","extension"]:
+                try:
+                    del kwargs[kw]
+                except:
+                    pass
+            #if not plot_name:
+            #    save_file = plot_fun.__name__+"(%s).pdf"
+            #else:
+            #    save_file = plot_name+".pdf"
             call_data = make_arg_dicts(args,kwargs)
             plot_args = call_data['valid_args']
 
@@ -441,7 +453,10 @@ def plotter(experiment,default_plot_dir="./plots/", experiment_args=[], plot_exc
                 
                     
                 ret = plot_fun(**dict(plot_args,**{'data':data}))
-            save_file = plot_dir+call_data['make_call_str'](call_args)+'.pdf'
+            if not file_name:
+                file_name = call_data['make_call_str'](call_args)
+                
+            save_file = plot_dir+file_name+extension
             if not os.path.exists(plot_dir):
                 os.makedirs(plot_dir)
 
