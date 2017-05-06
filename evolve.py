@@ -579,15 +579,19 @@ def logspace(start = .001,stop = 1, samples=10):
 
 #print logspace(.001,1,10)
 @experiment(unpack = 'record', memoize = False)
-def limit_v_evo_param(param, agents):
+def limit_v_evo_param(param, agents,**kwargs):
     
-    payoffs = matchup_matrix(player_types = agents, agent_types=agents, Ks = 0)
+    payoffs = matchup_matrix(player_types = agents, agent_types=agents, Ks = 0,rounds = 10, **kwargs)
+    #matchup_plot(player_types = agents, agent_types=agents, Ks = 0)
     if param  == 'pop_size':
         #Xs = [0]+list(np.power(2,range(10)))
         Xs = range(2,256)
         #Xs = np.logspace(2,1024,10,base = 2)
     elif param == 's':
         Xs = logspace(start = .0001, stop= 1, samples = 100)
+    else:
+        print param
+        raise
     #print Xs
     defaults = {"s":1,
                 "mu":.001,
@@ -613,7 +617,7 @@ def limit_evo_plot(param, agents, data = [], **kwargs):
 @experiment(unpack = 'record', memoize = False)
 def limit_v_sim_param(param, agents, **kwargs):
     if param == "RA_prior":
-        Xs = np.linspace(0,1,11)
+        Xs = np.linspace(0,1,21)
     elif param == "beta":
         Xs = logspace(0,1,11)
     else:
@@ -624,7 +628,8 @@ def limit_v_sim_param(param, agents, **kwargs):
                 "pop_size":100}
     record = []
     for x in Xs:
-        payoffs = matchup_matrix(player_types = agents, agent_types = agents, xrounds = 10, trials = 100, **dict(kwargs,**{param:x}))
+        payoffs = matchup_matrix(player_types = agents, agent_types = agents, rounds = 10, trials = 100, **dict(kwargs,**{param:x}))
+        #matchup_plot(player_types = agents, agent_types = agents, xrounds = 10, trials = 100, **dict(kwargs,**{param:x}))
         for t,p in zip(agents,limit_analysis(payoffs,**defaults)):
             record.append({param:x,"type":t,"proportion":p})
     return record
@@ -648,20 +653,31 @@ def run_plots():
     AD = AllD
     TFT = gTFT(y=1,p=1,q=0)
     old_pop1 = (TFT,AC,AD)
-    old_pop2 = (TFT,AA,AA)
-    for tremble in [0,.05]:
+    old_pop2 = (TFT,AA,SA)
+    for tremble in [
+            0,
+            .05,
+            #.1
+    ]:
         for old_pop in [old_pop1,old_pop2]:
-            limit_sim_plot('RA_prior', old_pop, tremble=tremble)
-            limit_sim_plot('beta', old_pop, tremble=tremble)
+            #limit_sim_plot('RA_prior', old_pop, tremble=tremble)
+            #limit_sim_plot('beta', old_pop, tremble=tremble)
             limit_evo_plot('s', old_pop, tremble=tremble)
             limit_evo_plot('pop_size', old_pop, tremble = tremble)
         for RA in [MRA,NRA]:
             pop1 = (RA,AA,SA)
             pop2 = (RA,AC,AD)
             pop3 = (RA,AC,AD,TFT)
-            for pop in [pop1,pop2,pop3]:
-                limit_sim_plot('RA_prior', pop, tremble=tremble)
-                limit_sim_plot('beta', pop, tremble=tremble)
+            for pop in [#pop1,
+                        #pop2,
+                        pop3
+            ]:
+                try:
+                    #limit_sim_plot('RA_prior', pop, tremble=tremble)
+                    pass
+                except:
+                    pass
+                #limit_sim_plot('beta', pop, tremble=tremble)
                 limit_evo_plot('s', pop, tremble=tremble)
                 limit_evo_plot('pop_size', pop, tremble=tremble)
         
@@ -674,20 +690,21 @@ def priority_plots():
     AC = AllC
     AD = AllD
     TFT = gTFT(y=1,p=1,q=0)
-    tremble = .05
+    tremble = .5
     for RA in [MRA,NRA]:
         pop1 = (RA,AA,SA)
-        limit_sim_plot('RA_prior',pop1)
+        limit_evo_plot('pop_size', pop2, rounds = 10)
+        limit_sim_plot('RA_prior',pop1, rounds = 10)
         pop2 = (RA,AC,AD)
-        limit_evo_plot('pop_size', pop2)
-        limit_sim_plot('RA_prior', pop2)
-        limit_evo_plot('beta', pop2)
-        limit_evo_plot('pop_size', pop2, tremble = tremble)
+        limit_evo_plot('pop_size', pop2, rounds = 10)
+        limit_sim_plot('RA_prior', pop2, rounds = 10)
+        limit_sim_plot('beta', pop2, rounds = 10)
+        limit_evo_plot('pop_size', pop2, tremble = tremble, rounds = 10)
         pop3 = (RA,AC,AD,TFT)
-        limit_evo_plot('pop_size', pop3, tremble = tremble)
+        limit_evo_plot('pop_size', pop3, tremble = tremble, rounds = 10)
     old_pop = (TFT,AC,AD)
-    limit_evo_plot('pop_size', old_pop)
-    limit_evo_plot('pop_size', old_pop, tremble = tremble)
+    limit_evo_plot('pop_size', old_pop, rounds = 10)
+    limit_evo_plot('pop_size', old_pop, tremble = tremble, rounds = 10)
 
 #test_plots([ReciprocalAgent])
 #for RA,k in product([NiceReciprocalAgent],[0,1]):
@@ -709,15 +726,17 @@ def priority_plots():
 
 
 if __name__ == "__main__":
-    priority_plots()
-    assert False
+    run_plots()
+    
+    
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     TFT = gTFT(y=1,p=1,q=0)
     SA = SelfishAgent
     AA = AltruisticAgent
-    print matchup_matrix(player_types = (TFT,AllC),rounds = 10)
-    print matchup_matrix(player_types = (MRA,AA), RA_prior = .5, rounds = 10)
+    #matchup_plot(player_types = (AllD,TFT,AllC),rounds = 10)
+    #print matchup_matrix(player_types = (MRA,AA), RA_prior = .5, rounds = 10)
+    #matchup_plot()
     assert False
     #sim_plotter(100000,(0,.6,1), player_type = NRA, s = .1, mu = .05, Ks = 0, pop = (0,100,0))
     for RA in [
