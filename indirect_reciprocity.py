@@ -620,7 +620,7 @@ class gTFT(ClassicAgent):
             decider_id = participants[0]
             if decider_id == self.world_id: continue
             assert participants[1] == self.world_id
-            self.last = action is "give"
+            self.cooperated = action is "give"
 
 class AllC(Agent):
     def decide_likelihood(self,game,agents = None, tremble = None):
@@ -684,7 +684,7 @@ class World(object):
         #self.agent_types = self.agents[0].genome['agent_types']
         
         self.pop_size = len(self.agents)
-        self.tremble = params['p_tremble']
+        self.tremble = params['tremble']
         self.game = params['games']
         #self._stop_condition = params['stop_condition']
         #self.stop_condition = partial(*params['stop_condition'])
@@ -751,9 +751,9 @@ class World(object):
     def run(self,agents = None,observers = None,notes = {}):
         agents = np.array(self.agents)
         if notes:
-            payoff, observations, record = self.game.play(agents, agents, tremble=self.params['p_tremble'],notes = notes)
+            payoff, observations, record = self.game.play(agents, agents, tremble=self.params['tremble'],notes = notes)
         else:
-            payoff, observations, record = self.game.play(agents ,agents, tremble=self.params['p_tremble'])
+            payoff, observations, record = self.game.play(agents ,agents, tremble=self.params['tremble'])
         return payoff, record
 
 def diagnostics():
@@ -764,7 +764,7 @@ def diagnostics():
     typesClassic = agent_types = (ReciprocalAgent,SelfishAgent)
     
     params['stop_condition'] = [constant_stop_condition,10]
-    params['p_tremble'] = 0
+    params['tremble'] = 0
     params['RA_prior'] = 0.8
     params['RA_prior_precision'] = 0
     prior = prior_generator(agent_types,params['RA_prior'])
