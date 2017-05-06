@@ -77,6 +77,30 @@ def matchup_matrix(player_types,**kwargs):
         payoffs /= kwargs['rounds']
     return payoffs
 
+@plotter(matchup_grid, plot_exclusive_args = ['data'])
+def matchup_plot(data = [],**kwargs):
+    record = []
+    for combination in data['player_types'].unique():
+        for matchup in permutations(combination):
+            p0,p1 = matchup
+            trials = data[(data['player_types']==combination) & (data['type']==p0)]
+            names = []
+            for t in matchup:
+                try:
+                    names.append(t.short_name("agent_types"))
+                except:
+                    names.append(str(t))
+            p0,p1 = names
+            fitness = trials.mean()['fitness']
+            if 'rounds' in kwargs:
+                fitness /= kwargs['rounds']
+            record.append({'recipient prior':p0, 'opponent prior':p1, 'reward':fitness})
+            if p0 == p1:
+                break
+    meaned = pd.DataFrame(record).pivot(index = 'recipient prior',columns = 'opponent prior',values = 'reward')
+    plt.figure(figsize = (10,10))
+    sns.heatmap(meaned,annot=True,fmt="0.2f")
+
 def history_maker(observations,agents,start=0,annotation = {}):
     history = []
     for r,observation in enumerate(observations,start):
@@ -407,14 +431,15 @@ def pop_fitness_plot(player_types = (ReciprocalAgent,SelfishAgent), proportion =
 #from evolve import limit_analysis
 
 def test_matchup_matrix(RA):
-    t = RA(RA_prior = .5)
+    
     SA = RA(RA_prior = 0)
     AA = RA(RA_prior = 1)
+    t = RA(RA_prior = .5)
+    ToM = (SelfishAgent,t,AltruisticAgent)
     player_types = (SA, RA, AA)
     agent_types = (SelfishAgent, RA, AltruisticAgent)
-    print RA(y = 1)
     TFT = gTFT(y=1,p=1,q=0)
-    TvT = matchup_matrix(player_types = (SelfishAgent,TFT),rounds = 50,trials = 500)
+    TvT = matchup_matrix(player_types = (AltruisticAgent,TFT), agent_types = ToM, rounds = 10)
     print TvT
     assert False
     g = default_genome()
