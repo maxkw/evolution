@@ -112,6 +112,8 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         RA_prior = agent_type.genome["RA_prior"]
     except:
         pass
+
+    #agent_types = tuple(t if t is not 'self' else agent_type for t in agent_types)
     genome = {
         'type': agent_type,
         'RA_prior': RA_prior,
