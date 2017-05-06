@@ -4,8 +4,8 @@ from games import RepeatedPrisonersTournament
 import math
 from utils import issubclass
 
-def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent),
-                   RA_prior = .75, N_agents= 10, p_tremble = 0,rounds = 10, **kwargs):
+def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent),games = None,
+                   RA_prior = .75, N_agents= 10, tremble = 0, rounds = 10, **kwargs):
     """
     generates clean dict containing rules that determine agent qualities
     this dict provides a simple way to change conditions of experiments
@@ -42,15 +42,18 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
     #    AltruisticAgent
     #]
 
-    given_values = locals()
-    given_values.update(kwargs)
+    #given_values = locals()
+    #given_values.update(kwargs)
+
+    if not games:
+        games = RepeatedPrisonersTournament(rounds,tremble = tremble)
     
     values =  {
         'N_agents':N_agents,
-        'games': RepeatedPrisonersTournament(rounds),
+        'games': games,
         'agent_types' : agent_types,
         'moran_beta': .1,
-        'p_tremble': 0.0,
+        'tremble': tremble,
         'agent_types_world': agent_types,
         'pop_size':100,
         's':1,
@@ -58,7 +61,7 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
         'rounds':rounds,
     }
 
-    for key in given_values:
+    for key in kwargs:
         if key in values:
             values[key] = given_values[key]
 
