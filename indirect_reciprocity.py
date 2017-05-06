@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import math
 # import dirichlet
-from utils import softmax, sample_softmax, softmax_utility, flip, namedArrayConstructor, normalized, constraint_min
+from utils import softmax, sample_softmax, softmax_utility, flip, namedArrayConstructor, normalized, constraint_min, excluding_keys
 from copy import deepcopy
 from pprint import pprint
 from scipy.spatial.distance import cosine
@@ -50,6 +50,8 @@ class AgentType(type):
         return str(cls)
     def __hash__(cls):
         return hash(cls.__name__)
+    def __eq__(cls,other):
+        return hash(cls)==hash(other)
     #def __reduce__(self):
     #    return (eval,(self.__name__,))
 
@@ -74,7 +76,6 @@ class Agent(object):
     def _utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
-    @staticmethod
     def decide_likelihood(deciding_agent, game, agents, tremble = 0):
         """
         recieves:
@@ -103,7 +104,7 @@ class Agent(object):
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
         # the world, not the agent
-        ps = self.decide_likelihood(self, game, agent_ids, tremble = self.genome['tremble'])
+        ps = self.decide_likelihood(game, agent_ids, tremble = self.genome['tremble'])
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         return game.actions[action_id]
 
@@ -377,23 +378,12 @@ class RationalAgent(Agent):
             
             for agent_id in observers:
                 if agent_id == self.world_id: continue
-                
+
                 if agent_id not in self.model:
                     model = self.model[agent_id]
-                    #rational_model = RationalAgent(genome,agent_id)
-                    #self.rational_models[agent_id] = rational_model
-                    #self.models[agent_id] = {}
-                    #self.belief[agent_id] = self.initialize_prior()
-                    #self.likelihood[agent_id] = self.initialize_likelihood()
-                    
-                    #for rational_type in rational_types:
-                    #    model = self.models[agent_id][rational_type] = rational_type(genome,agent_id)
-                    #    model.belief = rational_model.belief
-                    #    model.likelihood = rational_model.likelihood
-
                     for o_id in observers:
-                        model.belief[o_id]# = model.agent.initialize_prior()
-                        model.likelihood[o_id]# = model.agent.initialize_likelihood()
+                        model.belief[o_id]
+                        model.likelihood[o_id]
                 
         for observation in observations:
             game, participants, observers, action = observation
@@ -404,7 +394,7 @@ class RationalAgent(Agent):
 
             likelihood = []
             append_to_likelihood = likelihood.append
-            decide_likelihood = Agent.decide_likelihood
+            #decide_likelihood = Agent.decide_likelihood
             action_index = game.action_lookup[action]
 
             #calculate the normalized likelihood for each type
@@ -416,7 +406,7 @@ class RationalAgent(Agent):
                 #else:
                     #make model
                 #    model = agent_type(genome, world_id = decider_id)
-                append_to_likelihood(decide_likelihood(model,game,participants,tremble)[action_index])
+                append_to_likelihood(model.decide_likelihood(game,participants,tremble)[action_index])
                 
 
             self.likelihood[decider_id] *= likelihood
@@ -529,20 +519,33 @@ class PrefabAgent2(type):
     def __new__(cls,a_type,**genome_kwargs):
         name = str(a_type)+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in sorted(genome_kwargs.iteritems())])
         t = AgentType(name,(prefabABC,a_type),{"genome":genome_kwargs,"type":a_type})
+        
         class prefab(a_type):
             def __new__(self,genome,world_id = None):
                 return a_type(dict(genome,**genome_kwargs), world_id = world_id)
+
         prefab.name = name
         copy_reg.pickle(prefab,pickle_prefab)
         return prefab
+
+pretty_keys = {"RA_prior":"prior"}
 class PrefabAgent(Agent):
     def __init__(self,a_type,**genome_kwargs):
         self.type = a_type
-        self.genome = HashableDict(genome_kwargs)
         self.__name__ = str(a_type)+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in sorted(genome_kwargs.iteritems())])
+        try:
+            tom = genome_kwargs['agent_types']
+            genome_kwargs['agent_types'] = tuple(t if t is not 'self' else self for t in tom)
+        except:
+            pass
+        self.genome = HashableDict(genome_kwargs)
 
     def __call__(self,genome,world_id = None):
         return self.type(dict(genome,**self.genome), world_id = world_id)
+
+    def short_name(self,*without):
+        genome = excluding_keys(self.genome,*without)
+        return str(self.type)+"(%s)" % ",".join(["%s=%s" % (pretty_keys.get(key,key),val) for key,val in sorted(genome.iteritems())])
     def __str__(self):
         return self.__name__
     def __repr__(self):
@@ -561,40 +564,54 @@ def is_agent_type(instance,base):
     except TypeError:
         return issubclass(instance.type, base)
 
-class gTFT(Agent):
-    def __init__(self, genome, world_id = None):
-        self.y = genome['y']
-        self.p = genome['p']
-        self.q = genome['q']
-        self.world_id = world_id
-        self.genome = genome
-        self.cooperated = "First"
-
-    def decide_likelihood(self,game):
-        if self.cooperated == "First":
-            coop_prob = self.y
-        else:
-            coop_prob = self.p if self.cooperated else self.q
-        ps = []
-    
-        for action in game.actions:
-            if action == "give":
-                ps.append(coop_prob)
-            elif action == "keep":
-                ps.append(1-coop_prob)
-            else:
-                assert False
-
-        return ps
-
+class ClassicAgent(Agent):
     def decide(self, game, agent_ids):
-        # Tremble is always 0 for decisions since tremble happens in
-        # the world, not the agent
         ps = self.decide_likelihood(game)
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         action = game.actions[action_id]
-
         return action
+    def observe(*args,**kwargs):
+        pass
+
+
+class gTFT(ClassicAgent):
+    def __init__(self, genome, world_id = None):
+        self.world_id = world_id
+        self.genome = genome
+
+        self.y = y = genome['y']
+        self.p = p = genome['p']
+        self.q = q = genome['q']
+        
+        self.rules = {
+            None:
+            {"give": y, 'keep': 1-y},
+            True:
+            {"give": p, 'keep': 1-p},
+            False:
+            {'give': q, 'keep': 1-q}
+        }
+
+        self.cooperation = 'give'
+        self.cooperated = None
+
+    def decide_likelihood(self,game,agents = None, tremble = None):
+        #if self.cooperated == "First":
+        #    coop_prob = self.y
+        #else:
+        #    coop_prob = self.p if self.cooperated else self.q
+        #ps = []
+    
+        #for action in game.actions:
+        #    if action == "give":
+        #        ps.append(coop_prob)
+        #    elif action == "keep":
+        #        ps.append(1-coop_prob)
+        #    else:
+        #        assert False
+        rules = self.rules
+        last_action = self.cooperated
+        return [rules[last_action][action] for action in game.actions]
 
     def observe(self,observations):
         assert len(observations)==2
@@ -603,7 +620,19 @@ class gTFT(Agent):
             decider_id = participants[0]
             if decider_id == self.world_id: continue
             assert participants[1] == self.world_id
-            self.cooperated = action is "give"
+            self.last = action is "give"
+
+class AllC(Agent):
+    def decide_likelihood(self,game,agents = None, tremble = None):
+        odds = {'give':1,
+                'keep':0}
+        return [odds[action] for action in game.actions]
+
+class AllD(Agent):
+    def decide_likelihood(self,game,agents = None, tremble = None):
+        odds = {'give':0,
+                'keep':1}
+        return [odds[action] for action in game.actions]
 
 class OpportunisticRA(RationalAgent):
     """
