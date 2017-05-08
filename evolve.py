@@ -662,8 +662,8 @@ def run_plots():
         for old_pop in [old_pop1,old_pop2]:
             #limit_sim_plot('RA_prior', old_pop, tremble=tremble)
             #limit_sim_plot('beta', old_pop, tremble=tremble)
-            limit_evo_plot('s', old_pop, tremble=tremble)
-            limit_evo_plot('pop_size', old_pop, tremble = tremble)
+            limit_evo_plot('s', old_pop, tremble=tremble, K = 1)
+            limit_evo_plot('pop_size'h old_pop, tremble = tremble, K = 1)
         for RA in [MRA,NRA]:
             pop1 = (RA,AA,SA)
             pop2 = (RA,AC,AD)
@@ -678,8 +678,8 @@ def run_plots():
                 except:
                     pass
                 #limit_sim_plot('beta', pop, tremble=tremble)
-                limit_evo_plot('s', pop, tremble=tremble)
-                limit_evo_plot('pop_size', pop, tremble=tremble)
+                limit_evo_plot('s', pop, tremble=tremble, K = 1)
+                limit_evo_plot('pop_size', pop, tremble=tremble, K = 1)
         
 
 def priority_plots():

@@ -104,7 +104,7 @@ class Agent(object):
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
         # the world, not the agent
-        ps = self.decide_likelihood(game, agent_ids, tremble = self.genome['tremble'])
+        ps = self.decide_likelihood(game, agent_ids, tremble = 0)
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         return game.actions[action_id]
 
