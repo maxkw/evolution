@@ -75,7 +75,7 @@ def matchup_matrix(player_types,**kwargs):
             player,opponent = matchup
             p,o = tuple(index[t] for t in matchup)
             trials = data[(data['player_types']==combination) & (data['type']==player)]
-            payoffs[p,o]=trials.mean()['fitness']
+            payoffs[p,o] = trials.mean()['fitness']
 
     # If the game has the rounds field defined (i.e., it is a repeated
     # game). Then divide by the number of rounds. Otherwise return the
@@ -86,6 +86,14 @@ def matchup_matrix(player_types,**kwargs):
         print Warning("matchup_matrix didn't find a round parameter in the game")
      
     return payoffs
+
+@experiment(unpack = 'record')
+def rounds_exp(player_types, start, stop, samples, **kwargs):
+    records = list()
+    rounds_list = np.unique(np.geomspace(start, stop, samples, dtype=int))
+    m = matchup_grid(player_types, rounds = MultiArg(rounds_list), **kwargs)
+    import pdb; pdb.set_trace()
+    
 
 @plotter(matchup_grid, plot_exclusive_args = ['data'])
 def matchup_plot(data = [],**kwargs):
@@ -464,11 +472,13 @@ def test_matchup_matrix(RA):
     print a.model["O"][t].genome
     print b.model["O"][RA].genome
     pass
+
 if __name__ == "__main__":
+
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     
-    
+    rounds_exp((MRA, SelfishAgent, AltruisticAgent), 1, 10, 3)    
     
     #print type(NRA)
     
