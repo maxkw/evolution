@@ -537,10 +537,10 @@ class Repeated(AnnotatedDS):
 
     note that if the repeated game is, for example, a sequence, then the beliefs and likelihoods are those after the entire sequence has been played. if the sequence is not observed they will not change.
     """
-    def __init__(self,repetitions,game):
-        self.name = self._name= "Repeated("+str(repetitions)+","+game.name+")"
+    def __init__(self, rounds, game):
+        self.name = self._name= "Repeated("+str(rounds)+","+game.name+")"
         self.game = game
-        self.repetitions = repetitions
+        self.rounds = rounds
         self.N_players = game.N_players
         self.current_round = 0
 
@@ -559,7 +559,7 @@ class Repeated(AnnotatedDS):
     
     def matchups(self,participants):
         ordering = range(len(participants))
-        for game_round in xrange(1,self.repetitions+1):
+        for game_round in xrange(1,self.rounds+1):
             self.current_round = game_round
             yield self.game,ordering
     

@@ -64,6 +64,9 @@ def matchup_grid(player_types,**kwargs):
     return matchup(player_types,**kwargs)
 
 def matchup_matrix(player_types,**kwargs):
+    condition = dict(locals(),**kwargs)
+    params = default_params(**condition)
+
     data = matchup_grid(player_types,**kwargs)
     index = dict(map(reversed,enumerate(player_types)))
     payoffs = np.zeros((len(player_types),)*2)
@@ -73,8 +76,15 @@ def matchup_matrix(player_types,**kwargs):
             p,o = tuple(index[t] for t in matchup)
             trials = data[(data['player_types']==combination) & (data['type']==player)]
             payoffs[p,o]=trials.mean()['fitness']
-    if 'rounds' in kwargs:
-        payoffs /= kwargs['rounds']
+
+    # If the game has the rounds field defined (i.e., it is a repeated
+    # game). Then divide by the number of rounds. Otherwise return the
+    # payoffs unmodified.
+    try:
+        payoffs /= params['games'].rounds
+    except:
+        print Warning("matchup_matrix didn't find a round parameter in the game")
+     
     return payoffs
 
 @plotter(matchup_grid, plot_exclusive_args = ['data'])
