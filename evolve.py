@@ -2,7 +2,7 @@ from __future__ import division
 from collections import Counter,defaultdict
 from itertools import product
 from itertools import permutations,izip
-from utils import normalized,softmax
+from utils import normalized,softmax, excluding_keys
 from math import factorial
 import numpy as np
 from copy import copy
@@ -14,119 +14,7 @@ import seaborn as sns
 from experiments import binary_matchup,memoize,matchup_matrix,matchup_plot
 from params import default_genome
 from indirect_reciprocity import gTFT,AllC,AllD
-
-
-class probDict(dict):
-    def __init__(self,*args,**kwargs):
-        keys,vals = zip(*dict(*args,**kwargs).items())
-        try:
-            assert np.sum(vals) == 1
-        except AssertionError:
-            vals = normalized(vals)
-        super(probDict,self).__init__(zip(keys,vals))
-
-    def sample(self):
-        keys,vals = zip(*self.items())
-        return keys[np.squeeze(np.where(np.random.multinomial(1,vals)))]
-
-def practical_moran(type_fitness_pairs, agent_types = None, selection_strength = .1, mutation_rate = 0):
-    """
-    returns a dict mapping agent_types to number of agents.
-    this is meant for use in actual simulations, with the real results of a run used as primary inputs
-
-    'type_fitness_pairs' is a list of tuples whose first element is a type and the second a number
-    if 'agent_types' is not provided it is inferred from 'type_fitness_pairs'
-    'selection_strength' determines how much fitness affects the odds of birth, where 0 means the odds are only a
-    function of population
-    'mutation_rate' sets the odds of birth being a random type selection independent of population and fitness
-    """
-    s = selection_strength
-    mu = mutation_rate
-
-    type_list,fitness_list = zip(*type_fitness_pairs)
-
-    pop_size=len(type_list)
-    type_to_count = Counter(type_list)
-    if not agent_types:
-        agent_types = type_to_count.keys()
-    type_to_fitness = defaultdict(int)
-    for agent_type, fitness in type_fitness_pairs:
-        type_to_fitness[agent_type] += fitness
-
-    birth_odds_denom = pop_size*(1-s)+s*np.sum(fitness_list)
-    random_type_odds = 1.0/len(agent_types)
-    birth_odds = {}
-    for t in agent_types:
-        birth_odds[t] = (type_to_count[t]*(1-s)+s*type_to_fitness[t]/birth_odds_denom)*(1-mu)+(random_type_odds)*mu
-
-    death_type = probDict(type_to_count).sample()
-    birth_type = probDict(birth_odds).sample()
-
-    type_to_count[death_type] -= 1
-    type_to_count[birth_type] += 1
-
-    return type_to_count(AltruisticAgent, NiceReciprocalAgent, SelfishAgent)
-
-type_fitness_pairs = [('a',70),('b',30)]
-#print practical_moran(type_fitness_pairs)
-
-def moran_analysis(type_to_count, payoff, selection_strength = .1, mutation_rate = 0):
-    agent_types = type_to_count.keys()
-    pop_size = sum(type_to_count.values())
-
-    total_opponents = float(pop_size - 1)
-    def expected_reward(a_type,pop):
-        """
-        returns a dict of opponent types, where
-        expected_reward()
-        """
-        expected_dict = defaultdict(int)
-
-        for player, opponent in product(agent_types,r = 2):
-            opponents = type_to_count[opponent]
-            if player == opponent:
-                opponents -= 1
-            expected_dict[player] += payoff[player][opponent]*opponents/total_opponents
-        return expected_dict
-
-    death_odds = probDict(type_to_count)
-
-    birth_odds = {t:type_to_count[t]*expected_payoff}
-
-    death_rate = {}
-
-
-
-def binary_moran_analysis(agent_types, pop_size, payoff_dict, selection_strength = .1):
-    s = selection_strength
-
-    def expected_reward(recipient_type,pop):
-        """
-        returns the expected reward for a given type 'a_type' if it's population is 'pop'.
-        """
-        reward = 0
-        for opponent_type in agent_types:
-            if opponent_type == recipient_type:
-                opponent_count = pop-1
-            else:
-                opponent_count = pop_size-pop
-
-            reward += payoff_dict[recipient_type][opponent_type]*opponent_count/(pop_size-1)
-
-        return (1-s)+s*reward
-
-    def death_birth_ratio(a_type,pop):
-        [opponent_type] = [o_type for o_type in agent_types if o_type is not a_type]
-        return expected_reward(opponent_type,pop_size-pop)/expected_reward(a_type,pop)
-
-    def invasion_prob(a_type):
-        sum_prob = 1
-        for j in range(1,pop_size):
-            dbr_prod = 1
-            for i in range(1,j+1):
-                dbr_prod *= death_birth_ratio(a_type,i)
-            sum_prob += dbr_prod
-        return 1.0/sum_prob
+from params import default_params
 
 def fixed_length_partitions(n,L):
     """
@@ -228,24 +116,6 @@ def partitions(n,L):
 
     return binomial(n+L-1, n)
 
-#print patterner(3,2)
-
-def self_matches(n):
-    if n<2:
-        return 0
-    return factorial(n)/factorial(n-2)
-
-def testing():
-    for i in range(9):
-        part = set([p for p in all_partitions(i,3)])
-        #print i,sum(self_matches(i[0]) for i in part)
-        #print i,faces(i,3),sum(p[0] for p in part),len(set([p for p in all_partitions(i,3)])), partitions(i,3)
-    print partitions(1000,3)*3
-    print partitions(5,3)-partitions(5,2)
-    print faces(5,3)-faces(5,2)
-    print partitions(4,3),faces(4,3)
-
-
 def steady_state(matrix):
     for i,c in enumerate(matrix.T):
         np.testing.assert_approx_equal(np.sum(c),1)
@@ -335,14 +205,14 @@ def invasion_matrix(payoff,pop_size, s=.01):
             raise
     return transition
 
-def limit_analysis(payoff,pop_size,s=.01,**kwargs):
+def limit_analysis(payoff, pop_size, s, **kwargs):
     """
     calculates the steady state under low mutation
     where the states correspond to the homogeneous strategy in the same order as in payoff
     """
     type_count = len(payoff)
-    partition_count = partitions(pop_size,type_count)
-    transition = invasion_matrix(payoff,pop_size,s)
+    # partition_count = partitions(pop_size, type_count)
+    transition = invasion_matrix(payoff, pop_size, s)
     #print "transition"
     #print transition
     ssd = steady_state(transition)
@@ -408,68 +278,6 @@ def complete_analysis(payoff, pop_size = 100 ,s=1,**kwargs):
     return pop_sum/pop_size
 
 
-
-#print partitions(100,3)
-#rps = np.array([
-#    [0,1],
-#    [.5,0]]).T
-#print np.linalg.eig(rps)
-#rps_transition = np.array([
-#    [.9,.1,0],
-#    [0,.5,.5],
-#    [.5,.0,.5]
-    #]).T
-
-#print np.linalg.inv(rps_transition)
-
-#def replicator(matchup,pop_vec,generations):
-#    for i in range_generations:
-#        pop_vec = pop_vec.*
-
-
-def excluding_keys(d,*keys):
-    return dict((k,v) for k,v in d.iteritems() if k not in keys)
-#@memoize
-def RA_matchup_matrix(priors = [0,.001,.01,.1,.5,.75,1], **kwargs):
-    priors = [round(n,2) for n in priors]
-    prior_pairs = MultiArg(product(priors,priors))
-    condition = excluding_keys(dict(kwargs,**{'priors':prior_pairs}),'trial')
-    data = binary_matchup(return_keys = ('p1_fitness','fitness'),**condition)
-
-    size = len(priors)
-    prior_to_index = dict(map(reversed,enumerate(priors)))
-    index_to_prior = dict(enumerate(priors))
-    matrix = np.zeros((size,)*2)
-    for prior in prior_pairs:
-        p0,p1 = (prior_to_index[p] for p in prior)
-        group = data[data['priors']==prior]
-        matrix[p0,p1] = group.mean()['p1_fitness']
-
-    if 'rounds' in kwargs:
-        matrix /= kwargs['rounds']
-    return matrix
-
-
-
-def matchup_matrix1(agents, **kwargs):
-    priors = [round(n,2) for n in priors]
-    prior_pairs = MultiArg(product(priors,priors))
-    condition = excluding_keys(dict(kwargs,**{'priors':prior_pairs}),'trial')
-    data = binary_matchup(return_keys = ('p1_fitness','fitness'),**condition)
-
-    size = len(priors)
-    prior_to_index = dict(map(reversed,enumerate(priors)))
-    index_to_prior = dict(enumerate(priors))
-    matrix = np.zeros((size,)*2)
-    for prior in prior_pairs:
-        p0,p1 = (prior_to_index[p] for p in prior)
-        group = data[data['priors']==prior]
-        matrix[p0,p1] = group.mean()['p1_fitness']
-
-    if 'rounds' in kwargs:
-        matrix /= kwargs['rounds']
-    return matrix
-
 @multi_call()
 @experiment(unpack = 'record', unordered = ['agent_types'], memoize = False)
 def limit_steady_state(player_types = NiceReciprocalAgent, pop_size = 200, size = 3, agent_types = (AltruisticAgent, ReciprocalAgent, NiceReciprocalAgent, SelfishAgent), **kwargs):
@@ -490,19 +298,6 @@ def limit_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21))
     sns.pointplot(data = data, x = 'rounds', y = 'percentage', hue= 'agent_prior', hue_order = priors)
     #for prior in priors:
     #    sns.pointplot(data = data[data['agent_prior'] == prior], x = 'rounds', y = 'percentage', hue= 'agent_prior', hue_order = priors)
-
-def cb_limit_steady_state(player_types = NiceReciprocalAgent, pop_size = 100, size = 3, agent_types = (AltruisticAgent, ReciprocalAgent, NiceReciprocalAgent, SelfishAgent), **kwargs):
-    conditions = dict(locals(),**kwargs)
-    del conditions['kwargs']
-    matchup,types = RA_matchup_matrix(**conditions)
-    ssd = limit_analysis(matchup, **conditions)
-    #priors = np.linspace(0,1,size)
-
-    return [{"agent_prior":prior,"percentage":pop} for prior,pop in zip(types,ssd)]
-
-@plotter(cb_limit_steady_state, plot_exclusive_args = ['data'])
-def cb_limit_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21)), data = []):
-    sns.factorplot(data = data, x = 'rounds', y = 'percentage', hue ='agent_prior', col ='player_types')
 
 
 @multi_call()
@@ -567,11 +362,6 @@ def sim_plotter(generations, priors, pop, s, player_type = ReciprocalAgent, mu=.
     # sns.pointplot(data = data, hue='prior', x='generation', y = 'population')  
     plt.legend()
 
-def test_plots(Reciprocals = [NiceReciprocalAgent]):
-    for RA in Reciprocals:
-        limit_plotter(rounds = MultiArg(range(1,101,10)), player_types = RA, agent_types = (AltruisticAgent, RA, SelfishAgent), s = .01, Ks = 0, size = None, pop_size = 100)
-
-
 def logspace(start = .001,stop = 1, samples=10):
     mult = (np.log(stop)-np.log(start))/np.log(10)
     plus = np.log(start)/np.log(10)
@@ -579,27 +369,31 @@ def logspace(start = .001,stop = 1, samples=10):
 
 #print logspace(.001,1,10)
 @experiment(unpack = 'record', memoize = False)
-def limit_v_evo_param(param, agents,**kwargs):
-    
-    payoffs = matchup_matrix(player_types = agents, agent_types=agents, Ks = 0,rounds = 10, **kwargs)
+def limit_v_evo_param(param, agents, **kwargs):
+    payoffs = matchup_matrix(player_types = agents, agent_types=agents, rounds = 10, **kwargs)
     #matchup_plot(player_types = agents, agent_types=agents, Ks = 0)
-    if param  == 'pop_size':
+    if param == 'pop_size':
         #Xs = [0]+list(np.power(2,range(10)))
         Xs = range(2,256)
+        # Xs = sorted(list(set(np.logspace(1, 14, 200, base=2).astype(int))))
         #Xs = np.logspace(2,1024,10,base = 2)
     elif param == 's':
-        Xs = logspace(start = .0001, stop= 1, samples = 100)
+        Xs = logspace(start = .0001, stop = 1, samples = 100)
     else:
         print param
         raise
     #print Xs
-    defaults = {"s":1,
-                "mu":.001,
-                "pop_size":100}
+
+    params = default_params()
     record = []
     for x in Xs:
-        for t,p in zip(agents,limit_analysis(payoffs,**dict(defaults,**{param:x}))):
-            record.append({param:x,"type":t,"proportion":p})
+        params[param] = x
+        for t, p in zip(agents, limit_analysis(payoffs, **params)):
+            record.append({
+                param : x,
+                "type" : t,
+                "proportion" : p
+            })
     return record
 
 @plotter(limit_v_evo_param)
@@ -663,7 +457,7 @@ def run_plots():
             #limit_sim_plot('RA_prior', old_pop, tremble=tremble)
             #limit_sim_plot('beta', old_pop, tremble=tremble)
             limit_evo_plot('s', old_pop, tremble=tremble, K = 1)
-            limit_evo_plot('pop_size'h old_pop, tremble = tremble, K = 1)
+            limit_evo_plot('pop_size', old_pop, tremble = tremble, K = 1)
         for RA in [MRA,NRA]:
             pop1 = (RA,AA,SA)
             pop2 = (RA,AC,AD)
@@ -726,7 +520,7 @@ def priority_plots():
 
 
 if __name__ == "__main__":
-    run_plots()
+    # run_plots()
     
     
     NRA = NiceReciprocalAgent
@@ -734,7 +528,19 @@ if __name__ == "__main__":
     TFT = gTFT(y=1,p=1,q=0)
     SA = SelfishAgent
     AA = AltruisticAgent
-    #matchup_plot(player_types = (AllD,TFT,AllC),rounds = 10)
+    prior = 0.75
+    # for RA in [MRA(RA_prior = prior), NRA(RA_prior = prior)]:
+    for RA in [
+            # MRA,
+            NRA
+    ]:
+        tom_types = (SA, AA, RA)
+        types = (SA, AA, RA)
+        # types = (RA(RA_prior = 0), RA(RA_prior = 1), RA(RA_prior = 0.75, agent_types = (SA, AA, 'self')))
+        # types = (AllC, AllD, RA)
+        matchup_plot(player_types = types, agent_types = tom_types, rounds = 10, RA_prior = prior)
+        limit_evo_plot(param = 'pop_size', agents = types)
+    
     #print matchup_matrix(player_types = (MRA,AA), RA_prior = .5, rounds = 10)
     #matchup_plot()
     assert False
@@ -771,3 +577,20 @@ if __name__ == "__main__":
 """
 make s the difference between the rewards of two most matchups
 """
+
+#print partitions(100,3)
+#rps = np.array([
+#    [0,1],
+#    [.5,0]]).T
+#print np.linalg.eig(rps)
+#rps_transition = np.array([
+#    [.9,.1,0],
+#    [0,.5,.5],
+#    [.5,.0,.5]
+    #]).T
+
+#print np.linalg.inv(rps_transition)
+
+#def replicator(matchup,pop_vec,generations):
+#    for i in range_generations:
+#        pop_vec = pop_vec.*
