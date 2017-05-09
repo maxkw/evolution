@@ -14,6 +14,7 @@ import seaborn as sns
 from experiments import binary_matchup,memoize,matchup_matrix,matchup_plot
 from params import default_genome
 from indirect_reciprocity import gTFT,AllC,AllD
+from params import default_params
 
 def fixed_length_partitions(n,L):
     """
@@ -204,14 +205,14 @@ def invasion_matrix(payoff,pop_size, s=.01):
             raise
     return transition
 
-def limit_analysis(payoff,pop_size,s=.01,**kwargs):
+def limit_analysis(payoff, pop_size, s, **kwargs):
     """
     calculates the steady state under low mutation
     where the states correspond to the homogeneous strategy in the same order as in payoff
     """
     type_count = len(payoff)
-    partition_count = partitions(pop_size,type_count)
-    transition = invasion_matrix(payoff,pop_size,s)
+    # partition_count = partitions(pop_size, type_count)
+    transition = invasion_matrix(payoff, pop_size, s)
     #print "transition"
     #print transition
     ssd = steady_state(transition)
@@ -368,27 +369,31 @@ def logspace(start = .001,stop = 1, samples=10):
 
 #print logspace(.001,1,10)
 @experiment(unpack = 'record', memoize = False)
-def limit_v_evo_param(param, agents,**kwargs):
-    
-    payoffs = matchup_matrix(player_types = agents, agent_types=agents, Ks = 0,rounds = 10, **kwargs)
+def limit_v_evo_param(param, agents, **kwargs):
+    payoffs = matchup_matrix(player_types = agents, agent_types=agents, rounds = 10, **kwargs)
     #matchup_plot(player_types = agents, agent_types=agents, Ks = 0)
-    if param  == 'pop_size':
+    if param == 'pop_size':
         #Xs = [0]+list(np.power(2,range(10)))
         Xs = range(2,256)
+        # Xs = sorted(list(set(np.logspace(1, 14, 200, base=2).astype(int))))
         #Xs = np.logspace(2,1024,10,base = 2)
     elif param == 's':
-        Xs = logspace(start = .0001, stop= 1, samples = 100)
+        Xs = logspace(start = .0001, stop = 1, samples = 100)
     else:
         print param
         raise
     #print Xs
-    defaults = {"s":1,
-                "mu":.001,
-                "pop_size":100}
+
+    params = default_params()
     record = []
     for x in Xs:
-        for t,p in zip(agents,limit_analysis(payoffs,**dict(defaults,**{param:x}))):
-            record.append({param:x,"type":t,"proportion":p})
+        params[param] = x
+        for t, p in zip(agents, limit_analysis(payoffs, **params)):
+            record.append({
+                param : x,
+                "type" : t,
+                "proportion" : p
+            })
     return record
 
 @plotter(limit_v_evo_param)
@@ -525,12 +530,15 @@ if __name__ == "__main__":
     AA = AltruisticAgent
     prior = 0.75
     # for RA in [MRA(RA_prior = prior), NRA(RA_prior = prior)]:
-    for RA in [MRA, NRA]:
+    for RA in [
+            # MRA,
+            NRA
+    ]:
         tom_types = (SA, AA, RA)
         types = (SA, AA, RA)
         # types = (RA(RA_prior = 0), RA(RA_prior = 1), RA(RA_prior = 0.75, agent_types = (SA, AA, 'self')))
         # types = (AllC, AllD, RA)
-        matchup_plot(player_types = types, agent_types = tom_types, rounds = 10, RA_K=0, RA_prior = prior)
+        matchup_plot(player_types = types, agent_types = tom_types, rounds = 10, RA_prior = prior)
         limit_evo_plot(param = 'pop_size', agents = types)
     
     #print matchup_matrix(player_types = (MRA,AA), RA_prior = .5, rounds = 10)
