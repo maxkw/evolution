@@ -158,7 +158,7 @@ def steady_state(matrix):
         raise e
     return np.array(normalized([n.real for n in steady_states]))
 
-def invasion_probability(payoff, invader, dominant, pop_size,s=.01):
+def invasion_probability(payoff, invader, dominant, pop_size, s):
     """
     calculates the odds of a single individual invading a population of dominant agents
 
@@ -170,15 +170,15 @@ def invasion_probability(payoff, invader, dominant, pop_size,s=.01):
         return np.exp(s*((count-1)*payoff[invader,invader]+(pop_size-count)*payoff[invader,dominant])/(pop_size-1))
     def g(count):
         return np.exp(s*(count*payoff[dominant,invader]+(pop_size-count-1)*payoff[dominant,dominant])/(pop_size-1))
-    accum = 1.00
-    for i in reversed(xrange(1,pop_size)):
+    accum = 1.0
+    for i in reversed(xrange(1, pop_size)):
         g_i,f_i = g(i),f(i)
         assert g_i>=0 and f_i>=0
         accum *= (g_i/f_i)
         accum += 1
     return 1/accum
 
-def invasion_matrix(payoff,pop_size, s=.01):
+def invasion_matrix(payoff, pop_size, s):
     """
     returns a matrix M of size TxT where M[a,b] is the probability of a homogeneous population of a becoming
     a homogeneous population of b under weak mutation
@@ -367,28 +367,34 @@ def logspace(start = .001,stop = 1, samples=10):
     plus = np.log(start)/np.log(10)
     return np.array([0]+list(np.power(10,np.linspace(0,1,samples)*mult+plus)))
 
+def int_logspace(start, stop, samples, base=2):
+    return sorted(list(set(np.logspace(start, stop, samples, base=base).astype(int))))
+    
 #print logspace(.001,1,10)
 @experiment(unpack = 'record', memoize = False)
-def limit_v_evo_param(param, agents, **kwargs):
-    payoffs = matchup_matrix(player_types = agents, agent_types=agents, rounds = 10, **kwargs)
+def limit_v_evo_param(param, player_types, agent_types = None, **kwargs):
+    if agent_types is None:
+        agent_types = player_types
+
+    payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, **kwargs)
+
     #matchup_plot(player_types = agents, agent_types=agents, Ks = 0)
     if param == 'pop_size':
-        #Xs = [0]+list(np.power(2,range(10)))
-        Xs = range(2,256)
-        # Xs = sorted(list(set(np.logspace(1, 14, 200, base=2).astype(int))))
-        #Xs = np.logspace(2,1024,10,base = 2)
+        # Xs = range(2, 2**10)
+        Xs = np.unique(np.geomspace(2, 2**10, 200, dtype=int))
     elif param == 's':
-        Xs = logspace(start = .0001, stop = 1, samples = 100)
+        Xs = logspace(start = .001, stop = 10, samples = 100)
     else:
         print param
         raise
     #print Xs
 
     params = default_params()
+    
     record = []
     for x in Xs:
         params[param] = x
-        for t, p in zip(agents, limit_analysis(payoffs, **params)):
+        for t, p in zip(player_types, limit_analysis(payoffs, **params)):
             record.append({
                 param : x,
                 "type" : t,
@@ -397,7 +403,7 @@ def limit_v_evo_param(param, agents, **kwargs):
     return record
 
 @plotter(limit_v_evo_param)
-def limit_evo_plot(param, agents, data = [], **kwargs):
+def limit_evo_plot(param, player_types, data = [], **kwargs):
     fig = plt.figure()
     for hue in data['type'].unique():
         d = data[data['type']==hue]
@@ -409,7 +415,7 @@ def limit_evo_plot(param, agents, data = [], **kwargs):
     plt.legend()
 
 @experiment(unpack = 'record', memoize = False)
-def limit_v_sim_param(param, agents, **kwargs):
+def limit_v_sim_param(param, player_types, agent_types=None, **kwargs):
     if param == "RA_prior":
         Xs = np.linspace(0,1,21)
     elif param == "beta":
@@ -417,19 +423,25 @@ def limit_v_sim_param(param, agents, **kwargs):
     else:
         raise
 
-    defaults = {"s":1,
-                "mu":.001,
-                "pop_size":100}
+    params = default_params()
+    if agent_types is None:
+        agent_types = player_types
+        
     record = []
     for x in Xs:
-        payoffs = matchup_matrix(player_types = agents, agent_types = agents, rounds = 10, trials = 100, **dict(kwargs,**{param:x}))
+        params[param] = x
+        payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, **params)
         #matchup_plot(player_types = agents, agent_types = agents, xrounds = 10, trials = 100, **dict(kwargs,**{param:x}))
-        for t,p in zip(agents,limit_analysis(payoffs,**defaults)):
-            record.append({param:x,"type":t,"proportion":p})
+        for t,p in zip(player_types, limit_analysis(payoffs,**defaults)):
+            record.append({
+                param:x,
+                "type":t,
+                "proportion":p
+            })
     return record
 
 @plotter(limit_v_sim_param)
-def limit_sim_plot(param, agents, data = [], **kwargs):
+def limit_sim_plot(param, player_types, data = [], **kwargs):
     fig = plt.figure()
     for hue in data['type'].unique():
         d = data[data['type']==hue]
@@ -484,21 +496,29 @@ def priority_plots():
     AC = AllC
     AD = AllD
     TFT = gTFT(y=1,p=1,q=0)
-    tremble = .5
-    for RA in [MRA,NRA]:
-        pop1 = (RA,AA,SA)
-        limit_evo_plot('pop_size', pop2, rounds = 10)
-        limit_sim_plot('RA_prior',pop1, rounds = 10)
+    tremble = 0
+    K = 1
+    for RA in [MRA, NRA]:
+        pop1 = (RA,AA,SA, TFT)
+        # limit_evo_plot('pop_size', pop1)
+        # limit_evo_plot('s', pop1)
+        # limit_sim_plot('RA_prior', pop1)
         pop2 = (RA,AC,AD)
-        limit_evo_plot('pop_size', pop2, rounds = 10)
-        limit_sim_plot('RA_prior', pop2, rounds = 10)
-        limit_sim_plot('beta', pop2, rounds = 10)
-        limit_evo_plot('pop_size', pop2, tremble = tremble, rounds = 10)
+        # limit_evo_plot('pop_size', pop2, agent_types = pop1, RA_prior = 0.5)
+        # limit_evo_plot('s', pop2, agent_types = pop1, RA_prior = 0.5)
+        # limit_evo_plot('pop_size', pop2)
+        # limit_evo_plot('s', pop2)
+        # # limit_sim_plot('RA_prior', pop2)
+        # # limit_sim_plot('beta', pop2)
+        # # limit_evo_plot('pop_size', pop2, tremble = tremble)
         pop3 = (RA,AC,AD,TFT)
-        limit_evo_plot('pop_size', pop3, tremble = tremble, rounds = 10)
+        prior = .9
+        limit_evo_plot('pop_size', pop3, agent_types = pop1, RA_prior=prior, K=K)
+        limit_evo_plot('s', pop3, agent_types = pop1, RA_prior=prior, K=K)
+
     old_pop = (TFT,AC,AD)
-    limit_evo_plot('pop_size', old_pop, rounds = 10)
-    limit_evo_plot('pop_size', old_pop, tremble = tremble, rounds = 10)
+    limit_evo_plot('pop_size', old_pop)
+    limit_evo_plot('s', old_pop)
 
 #test_plots([ReciprocalAgent])
 #for RA,k in product([NiceReciprocalAgent],[0,1]):
@@ -520,8 +540,9 @@ def priority_plots():
 
 
 if __name__ == "__main__":
+    priority_plots()
+    assert 0
     # run_plots()
-    
     
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
@@ -529,17 +550,19 @@ if __name__ == "__main__":
     SA = SelfishAgent
     AA = AltruisticAgent
     prior = 0.75
+    K = 0
     # for RA in [MRA(RA_prior = prior), NRA(RA_prior = prior)]:
     for RA in [
-            # MRA,
+            MRA,
             NRA
     ]:
         tom_types = (SA, AA, RA)
         types = (SA, AA, RA)
         # types = (RA(RA_prior = 0), RA(RA_prior = 1), RA(RA_prior = 0.75, agent_types = (SA, AA, 'self')))
         # types = (AllC, AllD, RA)
-        matchup_plot(player_types = types, agent_types = tom_types, rounds = 10, RA_prior = prior)
-        limit_evo_plot(param = 'pop_size', agents = types)
+        # matchup_plot(player_types = types, agent_types = tom_types, rounds = 10, RA_prior = prior)
+        limit_evo_plot(param = 'pop_size', agents = types, K=K)
+        limit_evo_plot(param = 's', agents = types, K=K)
     
     #print matchup_matrix(player_types = (MRA,AA), RA_prior = .5, rounds = 10)
     #matchup_plot()
