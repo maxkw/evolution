@@ -56,7 +56,7 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
         'tremble': tremble,
         'agent_types_world': agent_types,
         'pop_size':100,
-        's':1,
+        's': 1,
         'mu':.001,
         'rounds':rounds,
     }
