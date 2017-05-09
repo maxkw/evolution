@@ -488,14 +488,14 @@ class IngroupAgent(RationalAgent):
         try:
             return sum(self.belief[agent_id][self.ingroup_indices])
         except IndexError:
-            return sum([self.belief_that(agent_id,t) for t in self.ingroup()])
+            return sum([self.belief_that(agent_id,t) for t in self.genome['agent_types'] if self.is_in_ingroup(t)])
         except KeyError:
             self.belief[agent_id] = self.initialize_prior()
             return sum(self.belief[agent_id][self.ingroup_indices])
 
     def is_in_ingroup(self,a_type):
         for i in self.ingroup():
-            if is_agent_type(a_type,i):
+            if issubclass(a_type,i):
                 return True
         return False
 
@@ -565,6 +565,7 @@ def is_agent_type(instance,base):
         return issubclass(instance.type, base)
 
 class ClassicAgent(Agent):
+
     def decide(self, game, agent_ids):
         ps = self.decide_likelihood(game)
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
@@ -573,6 +574,22 @@ class ClassicAgent(Agent):
     def observe(*args,**kwargs):
         pass
 
+class Pavlov(ClassicAgent):
+    def __init__(self,genome,world_id = None):
+        self.genome = deepcopy(genome)
+        self.world_id = world_id
+        self.strats = strats = cycle([{'give':1,'keep':0},
+                                      {'keep':1,'give':0}])
+        self.strat = strats.next()
+
+    def observe(self,observations):
+        obs1, obs2 = observations
+        action1, action2 = obs1[3], obs2[3]
+        if action1 != action2:
+            self.strat = self.strats.next()
+    
+    def decide_likelihood(self,game,*args,**kwargs):
+        return [self.strat[action] for action in game.actions]
 
 class gTFT(ClassicAgent):
     def __init__(self, genome, world_id = None):
