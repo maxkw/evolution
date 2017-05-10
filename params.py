@@ -4,7 +4,7 @@ from games import RepeatedPrisonersTournament
 import math
 from utils import issubclass
 
-def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent),games = None,
+def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent), games = None,
                    RA_prior = .75, N_agents= 10, tremble = 0, rounds = 10, **kwargs):
     """
     generates clean dict containing rules that determine agent qualities
@@ -31,7 +31,7 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
 
     `prior_precision`: This is how confident the agent is in its prior (its like a hyperprior). If it is 0, there is no uncertainty and the prior never changes. If this is non-zero, then `RA_prior` is just the mean of a distribution. The agent will learn the `RA_prior` as it interacts with more and more agents. 
 
-    `p_tremble`: probability of noise in between forming a decision and making an action. 
+    `tremble`: probability of noise in between forming a decision and making an action. 
 
     `RA_K`: is the number of theory-of-mind recursions to carry out. When RA_K is 0 the agent just tries to infer the type directly, when it is 1, you first infer what each agent knows and then infer what you know based on those agents and so on. 
 
@@ -42,23 +42,23 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
     #    AltruisticAgent
     #]
 
-    #given_values = locals()
-    #given_values.update(kwargs)
+    given_values = locals()
+    given_values.update(kwargs)
 
     if not games:
         games = RepeatedPrisonersTournament(rounds,tremble = tremble)
     
     values =  {
-        'N_agents':N_agents,
+        'N_agents' : N_agents,
         'games': games,
         'agent_types' : agent_types,
-        'moran_beta': .1,
-        'tremble': tremble,
+        'moran_beta' : .1,
+        'tremble' : tremble,
         'agent_types_world': agent_types,
-        'pop_size':100,
-        's': 1,
-        'mu':.001,
-        'rounds':rounds,
+        'pop_size' : 100,
+        's' : 1,
+        'mu' : .01,
+        'rounds' : rounds,
     }
 
     for key in kwargs:
