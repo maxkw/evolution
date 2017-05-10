@@ -97,6 +97,8 @@ def rounds_exp(player_types, start, stop, samples, **kwargs):
 
 @plotter(matchup_grid, plot_exclusive_args = ['data'])
 def matchup_plot(data = [],**kwargs):
+    condition = dict(locals(),**kwargs)
+    params = default_params(**condition)
     record = []
     for combination in data['player_types'].unique():
         for matchup in permutations(combination):
@@ -110,8 +112,10 @@ def matchup_plot(data = [],**kwargs):
                     names.append(str(t))
             p0,p1 = names
             fitness = trials.mean()['fitness']
-            if 'rounds' in kwargs:
-                fitness /= kwargs['rounds']
+            try:
+                fitness /= params['games'].rounds
+            except:
+                print Warning("matchup_matrix didn't find a round parameter in the game")
             record.append({'recipient prior':p0, 'opponent prior':p1, 'reward':fitness})
             if p0 == p1:
                 break
