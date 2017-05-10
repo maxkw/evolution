@@ -48,6 +48,8 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
 @experiment(unpack = 'record', trials = 100, verbose = 3)
 def matchup(player_types, **kwargs):
+    #print "HIIIIIIIIIIIIIIIIIII\n\n\n"
+    #assert False
     assert len(player_types)==2
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
@@ -87,13 +89,7 @@ def matchup_matrix(player_types,**kwargs):
      
     return payoffs
 
-@experiment(unpack = 'record')
-def rounds_exp(player_types, start, stop, samples, **kwargs):
-    records = list()
-    rounds_list = np.unique(np.geomspace(start, stop, samples, dtype=int))
-    m = matchup_grid(player_types, rounds = MultiArg(rounds_list), **kwargs)
-    import pdb; pdb.set_trace()
-    
+
 
 @plotter(matchup_grid, plot_exclusive_args = ['data'])
 def matchup_plot(data = [],**kwargs):
@@ -283,7 +279,7 @@ letter_to_action = {"C":'give',"D":'keep'}
 @experiment(unpack = 'record', unordered = ['agent_types'])
 def scenarios(RA_K = 1, agent_types = (NiceReciprocalAgent,SelfishAgent,AltruisticAgent),**kwargs):
     condition = dict(locals(),**kwargs)
-    genome = default_genome(**condition)
+    genome = default_genome(agent_type = RationalAgent,**condition)
     game = BinaryDictator()
     def vs(players,action,observers = "ABO"):
         players = [letter_to_id[p] for p in players]
@@ -477,20 +473,41 @@ def test_matchup_matrix(RA):
     print b.model["O"][RA].genome
     pass
 
-if __name__ == "__main__":
 
-    NRA = NiceReciprocalAgent
+@experiment(unpack = 'record',memoize = False)
+def fitness_v_trials(max_trials, player_type, opponent_types, **kwargs):
+    record = []
+    params = default_params(**kwargs)
+    rounds = params['games'].rounds
+    for opponent_type in opponent_types:
+        data = matchup([player_type,opponent_type], trials = max_trials,**kwargs)
+        for t in range(1,max_trials+1):
+            fitness = data[(data['type'] == player_type) & (data['trial']<=t)].mean()['fitness']
+            record.append({"fitness":fitness/rounds,
+                           "type":opponent_type,
+                           "trials":t})
+    return record
+
+@plotter(fitness_v_trials,plot_exclusive_args = ['data'])
+def fitness_trials_plot(max_trials,player_type,opponent_types,data=[],**kwargs):
+    fig = plt.figure()
+    for hue in data['type'].unique():
+        d = data[data['type']==hue]
+        p = plt.plot(d['trials'], d['fitness'], label=hue)
+    plt.legend()
+
+
+if __name__ == "__main__":
+    from indirect_reciprocity import AllC,AllD,gTFT
+    TFT = gTFT(y=1,p=1,q=0)
     MRA = ReciprocalAgent
-    
-    rounds_exp((MRA, SelfishAgent, AltruisticAgent), 1, 10, 3)    
-    
-    #print type(NRA)
-    
-    #print a({},"hi")
-    #assert False
-    
-    test_matchup_matrix(MRA)
-    pass
+    NRA = NiceReciprocalAgent
+    SA = SelfishAgent
+    AA = AltruisticAgent
+    #print matchup_grid(player_types = (TFT,MRA))
+    scene_plot(beta = 4)
+    fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500
+)
     #belief_plot(player_type = NiceReciprocalAgent, agent_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), believed_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), priors = (0,0), Ks = 0)
 
     ############# HEATMAPS ###############

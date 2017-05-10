@@ -75,33 +75,49 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
     if RA_prior is a number it divides that number uniformly among all rational types
     """
 
-    if not issubclass(agent_type,IngroupAgent):
-        return None
-
-    agent_types = tuple(agent_types)
-    type2index = dict(map(reversed,enumerate(agent_types)))
     size = len(agent_types)
-    rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
-    ingroup = []
-    for a_type in agent_types:
-        if any([issubclass(a_type,i) for i in agent_type.ingroup()]):
-            ingroup.append(a_type)
-    if not (RA_prior or rational_types):
-        return np.array(np.ones(size)/size)
-    else:
+    if issubclass(agent_type,IngroupAgent):
+        agent_types = tuple(agent_types)
+        type2index = dict(map(reversed,enumerate(agent_types)))
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+        ingroup = []
+        for a_type in agent_types:
+            if any([issubclass(a_type,i) for i in agent_type.ingroup()]):
+                ingroup.append(a_type)
+        if not (RA_prior or ingroup):
+            return np.array(np.ones(size)/size)
+        else:
+            try:
+                normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
+                prior = [RA_prior[agent_type] if agent_type in RA_prior
+                         else normal_prior for agent_type in agent_types]
+                #print prior
+            except AttributeError:
+                ingroup_size = len(ingroup)
+                ingroup_prior = RA_prior/float(ingroup_size)
+                outgroup_prior = (1.0-RA_prior)/(size-ingroup_size)
+                prior = [ingroup_prior if agent_type in ingroup
+                         else outgroup_prior
+                         for agent_type in agent_types]
+            return np.array(prior)
+    if issubclass(agent_type,RationalAgent):
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+        if not (RA_prior or rational_types):
+            return np.array(np.ones(size)/size)
         try:
             normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
-            prior = [RA_prior[agent_type] if agent_type in RA_prior
-                     else normal_prior for agent_type in agent_types]
-            #print prior
+            prior = [RA_prior.get(agent_type,normal_prior) for agent_type in agent_types]
         except AttributeError:
-            ingroup_size = len(ingroup)
-            ingroup_prior = RA_prior/float(ingroup_size)
-            outgroup_prior = (1.0-RA_prior)/(size-ingroup_size)
-            prior = [ingroup_prior if agent_type in ingroup
-                     else outgroup_prior
+            rational_count = len(rational_types)
+            rational_prior = RA_prior/float(rational_count)
+            irrational_prior = (1.0-RA_prior)/(size-rational_count)
+            prior = [rational_prior if agent_type in rational_types
+                     else irrational_prior
                      for agent_type in agent_types]
-        return np.array(prior)
+            return np.array(prior)
+    else:
+        return None
+
 
 #assert prior_generator(ReciprocalAgent, (ReciprocalAgent,SelfishAgent), .75)[0] == 0.75
 
