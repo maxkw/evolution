@@ -1,19 +1,18 @@
 from __future__ import division
-from collections import Counter,defaultdict
-from itertools import product
-from itertools import permutations,izip
-from utils import normalized,softmax, excluding_keys
+from collections import Counter, defaultdict
+from itertools import product, permutations, izip
+from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
 from copy import copy
 import operator
-from experiments import NiceReciprocalAgent,SelfishAgent,ReciprocalAgent,AltruisticAgent
-from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
+from experiments import NiceReciprocalAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
+from experiment_utils import multi_call, experiment, plotter, MultiArg, cplotter, memoize, apply_to_args
 import matplotlib.pyplot as plt
 import seaborn as sns
-from experiments import binary_matchup,memoize,matchup_matrix,matchup_plot
+from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot
 from params import default_genome
-from indirect_reciprocity import gTFT,AllC,AllD
+from indirect_reciprocity import gTFT, AllC, AllD
 from params import default_params
 
 def fixed_length_partitions(n,L):
@@ -213,13 +212,13 @@ def limit_analysis(payoff, pop_size, s, **kwargs):
     type_count = len(payoff)
     # partition_count = partitions(pop_size, type_count)
     transition = invasion_matrix(payoff, pop_size, s)
-    #print "transition"
-    #print transition
+    # print "transition"
+    # print transition
     ssd = steady_state(transition)
     return ssd
 
 
-def pop_transition_matrix(payoff,pop_size,s,mu = .001,**kwargs):
+def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
     """
     returns a matrix that returns the probability of transitioning from one population composition
     to another
@@ -246,12 +245,12 @@ def pop_transition_matrix(payoff,pop_size,s,mu = .001,**kwargs):
             if pop[d]==0:
                 pass
             else:
-                neighbor = pop+I[b]-I[d]
+                neighbor = pop+I[b] - I[d]
                 #print i,part_to_id[tuple(neighbor)]
-                death_odds = pop[d]/pop_size
+                death_odds = pop[d] / pop_size
                 #birth_odds = np.fitnesses[b]/np.exp(s*(total_fitness)))#*(1-mu)+mu*(1/type_count)
-                birth_odds = fitnesses[b]/total_fitness*(1-mu)+mu*(1/type_count)
-                transition[part_to_id[tuple(neighbor)],i] = death_odds*birth_odds
+                birth_odds = fitnesses[b] / total_fitness * (1-mu) + mu * (1 / type_count)
+                transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
                 
 
     for i in xrange(partition_count):
@@ -315,9 +314,7 @@ def complete_steady_state(player_types = NiceReciprocalAgent, pop_size = 100, si
 def complete_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21)), data = []):
     sns.factorplot(data = data, x = 'rounds', y = 'percentage', hue ='agent_prior', col ='player_types')
     
-def agent_sim(payoff, pop, s, mu=.01, sm = 0, sm_beta=1):
-    assert sm_beta>=0 and sm_beta<=1
-    sm_beta = 1/(1-sm_beta*(.99))
+def agent_sim(payoff, pop, s, mu):
     pop_size = sum(pop)
     type_count = len(payoff)
     I = np.identity(type_count)
@@ -325,41 +322,49 @@ def agent_sim(payoff, pop, s, mu=.01, sm = 0, sm_beta=1):
     assert type_count == len(pop)
     while True:
         yield pop
-        fitnesses = [np.exp(s*np.dot(pop-I[t],payoff[t])) for t in xrange(type_count)]
-        total_fitness = sum(fitnesses)
+        fitnesses = [np.dot(pop - I[t], payoff[t]) for t in xrange(type_count)]
+        fitnesses = softmax(fitnesses, s)
+        # fitnesses = [np.exp(s*np.dot(pop - I[t], payoff[t])) for t in xrange(type_count)]
+        # total_fitness = sum(fitnesses)
         actions = [(b,d) for b,d in permutations(xrange(type_count),2) if pop[d]!=1]
         probs = []
         for b,d in actions:
-            death_odds = pop[d]/pop_size
-            birth_odds = fitnesses[b]/total_fitness*(1-mu)+mu*(1/type_count)
-            prob = death_odds*birth_odds
+            death_odds = pop[d] / pop_size
+            # birth_odds = (1-mu) * fitnesses[b] / total_fitness + mu * (1/type_count)
+            birth_odds = (1-mu) * fitnesses[b] + mu * (1/type_count)
+            prob = death_odds * birth_odds
             probs.append(prob)
-        actions.append((0,0))
-        probs.append(1-np.sum(probs))
+        actions.append((0, 0))
+        probs.append(1 - np.sum(probs))
 
-        probs = np.array(probs)*(1-sm)+sm*softmax(probs,sm_beta)
+        probs = np.array(probs)
         action_index = np.squeeze(np.where(np.random.multinomial(1,probs)))
         (b,d) = actions[action_index]
         pop = pop + I[b]-I[d]
 
 @experiment(unpack = 'record', memoize = False)
-def agent_simulation(generations, priors, pop, s=.01, player_type = ReciprocalAgent, mu=.01, sm = 0, sm_beta=1,**kwargs):
-    payoffs = RA_matchup_matrix(priors = priors, player_types = player_type, agent_types = (AltruisticAgent, player_type, SelfishAgent),**kwargs)
-    populations = agent_sim(payoffs, pop, s, mu, sm, sm_beta)
+def agent_simulation(generations, pop, player_types, agent_types= None, **kwargs):
+    if agent_types is None:
+        agent_types = player_types
+
+    payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, **kwargs)
+    params = default_params()
+    populations = agent_sim(payoffs, pop, params['s'], params['mu'])
 
     record = []
     for n, pop in izip(xrange(generations), populations):
-        for prior,p in zip(priors,pop):
-            record.append({'generation':n,
-                           'prior':prior,
-                           'population':p})
+        for t, p in zip(player_types, pop):
+            record.append({'generation' : n,
+                           'type' : t,
+                           'population' : p})
     return record
 
+
 @plotter(agent_simulation,plot_exclusive_args = ['data'])
-def sim_plotter(generations, priors, pop, s, player_type = ReciprocalAgent, mu=.001, sm = 0, sm_beta=1, data =[]):
-    for hue in data['prior'].unique():
-        plt.plot(data[data['prior']==hue]['generation'], data[data['prior']==hue]['population'], label=hue)
-    # sns.pointplot(data = data, hue='prior', x='generation', y = 'population')  
+def sim_plotter(generations, pop, player_types, agent_types= None, data =[]):
+    for hue in data['type'].unique():
+        plt.plot(data[data['type']==hue]['generation'], data[data['type']==hue]['population'], label=hue)
+
     plt.legend()
 
 def logspace(start = .001,stop = 1, samples=10):
@@ -370,15 +375,14 @@ def logspace(start = .001,stop = 1, samples=10):
 def int_logspace(start, stop, samples, base=2):
     return sorted(list(set(np.logspace(start, stop, samples, base=base).astype(int))))
     
-#print logspace(.001,1,10)
 @experiment(unpack = 'record', memoize = False)
 def limit_v_evo_param(param, player_types, agent_types = None, **kwargs):
     if agent_types is None:
         agent_types = player_types
 
     payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, **kwargs)
+    matchup_plot(player_types = player_types, agent_types=agent_types, **kwargs)
 
-    #matchup_plot(player_types = agents, agent_types=agents, Ks = 0)
     if param == 'pop_size':
         # Xs = range(2, 2**10)
         Xs = np.unique(np.geomspace(2, 2**10, 200, dtype=int))
@@ -497,9 +501,16 @@ def priority_plots():
     AD = AllD
     TFT = gTFT(y=1,p=1,q=0)
     tremble = 0
-    K = 1
-    for RA in [MRA, NRA]:
-        pop1 = (RA,AA,SA, TFT)
+    K = 0
+    beta = 3
+    prior = .75
+    RAs = [
+            MRA,
+            # NRA
+    ]
+    Ks = range(1)
+    for RA, K in product(RAs, Ks):
+        pop1 = (RA,AA,SA)
         # limit_evo_plot('pop_size', pop1)
         # limit_evo_plot('s', pop1)
         # limit_sim_plot('RA_prior', pop1)
@@ -512,17 +523,16 @@ def priority_plots():
         # # limit_sim_plot('beta', pop2)
         # # limit_evo_plot('pop_size', pop2, tremble = tremble)
         pop3 = (RA,AC,AD,TFT)
-        prior = .9
-        limit_evo_plot('pop_size', pop3, agent_types = pop1, RA_prior=prior, K=K)
-        limit_evo_plot('s', pop3, agent_types = pop1, RA_prior=prior, K=K)
-
-    old_pop = (TFT,AC,AD)
-    limit_evo_plot('pop_size', old_pop)
-    limit_evo_plot('s', old_pop)
+        limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, Ks=K, beta=beta, rounds=200)
+        limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, Ks=K, beta=beta, rounds=200)
+        # sim_plotter(50000, (0,0,100,0), player_types = pop3, agent_types = pop1, K=K, beta = beta, RA_prior = prior, rounds=50)
+        
+    # old_pop = (TFT,AC,AD)
+    # limit_evo_plot('pop_size', old_pop)
+    # limit_evo_plot('s', old_pop)
 
 #test_plots([ReciprocalAgent])
 #for RA,k in product([NiceReciprocalAgent],[0,1]):
-#    sim_plotter(5000,(0,.25,.5,.75,1),(100,0,0,0,0), Ks=k, player_type = RA)
 #sim_plotter(5000,(0,.9,1),(100,0,0), Ks=1, player_type = ReciprocalAgent)
 #print RA_matchup_matrix((0,.5,1),player_types = NiceReciprocalAgent,agent_types=(AltruisticAgent, NiceReciprocalAgent, SelfishAgent))
 
@@ -540,6 +550,8 @@ def priority_plots():
 
 
 if __name__ == "__main__":
+    #sim_plotter(100000,(0,.6,1), player_type = NRA, s = .1, mu = .05, Ks = 0, pop = (0,100,0))
+    
     priority_plots()
     assert 0
     # run_plots()
