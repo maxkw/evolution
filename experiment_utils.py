@@ -374,7 +374,7 @@ def or_query(field,ls):
 def plotter(experiment, 
             default_plot_dir="./plots/",
             default_file_name = None,
-            default_extension = ".png",
+            default_extension = ".pdf",
             experiment_args=[],
             plot_exclusive_args = ['data']):
     def wrapper(plot_fun):
