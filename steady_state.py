@@ -275,42 +275,5 @@ def complete_analysis(payoff, pop_size = 100 ,s=1,**kwargs):
     #print part_to_id[10]
     return pop_sum/pop_size
 
-@multi_call()
-@experiment(unpack = 'record', unordered = ['agent_types'], memoize = False)
-def limit_steady_state(player_types = NiceReciprocalAgent, pop_size = 200, size = 3, agent_types = (AltruisticAgent, ReciprocalAgent, NiceReciprocalAgent, SelfishAgent), **kwargs):
-    conditions = dict(locals(),**kwargs)
-    del conditions['kwargs']
-    matchup,types = RA_matchup_matrix(**excluding_keys(conditions,'pop_size','s'))
-    ssd = limit_analysis(matchup, **conditions)
-    #priors = np.linspace(0,1,size)
-
-    return [{"agent_prior":prior,"percentage":pop} for prior,pop in zip(types,ssd)]
-
-@plotter(limit_steady_state, plot_exclusive_args = ['data'])
-def limit_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21)), data = []):
-    print data[data['rounds']==41]
-    priors = list(sorted(list(set(data['agent_prior']))))
-    print priors
-    print len(priors)
-    sns.pointplot(data = data, x = 'rounds', y = 'percentage', hue= 'agent_prior', hue_order = priors)
-    #for prior in priors:
-    #    sns.pointplot(data = data[data['agent_prior'] == prior], x = 'rounds', y = 'percentage', hue= 'agent_prior', hue_order = priors)
-
-
-@multi_call()
-@experiment(unpack = 'record', unordered = ['agent_types'], memoize = False)
-def complete_steady_state(player_types = NiceReciprocalAgent, pop_size = 100, size = 3, agent_types = (AltruisticAgent, ReciprocalAgent, NiceReciprocalAgent, SelfishAgent), **kwargs):
-    conditions = dict(locals(),**kwargs)
-    del conditions['kwargs']
-    matchup,types = RA_matchup_matrix(**conditions)
-    ssd = complete_analysis(matchup, **conditions)
-    #priors = np.linspace(0,1,size)
-
-    return [{"agent_prior":prior,"percentage":pop} for prior,pop in zip(types,ssd)]
-
-@plotter(complete_steady_state, plot_exclusive_args = ['data'])
-def complete_plotter(player_types = ReciprocalAgent, rounds = MultiArg(range(1,21)), data = []):
-    sns.factorplot(data = data, x = 'rounds', y = 'percentage', hue ='agent_prior', col ='player_types')
-
 if __name__ == "__main__":
     pass
