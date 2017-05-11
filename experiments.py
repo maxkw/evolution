@@ -4,7 +4,7 @@ import seaborn as sns
 from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
-from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT
+from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT,AllC,AllD
 from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyObserved,Symmetric
 from collections import defaultdict
 from itertools import combinations_with_replacement, combinations
@@ -277,7 +277,7 @@ letter_to_id = dict(map(reversed,enumerate("ABCDEFGHIJK")))
 letter_to_action = {"C":'give',"D":'keep'}
 @multi_call()
 @experiment(unpack = 'record', unordered = ['agent_types'])
-def scenarios(RA_K = 1, agent_types = (NiceReciprocalAgent,SelfishAgent,AltruisticAgent),**kwargs):
+def scenarios(agent_types = (NiceReciprocalAgent,SelfishAgent,AltruisticAgent),**kwargs):
     condition = dict(locals(),**kwargs)
     genome = default_genome(agent_type = RationalAgent,**condition)
     game = BinaryDictator()
@@ -296,7 +296,7 @@ def scenarios(RA_K = 1, agent_types = (NiceReciprocalAgent,SelfishAgent,Altruist
 
     record = []
     for name, observations in scenario_dict.iteritems():
-        observer = RationalAgent(genome = genome ,world_id = "O")
+        observer = RationalAgent(genome = genome, world_id = "O")
         for observation in observations:
             observer.observe(observation)
         for agent_type in agent_types:
@@ -310,7 +310,9 @@ def scenarios(RA_K = 1, agent_types = (NiceReciprocalAgent,SelfishAgent,Altruist
 @plotter(scenarios,plot_exclusive_args = ['data'])
 def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
     sns.set_context("poster",font_scale = 1.5)
-    f_grid = sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', row = "RA_prior", kind = 'bar', hue = 'type', hue_order = ["NRA","AA","SA"],col_order = ["C","D","DD","DC","CD","CC"],
+    f_grid = sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', row = "RA_prior", kind = 'bar', hue = 'type',
+                            #hue_order = ["NRA","AA","SA"],
+                            #col_order = ["C","D","DD","DC","CD","CC"],
                             aspect = 1.5,
                             facet_kws = {'ylim': (0,1),
                                          'margin_titles':True})
@@ -322,7 +324,52 @@ def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
     f_grid.set_yticklabels(['','0.25','0.50','0.75','1.0'])
     #f_grid.despine(bottom=True)
 
+@multi_call()
+@experiment(unpack = 'record',unordered = ['agent_type'],memoize = False)
+def tft_scenes(agent_types, **kwargs):
+    #condition = dict(locals(),**kwargs)
+    genome = default_genome(agent_type = RationalAgent, agent_types = agent_types, **kwargs)
+    game = BinaryDictator()
+    #observations = {}
+    def vs(actions, observers = "ABO"):
+        observations = []
+        #observers = [letter_to_id.get(p,p) for p in observers]
+        for players, action in zip(["AB","BA"], actions):
+            #players = [letter_to_id[p] for p in players]
+            action = letter_to_action[action]
+            observations.append((game, players, observers, action))
+        return observations
 
+    obs_dict = {}
+    action_seqs = [("CD","DC","CD")]
+    for action_seq in action_seqs:
+        obs = []
+        for actions in action_seq:
+            obs.append(vs(actions))
+        obs_dict[action_seq] = obs
+
+    record = []
+    for action, observations in obs_dict.iteritems():
+        observer = RationalAgent(genome,"O")
+        print "KKKKKKKKKKKKK\n\n\n", observer.genome["RA_K"]
+        for observation in observations:
+            observer.observe(observation)
+            print observation
+            for agent_type in agent_types:
+                model = observer.model["A"][agent_type]
+                print agent_type
+                print model.decide_likelihood(game,observation[1],0)[game.action_lookup[observation[0][3]]]
+
+                
+            #assert False
+        
+        for agent_type in agent_types:
+            record.append({
+                'scenario':action,
+                'belief':observer.belief_that("A",agent_type),
+                'type':justcaps(agent_type)
+            })
+    return record
 
 letter_2_index = dict(map(reversed,enumerate('ABCDEFG')))
 @multi_call()
@@ -504,10 +551,11 @@ if __name__ == "__main__":
     NRA = NiceReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
+    game = BinaryDictator()
+
     #print matchup_grid(player_types = (TFT,MRA))
-    scene_plot(beta = 4)
-    fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500
-)
+    scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA), RA_K = MultiArg([0,1,2]), RA_prior = .1)
+    #fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500)
     #belief_plot(player_type = NiceReciprocalAgent, agent_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), believed_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), priors = (0,0), Ks = 0)
 
     ############# HEATMAPS ###############

@@ -218,7 +218,8 @@ class TypeDict(dict):
             r_model = dict.__getitem__(self,rational_type)
             r_model.belief = belief
             r_model.likelihood = likelihood
-            
+
+
 class AgentDict(dict):
     def __init__(self,genome):
         self.genome = genome
@@ -421,10 +422,10 @@ class RationalAgent(Agent):
         # nothing will happen because of the return at the top
         # of the function.
 
-        
         if K == 0:return
-        for model in self.model.values():
-            model.agent.observe_k(observations, K-1, tremble)
+        for agent_id, models in self.model.iteritems():
+            for agent_type, model in models.iteritems():
+                model.observe_k(observations, K-1, tremble)
 
             
         # if K>0:
@@ -630,13 +631,19 @@ class gTFT(ClassicAgent):
         last_action = self.cooperated
         return [rules[last_action][action] for action in game.actions]
 
+    def observe_k(self,observations,*args,**kwargs):
+        self.observe(observations)
+
     def observe(self,observations):
         assert len(observations)==2
         for observation in observations:
             game, participants, observers, action = observation
+            if self.world_id not in observers: continue
+            if self.world_id not in participants: continue
             decider_id = participants[0]
             if decider_id == self.world_id: continue
-            assert participants[1] == self.world_id
+            #print observation
+            #assert participants[1] == self.world_id
             self.cooperated = action is "give"
 
 class AllC(Agent):
