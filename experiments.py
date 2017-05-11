@@ -46,7 +46,7 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
             'p1_fitness':fitness[0]}
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
-@experiment(unpack = 'record', trials = 100, verbose = 3)
+@experiment(unpack = 'record', trials = 100, verbose = 3, memoize = False)
 def matchup(player_types, **kwargs):
     #print "HIIIIIIIIIIIIIIIIIII\n\n\n"
     #assert False
@@ -56,9 +56,16 @@ def matchup(player_types, **kwargs):
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
     world = World(params,genomes)
     fitness,history = world.run()
+
+    beliefs = []
+    for agent in world.agents:
+        try:
+            beliefs.append(agent.belief)
+        except:
+            beliefs.append(None)
     record = []
-    for t,f in zip(player_types,fitness):
-        record.append({"type":t,"fitness":f})
+    for t,f,b in zip(player_types,fitness,beliefs):
+        record.append({"type":t,"fitness":f,'belief':b})
     return record
 
 def matchup_grid(player_types,**kwargs):
@@ -536,6 +543,35 @@ def fitness_v_trials(max_trials, player_type, opponent_types, **kwargs):
                            "trials":t})
     return record
 
+@experiment(unpack = 'record', memoize = False)
+def RA_v_param(param, player_types, **kwargs):
+    if param == "rounds":
+        Xs = range(1,21)
+        Xs = [10,40]
+    else:
+        raise
+
+    record = []
+    for x in Xs:
+        for player_type in player_types:
+            params = default_params(**dict(kwargs,**{param:x}))
+            payoffs = matchup(player_types = (player_type, player_type), **dict(kwargs,**{param:x}))
+            fitness = payoffs.mean()['fitness']/params['rounds']
+            record.append({
+                param:x,
+                "type":player_type,
+                "fitness":fitness
+            })
+    return record
+
+@plotter(RA_v_param, plot_exclusive_args = ['data'])
+def RA_v_param_plot(param, player_types, data=[],**kwargs):
+    fig = plt.figure()
+    for hue in data['type'].unique():
+        d = data[data['type']==hue]
+        p = plt.plot(d[param], d['fitness'], label=hue)
+    plt.legend()
+
 @plotter(fitness_v_trials,plot_exclusive_args = ['data'])
 def fitness_trials_plot(max_trials,player_type,opponent_types,data=[],**kwargs):
     fig = plt.figure()
@@ -554,7 +590,13 @@ if __name__ == "__main__":
     AA = AltruisticAgent
     game = BinaryDictator()
 
+    belief_plot(believed_types = (AllC,), player_types = MRA, priors = .5, Ks = 0, agent_types = (AllC,AllD,TFT,MRA), rounds = 40)
+    assert 0
+    RA_v_param_plot(param = 'rounds', player_types = (MRA(RA_K = 0), MRA(RA_K = 1), MRA(RA_K = 2)),
+                    agent_types = ('self', AllC, AllD,TFT), RA_prior = .5)
+    assert 0
     #print matchup_grid(player_types = (TFT,MRA))
+
     scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA,Pavlov), RA_K = MultiArg([0,1,2]), RA_prior = .1)
     #fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500)
     #belief_plot(player_type = NiceReciprocalAgent, agent_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), believed_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), priors = (0,0), Ks = 0)

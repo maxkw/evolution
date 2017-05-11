@@ -159,23 +159,26 @@ def limit_evo_plot(param, player_types, data = [], **kwargs):
 
 @experiment(unpack = 'record', memoize = False)
 def limit_v_sim_param(param, player_types, agent_types=None, **kwargs):
+    
     if param == "RA_prior":
-        Xs = np.linspace(0,1,21)
+        Xs = np.linspace(0,1,41)[1:-1]
     elif param == "beta":
         Xs = logspace(0,1,11)
+    elif param == "rounds":
+        Xs = np.unique(np.geomspace(1,100,20,dtype = int))
     else:
         raise
 
+   # assert "agent_types" not in kwargs
     params = default_params()
     if agent_types is None:
         agent_types = player_types
-        
+
     record = []
     for x in Xs:
-        params[param] = x
-        payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, **params)
+        payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, trials = 200, **dict(kwargs,**{param:x}))
         #matchup_plot(player_types = agents, agent_types = agents, xrounds = 10, trials = 100, **dict(kwargs,**{param:x}))
-        for t,p in zip(player_types, limit_analysis(payoffs, **defaults)):
+        for t,p in zip(player_types, limit_analysis(payoffs, **default_params(**{param:x}))):
             record.append({
                 param:x,
                 "type":t,
@@ -189,11 +192,64 @@ def limit_sim_plot(param, player_types, data = [], **kwargs):
     for hue in data['type'].unique():
         d = data[data['type']==hue]
         p = plt.plot(d[param], d['proportion'], label=hue)
-    #if param == "beta":
-    #    plt.axes().set_xscale('log',basex=10)
+    if param in ["beta"]:
+        plt.axes().set_xscale('log',basex=10)
     plt.legend()
 
+@experiment(unpack = 'record', memoize = False)
+def limit_v_compare_param(param, player_types, opponent_types = tuple(), **kwargs):
+    if param == "rounds":
+        #Xs = np.unique(np.geomspace(1,100,20,dtype = int))
+        Xs = range(1,21)
+    
+    else:
+        raise
+
+    record = []
+    for x in Xs:
+        for player_type in player_types:
+            params = default_params(**kwargs)
+            params[param] = x
+
+            players = (player_type,)+opponent_types
+            payoffs = matchup_matrix(player_types = players, **dict(kwargs,**{param:x}))
+            for t,p in zip(players, limit_analysis(payoffs, **params)):
+                if t == player_type:
+                    record.append({
+                        param:x,
+                        "type":t,
+                        "proportion":p
+                    })
+    return record
+
+@experiment(unpack = 'record', memoize = False)
+def compare_limit_evo(param, player_types, opponent_types = tuple(), **kwargs):
+    if param == 'pop_size':
+        # Xs = range(2, 2**10)
+        Xs = np.unique(np.geomspace(2, 2**10, 200, dtype=int))
+    elif param == 's':
+        Xs = logspace(start = .001, stop = 10, samples = 100)
+    else:
+        print param
+        raise
+    params = default_params(**kwargs)
+    record = []
+    for player_type in player_types:
+        players = (player_type,)+opponent_types
+        payoffs = matchup_matrix(player_types = players,  **kwargs)
+        for x in Xs:
+            for t,p in zip(players, limit_analysis(payoffs, **dict(params,**{param:x}))):
+                if t == player_type:
+                    record.append({
+                        param:x,
+                        "type":t,
+                        "proportion":p
+                    })
+    return record
+
+
 if __name__ == "__main__":
+
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     SA = SelfishAgent
@@ -209,6 +265,18 @@ if __name__ == "__main__":
             # MRA,
             NRA
     ]
+
+    M = MRA(RA_prior = .5)
+    N = NRA(RA_prior = .75)
+    #limit_sim_plot(param = 'rounds', player_types = (M,AC,AD), agent_types = (M,AC,AD))
+    #limit_sim_plot(experiment = limit_v_compare_param, param='rounds', player_types = (TFT,M), opponent_types = (AC,AD), agent_types = (M,AC,AD))
+    limit_sim_plot(experiment = limit_v_compare_param, param='rounds', player_types = (MRA(RA_K = 0),MRA(RA_K=1),MRA(RA_K = 2)), opponent_types = (AC,AD), agent_types = ('self',AC,AD))
+    p = (MRA,AC,AD)
+    limit_sim_plot(param = "RA_prior", player_types = p, agent_types = p)
+    
+    #limit_evo_plot(experiment = compare_limit_evo, param = 's', player_types = (TFT,M),opponent_types = (AC, AD), agent_types = (M,AC,AD))
+    #limit_evo_plot(experiment = compare_limit_evo, param = 'pop_size', player_types = (TFT,M),opponent_types = (AC, AD), agent_types = (M,AC,AD))
+    assert 0
     Ks = range(2)
     for RA, K in product(RAs, Ks):
         pop1 = (RA,AA,SA)

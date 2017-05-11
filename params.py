@@ -12,7 +12,7 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
 
     `games`: Instance of a StageGame object to be used as the default if no game is specified. 
 
-    `stop_condition`: The current `World` matches players together for either a single or a repeated interaction. This expects a reference to a function that takes in the number of rounds played (`n`). The function returns True if the interaction should stop and false if the interaction should continue. 
+    `stop_condition`: The current `World` matches players together for either a single or a repeated interaction. This expects a reference to a function that takes in the number of rounds played (`n`). The function returns True if the interaction should stop and false if the interaction should continue.
 
     `constant_stop_condition`: means that each dyad plays a fixed number of round together up to X. 
 
@@ -45,6 +45,8 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
     given_values = locals()
     given_values.update(kwargs)
 
+    
+
     if not games:
         games = RepeatedPrisonersTournament(rounds,tremble = tremble)
     
@@ -75,6 +77,7 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
     if RA_prior is a number it divides that number uniformly among all rational types
     """
 
+    
     size = len(agent_types)
     if issubclass(agent_type,IngroupAgent):
         agent_types = tuple(agent_types)
@@ -132,7 +135,7 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
     except:
         pass
 
-    #agent_types = tuple(t if t is not 'self' else agent_type for t in agent_types)
+    agent_types = tuple(t if t is not 'self' else agent_type for t in agent_types)
     genome = {
         'type': agent_type,
         'RA_prior': RA_prior,
