@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot
 from params import default_genome
-from indirect_reciprocity import gTFT, AllC, AllD
+from indirect_reciprocity import gTFT, AllC, AllD, Pavlov
 from params import default_params
 from steady_state import limit_analysis, complete_analysis
 
@@ -261,6 +261,9 @@ def priority_plots():
         # # limit_sim_plot('beta', pop2)
         # # limit_evo_plot('pop_size', pop2, tremble = tremble)
         pop3 = (RA,AC,AD,TFT)
+        limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=200)
+        limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=200)
+        pop3 = (RA,AC,AD,TFT,Pavlov)
         limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=200)
         limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=200)
         # sim_plotter(50000, (0,0,100,0), player_types = pop3, agent_types = pop1, K=K, beta = beta, RA_prior = prior, rounds=50)

@@ -582,9 +582,9 @@ class Pavlov(ClassicAgent):
     def __init__(self,genome,world_id = None):
         self.genome = deepcopy(genome)
         self.world_id = world_id
-        self.strats = strats = itertools.cycle([{'give':1,'keep':0},
-                                                {'keep':1,'give':0}])
-        self.strat = strats.next()
+        self.strats = strats = [{'give':1,'keep':0}, {'keep':1,'give':0}]
+        self.strat_index = 0
+        #self.strat = strats[strat_index]
 
     def observe(self,observations):
         obs1, obs2 = observations
@@ -595,11 +595,10 @@ class Pavlov(ClassicAgent):
             a = players.index(me)
             o = (a+1)%2
             if actions[o] == 'keep':
-                self.strat = self.strats.next()
-            
-    
+                self.strat_index = (self.strat_index+1)%2
+
     def decide_likelihood(self,game,*args,**kwargs):
-        return [self.strat[action] for action in game.actions]
+        return [self.strats[self.strat_index][action] for action in game.actions]
 
 class gTFT(ClassicAgent):
     def __init__(self, genome, world_id = None):
