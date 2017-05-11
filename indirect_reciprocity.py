@@ -575,19 +575,28 @@ class ClassicAgent(Agent):
     def observe(*args,**kwargs):
         pass
 
+    def observe_k(self,observations,*args,**kwargs):
+        self.observe(observations)
+
 class Pavlov(ClassicAgent):
     def __init__(self,genome,world_id = None):
         self.genome = deepcopy(genome)
         self.world_id = world_id
-        self.strats = strats = cycle([{'give':1,'keep':0},
-                                      {'keep':1,'give':0}])
+        self.strats = strats = itertools.cycle([{'give':1,'keep':0},
+                                                {'keep':1,'give':0}])
         self.strat = strats.next()
 
     def observe(self,observations):
         obs1, obs2 = observations
-        action1, action2 = obs1[3], obs2[3]
-        if action1 != action2:
-            self.strat = self.strats.next()
+        actions = [obs1[3], obs2[3]]
+        players = [obs1[1][0], obs2[1][0]]
+        me = self.world_id
+        if me in players:
+            a = players.index(me)
+            o = (a+1)%2
+            if actions[o] == 'keep':
+                self.strat = self.strats.next()
+            
     
     def decide_likelihood(self,game,*args,**kwargs):
         return [self.strat[action] for action in game.actions]

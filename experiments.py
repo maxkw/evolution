@@ -4,7 +4,7 @@ import seaborn as sns
 from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
-from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT,AllC,AllD
+from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT,AllC,AllD,Pavlov
 from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyObserved,Symmetric
 from collections import defaultdict
 from itertools import combinations_with_replacement, combinations
@@ -341,7 +341,8 @@ def tft_scenes(agent_types, **kwargs):
         return observations
 
     obs_dict = {}
-    action_seqs = [("CD","DC","CD")]
+    action_seqs = [("CD","DC","CD"),
+                   ("CD","DC","DD")]
     for action_seq in action_seqs:
         obs = []
         for actions in action_seq:
@@ -554,7 +555,7 @@ if __name__ == "__main__":
     game = BinaryDictator()
 
     #print matchup_grid(player_types = (TFT,MRA))
-    scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA), RA_K = MultiArg([0,1,2]), RA_prior = .1)
+    scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA,Pavlov), RA_K = MultiArg([0,1,2]), RA_prior = .1)
     #fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500)
     #belief_plot(player_type = NiceReciprocalAgent, agent_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), believed_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), priors = (0,0), Ks = 0)
 
