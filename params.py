@@ -102,8 +102,8 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
                 prior = [ingroup_prior if agent_type in ingroup
                          else outgroup_prior
                          for agent_type in agent_types]
-            return np.array(prior)
-    if issubclass(agent_type,RationalAgent):
+
+    elif issubclass(agent_type,RationalAgent):
         rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
         if not (RA_prior or rational_types):
             return np.array(np.ones(size)/size)
@@ -117,9 +117,14 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
             prior = [rational_prior if agent_type in rational_types
                      else irrational_prior
                      for agent_type in agent_types]
-            return np.array(prior)
+            assert len(prior) == len(agent_type)
+            
     else:
         return None
+
+    assert len(prior) == len(agent_types)
+    return np.array(prior)
+
 
 
 #assert prior_generator(ReciprocalAgent, (ReciprocalAgent,SelfishAgent), .75)[0] == 0.75
@@ -135,6 +140,10 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
     except:
         pass
 
+    try:
+        agent_types = agent_type.genome["agent_types"]
+    except:
+        pass
     agent_types = tuple(t if t is not 'self' else agent_type for t in agent_types)
     genome = {
         'type': agent_type,
