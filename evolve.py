@@ -298,10 +298,10 @@ if __name__ == "__main__":
     tremble = 0
     beta = 3
     prior = .5
-    rounds = 200
+    rounds = [10, 50, 100, 200]
     RAs = [
-            # MRA,
-            NRA
+            MRA,
+            # NRA
     ]
 
     M = MRA(RA_prior = .5)
@@ -321,6 +321,7 @@ if __name__ == "__main__":
     assert 0
     Ks = range(2)
     for RA, K in product(RAs, Ks):
+
         pop1 = (RA,AA,SA)
         # limit_evo_plot('pop_size', pop1)
         # limit_evo_plot('s', pop1)
@@ -334,15 +335,11 @@ if __name__ == "__main__":
         # # limit_sim_plot('beta', pop2)
         # # limit_evo_plot('pop_size', pop2, tremble = tremble)
         pop3 = (RA,AC,AD,TFT)
-
-        limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=rounds)
-        limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=rounds)
-
-        limit_evo_plot('pop_size', pop3, agent_types = pop2, RA_prior=prior, RA_K=K, beta=beta, rounds=rounds)
-        limit_evo_plot('s', pop3, agent_types = pop2, RA_prior=prior, RA_K=K, beta=beta, rounds=rounds)
+        limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
+        # limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
 
         # sim_plotter(50000, (0,0,100,0), player_types = pop3, agent_types = pop1, K=K, beta = beta, RA_prior = prior, rounds=50)
         
-    old_pop = (TFT,AC,AD)
-    limit_evo_plot('pop_size', old_pop, rounds=rounds)
+        # old_pop = (TFT,AC,AD)
+        # limit_evo_plot('pop_size', old_pop, rounds=r)
     # limit_evo_plot('s', old_pop)
