@@ -547,7 +547,7 @@ def fitness_v_trials(max_trials, player_type, opponent_types, **kwargs):
 def RA_v_param(param, player_types, **kwargs):
     if param == "rounds":
         Xs = range(1,21)
-        Xs = [10,40]
+        Xs = [10,40,500]
     else:
         raise
 
@@ -589,17 +589,16 @@ if __name__ == "__main__":
     SA = SelfishAgent
     AA = AltruisticAgent
     game = BinaryDictator()
-
-    belief_plot(believed_types = (AllC,), player_types = MRA, priors = .5, Ks = 0, agent_types = (AllC,AllD,TFT,MRA), rounds = 40)
-    assert 0
-    RA_v_param_plot(param = 'rounds', player_types = (MRA(RA_K = 0), MRA(RA_K = 1), MRA(RA_K = 2)),
-                    agent_types = ('self', AllC, AllD,TFT), RA_prior = .5)
+    for i in range(20):
+        belief_plot(belived_type = MRA, player_types = MRA, agent_types = (MRA,AllC,AllD), priors = .5, Ks = 0, rounds = 500, trials = [i])
+    #RA_v_param_plot(param = 'rounds', player_types = (MRA(RA_K = 0),),
+    #                agent_types = ('self', AllC, AllD,TFT), RA_prior = .5)
     assert 0
     #print matchup_grid(player_types = (TFT,MRA))
 
     scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA,Pavlov), RA_K = MultiArg([0,1,2]), RA_prior = .1)
     #fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500)
-    #belief_plot(player_type = NiceReciprocalAgent, agent_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), believed_types = (AltruisticAgent, NiceReciprocalAgent, SelfishAgent), priors = (0,0), Ks = 0)
+    #
 
     ############# HEATMAPS ###############
     #N = 5
