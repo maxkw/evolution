@@ -52,6 +52,8 @@ class AgentType(type):
         return hash(cls.__name__)
     def __eq__(cls,other):
         return hash(cls)==hash(other)
+    def short_name(cls, *args):
+        return cls.__name__
     #def __reduce__(self):
     #    return (eval,(self.__name__,))
 
@@ -114,8 +116,8 @@ class Agent(object):
         pass
     def observe_k(self, observations, k, tremble = 0):
         pass
-    def short_name(self,*args,**kwargs):
-        return self.__name__
+    # def short_name(self, *args):
+        # return self.__name__
 
 class Puppet(Agent):
     def __init__(self, world_id = 'puppet'):
@@ -568,16 +570,15 @@ def is_agent_type(instance,base):
         return issubclass(instance.type, base)
 
 class ClassicAgent(Agent):
-
     def decide(self, game, agent_ids):
         ps = self.decide_likelihood(game)
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         action = game.actions[action_id]
         return action
-    def observe(*args,**kwargs):
+    def observe(self, *args, **kwargs):
         pass
 
-    def observe_k(self,observations,*args,**kwargs):
+    def observe_k(self, observations, *args, **kwargs):
         self.observe(observations)
 
 class Pavlov(ClassicAgent):
@@ -657,11 +658,11 @@ class gTFT(ClassicAgent):
             self.cooperated = action is "give"
 
 class AllC(ClassicAgent):
-    def decide_likelihood(self,game,agents = None, tremble = None):
+    def decide_likelihood(self, game,agents = None, tremble = None):
         odds = {'give':1,
                 'keep':0}
         return [odds[action] for action in game.actions]
-
+    
 class AllD(ClassicAgent):
     def decide_likelihood(self,game,agents = None, tremble = None):
         odds = {'give':0,
