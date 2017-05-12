@@ -15,6 +15,7 @@ from params import default_genome
 from indirect_reciprocity import gTFT, AllC, AllD, Pavlov
 from params import default_params
 from steady_state import limit_analysis, complete_analysis
+import pandas as pd
 
 def logspace(start = .001,stop = 1, samples=10):
     mult = (np.log(stop)-np.log(start))/np.log(10)
@@ -158,7 +159,7 @@ def limit_evo_plot(param, player_types, data = [], **kwargs):
     plt.legend()
 
 @experiment(unpack = 'record', memoize = False)
-def limit_v_sim_param(param, player_types, agent_types=None, **kwargs):
+def limit_v_sim_param(param, player_types, **kwargs):
     
     if param == "RA_prior":
         Xs = np.linspace(0,1,41)[1:-1]
@@ -169,15 +170,9 @@ def limit_v_sim_param(param, player_types, agent_types=None, **kwargs):
     else:
         raise
 
-   # assert "agent_types" not in kwargs
-    params = default_params()
-    if agent_types is None:
-        agent_types = player_types
-
     record = []
     for x in Xs:
         payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, trials = 200, **dict(kwargs,**{param:x}))
-        #matchup_plot(player_types = agents, agent_types = agents, xrounds = 10, trials = 100, **dict(kwargs,**{param:x}))
         for t,p in zip(player_types, limit_analysis(payoffs, **default_params(**{param:x}))):
             record.append({
                 param:x,
@@ -222,6 +217,39 @@ def limit_v_compare_param(param, player_types, opponent_types = tuple(), **kwarg
                     })
     return record
 
+@plotter(limit_v_sim_param)
+def limit_sim_plot(param, player_types, data = [], **kwargs):
+    fig = plt.figure()
+    for hue in data['type'].unique():
+        d = data[data['type']==hue]
+        p = plt.plot(d[param], d['proportion'], label=hue)
+    if param in ["beta"]:
+        plt.axes().set_xscale('log',basex=10)
+    plt.legend()
+
+def limit_v_param(param,player_types,**kwargs):
+    if param in ['rounds','beta','RA_prior']:
+        return limit_v_sim_param(param,player_types,**kwargs)
+    elif param in ['pop_size','s']:
+        return limit_v_evo_param(param,player_types,**kwargs)
+    else:
+        raise
+
+@plotter(limit_v_param,plot_exclusive_args = ['experiment','data'])
+def limit_param_plot(param, player_types, data = [], **kwargs):
+    fig = plt.figure()
+    print data
+    for hue in data['type'].unique():
+        d = data[data['type']==hue]
+        p = plt.plot(d[param], d['proportion'], label=hue)
+    if param in ["beta"]:
+        plt.axes().set_xscale('log',basex=10)
+    if param == 'pop_size':
+        plt.axes().set_xscale('log',basex=2)
+    elif param == 's':
+        plt.axes().set_xscale('log')
+    plt.legend()
+
 @experiment(unpack = 'record', memoize = False)
 def compare_limit_evo(param, player_types, opponent_types = tuple(), **kwargs):
     if param == 'pop_size':
@@ -247,6 +275,16 @@ def compare_limit_evo(param, player_types, opponent_types = tuple(), **kwargs):
                     })
     return record
 
+def compare_limit_param(param,player_types,opponent_types,**kwargs):
+    dfs = []
+    for player_type in player_types:
+        df = limit_v_param(param = param, player_types = (player_type,)+opponent_types,**kwargs)
+        print player_type
+        dfs.append(df[df['type']==player_type])
+    return pd.concat(dfs,ignore_index = True)
+
+
+
 
 if __name__ == "__main__":
 
@@ -268,8 +306,12 @@ if __name__ == "__main__":
 
     M = MRA(RA_prior = .5)
     N = NRA(RA_prior = .75)
+
+    priored = tuple(MRA(RA_prior = n) for n in np.linspace(0,1,11)[1:-1])
+    limit_param_plot("pop_size", player_types = priored, opponent_types = (AC,AD), agent_types = ('self',AC,AD), experiment = compare_limit_param)
     #limit_sim_plot(param = 'rounds', player_types = (M,AC,AD), agent_types = (M,AC,AD))
     #limit_sim_plot(experiment = limit_v_compare_param, param='rounds', player_types = (TFT,M), opponent_types = (AC,AD), agent_types = (M,AC,AD))
+    assert 0
     limit_sim_plot(experiment = limit_v_compare_param, param='rounds', player_types = (MRA(RA_K = 0),MRA(RA_K=1),MRA(RA_K = 2)), opponent_types = (AC,AD), agent_types = ('self',AC,AD))
     p = (MRA,AC,AD)
     limit_sim_plot(param = "RA_prior", player_types = p, agent_types = p)
