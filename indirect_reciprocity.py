@@ -114,6 +114,8 @@ class Agent(object):
         pass
     def observe_k(self, observations, k, tremble = 0):
         pass
+    def short_name(self,*args,**kwargs):
+        return self.__name__
 
 class Puppet(Agent):
     def __init__(self, world_id = 'puppet'):
@@ -409,7 +411,6 @@ class RationalAgent(Agent):
                 #    model = agent_type(genome, world_id = decider_id)
                 append_to_likelihood(model.decide_likelihood(game,participants,tremble)[action_index])
                 
-
             self.likelihood[decider_id] *= likelihood
             self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
             
@@ -504,6 +505,7 @@ class ReciprocalAgent(IngroupAgent):
     @staticmethod
     def ingroup():
         return [ReciprocalAgent]
+
 class NiceReciprocalAgent(IngroupAgent):
     @staticmethod
     def ingroup():
@@ -654,17 +656,22 @@ class gTFT(ClassicAgent):
             #assert participants[1] == self.world_id
             self.cooperated = action is "give"
 
-class AllC(Agent):
+class AllC(ClassicAgent):
     def decide_likelihood(self,game,agents = None, tremble = None):
         odds = {'give':1,
                 'keep':0}
         return [odds[action] for action in game.actions]
 
-class AllD(Agent):
+class AllD(ClassicAgent):
     def decide_likelihood(self,game,agents = None, tremble = None):
         odds = {'give':0,
                 'keep':1}
         return [odds[action] for action in game.actions]
+
+class RandomAgent(ClassicAgent):
+    def decide_likelihood(self,game,*args,**kwargs):
+        l = len(game.actions)
+        return (1/l,)*l
 
 class OpportunisticRA(RationalAgent):
     """

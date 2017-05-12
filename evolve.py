@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot
 from params import default_genome
-from indirect_reciprocity import gTFT, AllC, AllD, Pavlov
+from indirect_reciprocity import gTFT, AllC, AllD, Pavlov, RandomAgent
 from params import default_params
 from steady_state import limit_analysis, complete_analysis
 import pandas as pd
@@ -120,17 +120,15 @@ def sim_plotter(generations, pop, player_types, data =[]):
 @experiment(unpack = 'record', memoize = False)
 def limit_v_evo_param(param, player_types, **kwargs):
     payoffs = matchup_matrix(player_types = player_types, **kwargs)
-    # matchup_plot(player_types = player_types, agent_types=agent_types, **kwargs)
+    # matchup_plot(player_types = player_types, **kwargs)
 
     if param == 'pop_size':
-        # Xs = range(2, 2**10)
         Xs = np.unique(np.geomspace(2, 2**10, 200, dtype=int))
     elif param == 's':
         Xs = logspace(start = .001, stop = 10, samples = 100)
     else:
         print param
         raise
-    #print Xs
 
     params = default_params()
     
@@ -139,10 +137,10 @@ def limit_v_evo_param(param, player_types, **kwargs):
         params[param] = x
         for t, p in zip(player_types, limit_analysis(payoffs, **params)):
             try:
-                t_name = t.short_name('agent_types')
+                t_name = t.short_name("agent_types")
             except:
                 t_name = t.__name__
-                
+
             record.append({
                 param : x,
                 "type" : t_name,
@@ -164,7 +162,6 @@ def limit_evo_plot(param, player_types, data = [], **kwargs):
 
 @experiment(unpack = 'record', memoize = False)
 def limit_v_sim_param(param, player_types, **kwargs):
-    
     if param == "RA_prior":
         Xs = np.linspace(0,1,21)[1:-1]
     elif param == "beta":
@@ -176,11 +173,16 @@ def limit_v_sim_param(param, player_types, **kwargs):
 
     record = []
     for x in Xs:
-        payoffs = matchup_matrix(player_types = player_types, **dict(kwargs,**{param:x}))
+        payoffs = matchup_matrix(player_types = player_types, trials = 10, **dict(kwargs,**{param:x}))
+
         for t,p in zip(player_types, limit_analysis(payoffs, **default_params(**{param:x}))):
+            try:
+                t_name = t.short_name("agent_types")
+            except:
+                t_name = t.__name__
             record.append({
                 param:x,
-                "type":t,
+                "type":t_name,
                 "proportion":p
             })
     return record
@@ -244,10 +246,9 @@ def limit_v_param(param,player_types,**kwargs):
     else:
         raise
 
-@plotter(limit_v_param,plot_exclusive_args = ['experiment','data'])
+@plotter(limit_v_param, plot_exclusive_args = ['experiment','data'])
 def limit_param_plot(param, player_types, data = [], **kwargs):
     fig = plt.figure()
-    print data
     for hue in data['type'].unique():
         d = data[data['type']==hue]
         p = plt.plot(d[param], d['proportion'], label=hue)
@@ -293,8 +294,11 @@ def compare_limit_param(param,player_types,opponent_types,**kwargs):
     dfs = []
     for player_type in player_types:
         df = limit_v_param(param = param, player_types = (player_type,)+opponent_types,**kwargs)
-        print player_type
-        dfs.append(df[df['type']==player_type])
+        try:
+            t_name = player_type.short_name("agent_types")
+        except:
+            t_name = player_type.__name__
+        dfs.append(df[df['type']==t_name])
     return pd.concat(dfs,ignore_index = True)
 
 if __name__ == "__main__":
@@ -305,27 +309,22 @@ if __name__ == "__main__":
     AC = AllC
     AD = AllD
     TFT = gTFT(y=1,p=1,q=0)
-    tremble = 0
+    GTFT = gTFT(y=1,p=.99,q=.33)
     beta = 3
     prior = .5
-    RAs = [
-            MRA,
-            NRA
-    ]
-    Ks = range(2)
     r = 10
     trembles = [0, 0.05]
 
-    # ########################## AGAINST ALLC AND ALLD #########################
-    # ToM = ('self', AC, AD)
-    # pop = (MRA(RA_K=0), MRA(RA_K=1), TFT)
-    # for t in trembles:
-    #     for param in ['s', 'pop_size']:
-    #         limit_param_plot(param, player_types = pop, agent_types = ToM, opponent_types = (AC,AD), RA_prior=prior, experiment = compare_limit_param, rounds = r, tremble = t)
+    ########################## AGAINST ALLC AND ALLD #########################
+    ToM = ('self', AC, AD)
+    pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior), MRA(RA_K=1, agent_types = ToM, RA_prior=prior), TFT)
+    for t in trembles:
+        for param in ['s', 'pop_size']:
+            limit_param_plot(param, player_types = pop, opponent_types = (AC,AD), experiment = compare_limit_param, rounds = r, tremble = t)
 
-    #     limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = (AC,AD), RA_prior=prior, experiment = compare_limit_param, tremble = t)
+        # limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = (AC,AD), RA_prior=prior, experiment = compare_limit_param, tremble = t)
 
-    #     limit_param_plot("RA_prior", player_types = (MRA(RA_K=1), MRA(RA_K=0)), agent_types = ToM, opponent_types = (AC,AD), experiment = compare_limit_param, rounds = r, tremble = t)
+        # limit_param_plot("RA_prior", player_types = (MRA(RA_K=1), MRA(RA_K=0)), agent_types = ToM, opponent_types = (AC,AD), experiment = compare_limit_param, rounds = r, tremble = t)
 
 
     ############################ WSLS, gTFT #############################
@@ -353,30 +352,26 @@ if __name__ == "__main__":
     # limit_param_plot("RA_prior", player_types = (MRA(RA_K=0), MRA(RA_K=1), NRA(RA_K=0), NRA(RA_K=1)), opponent_types = (AC,AD), agent_types = ('self',AC,AD), experiment = compare_limit_param, tremble = t)
 
 
-
-    assert 0 
-    for RA, K in product(RAs, Ks):
-        pop1 = (RA,AC,AD)
-        limit_evo_plot('pop_size', pop1, agent_types = pop1, RA_prior = prior, RA_K = K, rounds = r)
-        limit_evo_plot('s', pop1, agent_types = pop1, RA_prior = prior, RA_K = K, rounds = r)
-
-        pop3 = (RA,AC,AD,TFT)
-        limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
-
-        
-
-        # limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
-
-        # sim_plotter(50000, (0,0,100,0), player_types = pop3, agent_types = pop1, K=K, beta = beta, RA_prior = prior, rounds=50)
-            
+    M = MRA(RA_prior = .5)
+    GTFT = gTFT(y=1,p=.99)
+    M = MRA(RA_prior = .5, RA_K = 2, agent_types = ('self', AC, AD, TFT, Pavlov, RandomAgent))
+    F = MRA(RA_prior = .75, RA_K = 2, agent_types = ('self', AC, AD, TFT, Pavlov))
+    priored = tuple(MRA(RA_prior = n, RA_K = 0, agent_types = ('self', AC, AD, TFT, Pavlov, GTFT)) for n in [.1,.3,.5,.7,.9])
+    limit_param_plot('rounds', player_types = (F, AC, AD, TFT, Pavlov, GTFT), tremble = .05)
     assert 0
-    priored = tuple(MRA(RA_prior = n) for n in np.linspace(0,1,11)[1:-1])
-    limit_param_plot("pop_size", player_types = priored, opponent_types = (AC,AD), agent_types = ('self',AC,AD), experiment = compare_limit_param)
+    #matchup_plot(player_types = (M,AllC,AllD), rounds = 50, tremble = .1)
+    #assert 0
+    #limit_param_plot("pop_size", player_types = (M,F), opponent_types = (AC, AD, TFT, Pavlov), rounds = 50, tremble = 0)
+    assert 0
+    
+    limit_param_plot("pop_", player_types = priored, opponent_types = (AC,AD), agent_types = ('self',AC,AD), experiment = compare_limit_param)
+
     #limit_sim_plot(param = 'rounds', player_types = (M,AC,AD), agent_types = (M,AC,AD))
     #limit_sim_plot(experiment = limit_v_compare_param, param='rounds', player_types = (TFT,M), opponent_types = (AC,AD), agent_types = (M,AC,AD))
     assert 0
     limit_sim_plot(experiment = limit_v_compare_param, param='rounds', player_types = (MRA(RA_K = 0),MRA(RA_K=1),MRA(RA_K = 2)), opponent_types = (AC,AD), agent_types = ('self',AC,AD))
     p = (MRA,AC,AD)
+    
     limit_sim_plot(param = "RA_prior", player_types = p, agent_types = p)
     
     #limit_evo_plot(experiment = compare_limit_evo, param = 's', player_types = (TFT,M),opponent_types = (AC, AD), agent_types = (M,AC,AD))

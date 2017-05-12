@@ -63,6 +63,7 @@ def matchup(player_types, **kwargs):
             beliefs.append(agent.belief)
         except:
             beliefs.append(None)
+
     record = []
     if not kwargs.get('per_round',False):
         for t,f,b in zip(player_types,fitness,beliefs):
@@ -564,13 +565,17 @@ def self_pay_v_rounds(max_rounds, player_types, **kwargs):
     Xs = range(1,max_rounds)
     record = []
     for player_type in player_types:
-        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, per_round = True, **kwargs)
+        try:
+            t_name = player_type.short_name('agent_types')
+        except:
+            t_name = player_type.__name__
+        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, trials = 50, per_round = True, **kwargs)
         sum = 0
         for r in range(1,max_rounds+1):
             sum += data[data['round']==r].mean()['fitness']
             record.append({
                 "rounds":r,
-                "type":player_type,
+                "type":t_name,
                 "fitness":sum/r
             })
     return record
@@ -597,7 +602,11 @@ if __name__ == "__main__":
     AD = AllD
     game = BinaryDictator()
 
-    self_pay_plot(200,player_types = (MRA(RA_K = 0), MRA(RA_K = 1), MRA(RA_K = 2)), agent_types = ('self',AC,AD,TFT), RA_prior = .5,extension = '.png')
+    M = MRA(RA_prior = .5, RA_K = 1, agent_types = ('self', AC, AD, TFT, Pavlov))
+    Ms = tuple(MRA(RA_prior = .5, RA_K = k, agent_types = ('self', AC, AD, TFT, Pavlov)) for k in [0,1,2])
+    self_pay_plot(500, player_types = Ms, agent_types = ('self',AA,SA), RA_prior = .5, extension = '.png')
+    
+    #matchup_plot(player_types = (NRA(RA_K = 2), AC, AD, TFT), agent_types = (NRA(RA_K = 2), AC, AD, TFT), rounds = 200, RA_prior = .5)
     #for i in range(20):
     #    belief_plot(belived_type = MRA, player_types = MRA, agent_types = (MRA,AllC,AllD), priors = .5, Ks = 0, rounds = 500, trials = [i])
     #RA_v_param_plot(param = 'rounds', player_types = (MRA(RA_K = 0),),
