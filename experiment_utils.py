@@ -460,7 +460,12 @@ def plotter(experiment,
             if not os.path.exists(plot_dir):
                 os.makedirs(plot_dir)
 
-            plt.savefig(save_file)
+            try:
+                plt.savefig(save_file)
+            except IOError:
+                new_file_name = raw_input("Automatic Filename Too Long. Enter new one:")
+                save_file = plot_dir+new_file_name+extension
+                plt.savefig(save_file)
             plt.close()
         call.make_arg_dicts = make_arg_dicts
         return call
@@ -588,7 +593,11 @@ class cplotter(Decorator):
             
             save_file = plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
 
-            plt.savefig(save_file)
+            try:
+                save_file = plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
+                plt.savefig(save_file)
+            except IOError:
+                plt.savefig
             plt.close()
 
 def save_prompt(obj,path):
