@@ -46,7 +46,7 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
             'p1_fitness':fitness[0]}
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
-@experiment(unpack = 'record', trials = 100, verbose = 3, memoize = False)
+@experiment(unpack = 'record', trials = 100, verbose = 3)
 def matchup(player_types, **kwargs):
     #print "HIIIIIIIIIIIIIIIIIII\n\n\n"
     #assert False
@@ -64,8 +64,16 @@ def matchup(player_types, **kwargs):
         except:
             beliefs.append(None)
     record = []
-    for t,f,b in zip(player_types,fitness,beliefs):
-        record.append({"type":t,"fitness":f,'belief':b})
+    if not kwargs.get('per_round',False):
+        for t,f,b in zip(player_types,fitness,beliefs):
+            record.append({"type":t,"fitness":f,'belief':b})
+    else:
+        for event in history:
+            payoffs = event['payoff']
+            ids = [agent.world_id for agent in event['players']]
+            r = event['round']
+            for t,a_id,p in zip(player_types,ids,payoffs):
+                record.append(dict(type = t, id = a_id, round = r, fitness = p))
     return record
 
 def matchup_grid(player_types,**kwargs):
@@ -543,35 +551,6 @@ def fitness_v_trials(max_trials, player_type, opponent_types, **kwargs):
                            "trials":t})
     return record
 
-@experiment(unpack = 'record', memoize = False)
-def RA_v_param(param, player_types, **kwargs):
-    if param == "rounds":
-        Xs = range(1,21)
-        Xs = [10,40,500]
-    else:
-        raise
-
-    record = []
-    for x in Xs:
-        for player_type in player_types:
-            params = default_params(**dict(kwargs,**{param:x}))
-            payoffs = matchup(player_types = (player_type, player_type), **dict(kwargs,**{param:x}))
-            fitness = payoffs.mean()['fitness']/params['rounds']
-            record.append({
-                param:x,
-                "type":player_type,
-                "fitness":fitness
-            })
-    return record
-
-@plotter(RA_v_param, plot_exclusive_args = ['data'])
-def RA_v_param_plot(param, player_types, data=[],**kwargs):
-    fig = plt.figure()
-    for hue in data['type'].unique():
-        d = data[data['type']==hue]
-        p = plt.plot(d[param], d['fitness'], label=hue)
-    plt.legend()
-
 @plotter(fitness_v_trials,plot_exclusive_args = ['data'])
 def fitness_trials_plot(max_trials,player_type,opponent_types,data=[],**kwargs):
     fig = plt.figure()
@@ -579,6 +558,32 @@ def fitness_trials_plot(max_trials,player_type,opponent_types,data=[],**kwargs):
         d = data[data['type']==hue]
         p = plt.plot(d['trials'], d['fitness'], label=hue)
     plt.legend()
+
+@experiment(unpack = 'record', memoize = False)
+def self_pay_v_rounds(max_rounds, player_types, **kwargs):
+    Xs = range(1,max_rounds)
+    record = []
+    for player_type in player_types:
+        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, per_round = True, **kwargs)
+        sum = 0
+        for r in range(1,max_rounds+1):
+            sum += data[data['round']==r].mean()['fitness']
+            record.append({
+                "rounds":r,
+                "type":player_type,
+                "fitness":sum/r
+            })
+    return record
+
+@plotter(self_pay_v_rounds, plot_exclusive_args = ['data'])
+def self_pay_plot(max_rounds, player_types, data=[],**kwargs):
+    fig = plt.figure()
+    for hue in data['type'].unique():
+        d = data[data['type']==hue]
+        p = plt.plot(d['rounds'], d['fitness'], label=hue)
+    plt.legend()
+
+
 
 
 if __name__ == "__main__":
@@ -588,15 +593,19 @@ if __name__ == "__main__":
     NRA = NiceReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
+    AC = AllC
+    AD = AllD
     game = BinaryDictator()
-    for i in range(20):
-        belief_plot(belived_type = MRA, player_types = MRA, agent_types = (MRA,AllC,AllD), priors = .5, Ks = 0, rounds = 500, trials = [i])
+
+    self_pay_plot(200,player_types = (MRA(RA_K = 0), MRA(RA_K = 1), MRA(RA_K = 2)), agent_types = ('self',AC,AD,TFT), RA_prior = .5,extension = '.png')
+    #for i in range(20):
+    #    belief_plot(belived_type = MRA, player_types = MRA, agent_types = (MRA,AllC,AllD), priors = .5, Ks = 0, rounds = 500, trials = [i])
     #RA_v_param_plot(param = 'rounds', player_types = (MRA(RA_K = 0),),
     #                agent_types = ('self', AllC, AllD,TFT), RA_prior = .5)
     assert 0
     #print matchup_grid(player_types = (TFT,MRA))
 
-    scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA,Pavlov), RA_K = MultiArg([0,1,2]), RA_prior = .1)
+    #scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA,Pavlov), RA_K = MultiArg([0,1,2]), RA_prior = .1)
     #fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500)
     #
 
