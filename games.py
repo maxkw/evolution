@@ -517,7 +517,7 @@ class AnnotatedDS(DecisionSeq):
         for game,ordering in self.matchups(participants):
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
-            extend_rec(annotate(participants,payoffs,obs,rec,notes))
+            extend_rec(annotate(participants,pay,obs,rec,notes))
             extend_obs(obs)
 
         return payoffs,observations,record
