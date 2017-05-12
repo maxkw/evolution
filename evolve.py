@@ -86,42 +86,41 @@ def agent_sim(payoff, pop, s, mu):
         probs.append(1 - np.sum(probs))
 
         probs = np.array(probs)
-        action_index = np.random.choice(len(probs), 1, p = probs)
+        action_index = np.random.choice(len(probs), 1, p = probs)[0]
         (b,d) = actions[action_index]
         pop = pop + I[b]-I[d]
 
 @experiment(unpack = 'record', memoize = False)
-def agent_simulation(generations, pop, player_types, agent_types= None, **kwargs):
-    if agent_types is None:
-        agent_types = player_types
-
-    payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, **kwargs)
-    params = default_params()
+def agent_simulation(generations, pop, player_types, **kwargs):
+    payoffs = matchup_matrix(player_types = player_types, **excluding_keys(kwargs, 's', 'mu'))
+    params = default_params(**kwargs)
     populations = agent_sim(payoffs, pop, params['s'], params['mu'])
 
     record = []
     for n, pop in izip(xrange(generations), populations):
         for t, p in zip(player_types, pop):
+            try:
+                t_name = t.short_name('agent_types')
+            except:
+                t_name = t.__name__
+                             
             record.append({'generation' : n,
-                           'type' : t,
+                           'type' : t_name,
                            'population' : p})
     return record
 
 
 @plotter(agent_simulation,plot_exclusive_args = ['data'])
-def sim_plotter(generations, pop, player_types, agent_types= None, data =[]):
+def sim_plotter(generations, pop, player_types, data =[]):
     for hue in data['type'].unique():
         plt.plot(data[data['type']==hue]['generation'], data[data['type']==hue]['population'], label=hue)
 
     plt.legend()
 
 @experiment(unpack = 'record', memoize = False)
-def limit_v_evo_param(param, player_types, agent_types = None, **kwargs):
-    if agent_types is None:
-        agent_types = player_types
-
-    payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, **kwargs)
-    matchup_plot(player_types = player_types, agent_types=agent_types, **kwargs)
+def limit_v_evo_param(param, player_types, **kwargs):
+    payoffs = matchup_matrix(player_types = player_types, **kwargs)
+    # matchup_plot(player_types = player_types, agent_types=agent_types, **kwargs)
 
     if param == 'pop_size':
         # Xs = range(2, 2**10)
@@ -139,9 +138,14 @@ def limit_v_evo_param(param, player_types, agent_types = None, **kwargs):
     for x in Xs:
         params[param] = x
         for t, p in zip(player_types, limit_analysis(payoffs, **params)):
+            try:
+                t_name = t.short_name('agent_types')
+            except:
+                t_name = t.__name__
+                
             record.append({
                 param : x,
-                "type" : t,
+                "type" : t_name,
                 "proportion" : p
             })
     return record
@@ -162,17 +166,17 @@ def limit_evo_plot(param, player_types, data = [], **kwargs):
 def limit_v_sim_param(param, player_types, **kwargs):
     
     if param == "RA_prior":
-        Xs = np.linspace(0,1,41)[1:-1]
+        Xs = np.linspace(0,1,21)[1:-1]
     elif param == "beta":
-        Xs = logspace(0,1,11)
+        Xs = logspace(.5,6,11)
     elif param == "rounds":
-        Xs = np.unique(np.geomspace(1,100,20,dtype = int))
+        Xs = np.unique(np.geomspace(1,20,10,dtype = int))
     else:
         raise
 
     record = []
     for x in Xs:
-        payoffs = matchup_matrix(player_types = player_types, agent_types = agent_types, trials = 200, **dict(kwargs,**{param:x}))
+        payoffs = matchup_matrix(player_types = player_types, **dict(kwargs,**{param:x}))
         for t,p in zip(player_types, limit_analysis(payoffs, **default_params(**{param:x}))):
             record.append({
                 param:x,
@@ -209,10 +213,15 @@ def limit_v_compare_param(param, player_types, opponent_types = tuple(), **kwarg
             players = (player_type,)+opponent_types
             payoffs = matchup_matrix(player_types = players, **dict(kwargs,**{param:x}))
             for t,p in zip(players, limit_analysis(payoffs, **params)):
+                try:
+                    t_name = t.short_name('agent_types')
+                except:
+                    t_name = t.__name__
+            
                 if t == player_type:
                     record.append({
                         param:x,
-                        "type":t,
+                        "type":t_name,
                         "proportion":p
                     })
     return record
@@ -268,9 +277,14 @@ def compare_limit_evo(param, player_types, opponent_types = tuple(), **kwargs):
         for x in Xs:
             for t,p in zip(players, limit_analysis(payoffs, **dict(params,**{param:x}))):
                 if t == player_type:
+                    try:
+                        t_name = t.short_name('agent_types')
+                    except:
+                        t_name = t.__name__
+                    
                     record.append({
                         param:x,
-                        "type":t,
+                        "type":t_name,
                         "proportion":p
                     })
     return record
@@ -283,11 +297,7 @@ def compare_limit_param(param,player_types,opponent_types,**kwargs):
         dfs.append(df[df['type']==player_type])
     return pd.concat(dfs,ignore_index = True)
 
-
-
-
 if __name__ == "__main__":
-
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     SA = SelfishAgent
@@ -298,15 +308,68 @@ if __name__ == "__main__":
     tremble = 0
     beta = 3
     prior = .5
-    rounds = [10, 50, 100, 200]
     RAs = [
             MRA,
-            # NRA
+            NRA
     ]
+    Ks = range(2)
+    r = 10
+    trembles = [0, 0.05]
 
-    M = MRA(RA_prior = .5)
-    N = NRA(RA_prior = .75)
+    # ########################## AGAINST ALLC AND ALLD #########################
+    # ToM = ('self', AC, AD)
+    # pop = (MRA(RA_K=0), MRA(RA_K=1), TFT)
+    # for t in trembles:
+    #     for param in ['s', 'pop_size']:
+    #         limit_param_plot(param, player_types = pop, agent_types = ToM, opponent_types = (AC,AD), RA_prior=prior, experiment = compare_limit_param, rounds = r, tremble = t)
 
+    #     limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = (AC,AD), RA_prior=prior, experiment = compare_limit_param, tremble = t)
+
+    #     limit_param_plot("RA_prior", player_types = (MRA(RA_K=1), MRA(RA_K=0)), agent_types = ToM, opponent_types = (AC,AD), experiment = compare_limit_param, rounds = r, tremble = t)
+
+
+    ############################ WSLS, gTFT #############################
+    pop = (TFT, gTFT(y=1,p=.99,q=.33), AC, AD, Pavlov)
+    # limit_evo_plot('s', pop, rounds = r, tremble = 0.05)
+    # limit_evo_plot('s', pop, rounds = r, tremble = 0)
+    # sim_plotter(5000, (0,0,0,100,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1)
+
+    ToM = ('self', TFT, gTFT(y=1,p=.99,q=.33), AC, AD, Pavlov)
+    # RAs = tuple(MRA(RA_K=1, agent_types=ToM, RA_prior=p) for p in np.arange(0.1, 1.1, step = 0.2))
+
+
+    # limit_param_plot('s',
+    #                  player_types = tuple([MRA(RA_prior=.5), MRA(RA_prior=.75)]),
+    #                  opponent_types = pop, experiment = compare_limit_param, rounds = r, tremble = tremble)
+
+    # pop = (MRA(RA_K=1), TFT, gTFT(y=1,p=.99,q=.33), AC, AD, Pavlov)
+    # sim_plotter(5000, (0,0,0,0,50,0), player_types = pop, rounds = r, tremble = tremble, mu=.1, s=10)
+    for t in trembles:
+        # limit_evo_plot('s', player_types = pop, agent_types = pop, RA_prior = 0.5, rounds = r, tremble = t)
+        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1), ), agent_types = ToM, opponent_types = (AC,AD), experiment = compare_limit_param, rounds = r, tremble = t)
+
+    # limit_param_plot("rounds", player_types = pop, opponent_types = (AC,AD), agent_types = ('self',AC,AD), experiment = compare_limit_param, RA_prior = prior, tremble = t)
+
+    # limit_param_plot("RA_prior", player_types = (MRA(RA_K=0), MRA(RA_K=1), NRA(RA_K=0), NRA(RA_K=1)), opponent_types = (AC,AD), agent_types = ('self',AC,AD), experiment = compare_limit_param, tremble = t)
+
+
+
+    assert 0 
+    for RA, K in product(RAs, Ks):
+        pop1 = (RA,AC,AD)
+        limit_evo_plot('pop_size', pop1, agent_types = pop1, RA_prior = prior, RA_K = K, rounds = r)
+        limit_evo_plot('s', pop1, agent_types = pop1, RA_prior = prior, RA_K = K, rounds = r)
+
+        pop3 = (RA,AC,AD,TFT)
+        limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
+
+        
+
+        # limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
+
+        # sim_plotter(50000, (0,0,100,0), player_types = pop3, agent_types = pop1, K=K, beta = beta, RA_prior = prior, rounds=50)
+            
+    assert 0
     priored = tuple(MRA(RA_prior = n) for n in np.linspace(0,1,11)[1:-1])
     limit_param_plot("pop_size", player_types = priored, opponent_types = (AC,AD), agent_types = ('self',AC,AD), experiment = compare_limit_param)
     #limit_sim_plot(param = 'rounds', player_types = (M,AC,AD), agent_types = (M,AC,AD))
@@ -319,27 +382,3 @@ if __name__ == "__main__":
     #limit_evo_plot(experiment = compare_limit_evo, param = 's', player_types = (TFT,M),opponent_types = (AC, AD), agent_types = (M,AC,AD))
     #limit_evo_plot(experiment = compare_limit_evo, param = 'pop_size', player_types = (TFT,M),opponent_types = (AC, AD), agent_types = (M,AC,AD))
     assert 0
-    Ks = range(2)
-    for RA, K in product(RAs, Ks):
-
-        pop1 = (RA,AA,SA)
-        # limit_evo_plot('pop_size', pop1)
-        # limit_evo_plot('s', pop1)
-        # limit_sim_plot('RA_prior', pop1)
-        pop2 = (RA,AC,AD)
-        # limit_evo_plot('pop_size', pop2, agent_types = pop1, RA_prior = 0.5)
-        # limit_evo_plot('s', pop2, agent_types = pop1, RA_prior = 0.5)
-        # limit_evo_plot('pop_size', pop2)
-        # limit_evo_plot('s', pop2)
-        # # limit_sim_plot('RA_prior', pop2)
-        # # limit_sim_plot('beta', pop2)
-        # # limit_evo_plot('pop_size', pop2, tremble = tremble)
-        pop3 = (RA,AC,AD,TFT)
-        limit_evo_plot('pop_size', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
-        # limit_evo_plot('s', pop3, agent_types = pop3, RA_prior=prior, RA_K=K, beta=beta, rounds=r)
-
-        # sim_plotter(50000, (0,0,100,0), player_types = pop3, agent_types = pop1, K=K, beta = beta, RA_prior = prior, rounds=50)
-        
-        # old_pop = (TFT,AC,AD)
-        # limit_evo_plot('pop_size', old_pop, rounds=r)
-    # limit_evo_plot('s', old_pop)

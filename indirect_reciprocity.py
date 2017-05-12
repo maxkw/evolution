@@ -507,7 +507,7 @@ class ReciprocalAgent(IngroupAgent):
 class NiceReciprocalAgent(IngroupAgent):
     @staticmethod
     def ingroup():
-        return [NiceReciprocalAgent,AltruisticAgent]
+        return [NiceReciprocalAgent, AltruisticAgent, AllC, gTFT]
 
 class prefabABC(Agent):
     def __new__(self,genome,world_id = None):
