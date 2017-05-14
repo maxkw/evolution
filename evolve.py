@@ -237,6 +237,8 @@ def limit_v_param(param,player_types,**kwargs):
         return limit_v_sim_param(param,player_types,**kwargs)
     elif param in ['pop_size','s']:
         return limit_v_evo_param(param,player_types,**kwargs)
+    elif param is 'b/c':
+        return limit_v_bc(player_types,**kwargs)
     else:
         raise
 
@@ -291,6 +293,29 @@ def compare_limit_param(param,player_types,opponent_types,**kwargs):
     return pd.concat(dfs,ignore_index = True)
 
 
+#a_type, proportion = max(zip(player_types,ssd), key = lambda tup: tup[1])
+def limit_v_bc(player_types,**kwargs):
+    params = default_params(**kwargs)
+    record = []
+    for b in [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]:
+        payoff = matchup_matrix(player_types = player_types, b = b, **kwargs)
+        ssd = limit_analysis(payoff, **params)
+        for t,p in zip(player_types,ssd):
+            record.append({
+                "b/c":b,
+                "type":t.short_name('agent_types'),
+                "proportion":p
+            })
+    return record
+
+def cb_v_rounds(player_types, **kwargs):
+    max_rounds = 50
+    for b in [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]:
+        pass
+
+
+
+
 
 
 if __name__ == "__main__":
@@ -316,8 +341,10 @@ if __name__ == "__main__":
     GTFT = gTFT(y=1,p=.99)
     M = MRA(RA_prior = .5, RA_K = 2, agent_types = ('self', AC, AD, TFT, Pavlov, RandomAgent))
     F = MRA(RA_prior = .75, RA_K = 2, agent_types = ('self', AC, AD, TFT, Pavlov))
-    priored = tuple(MRA(RA_prior = n, RA_K = 0, agent_types = ('self', AC, AD, TFT, Pavlov, GTFT)) for n in [.1,.3,.5,.7,.9])
-    limit_param_plot('rounds', player_types = (F, AC, AD, TFT, Pavlov, GTFT), tremble = .05)
+
+    
+    #priored = tuple(MRA(RA_prior = n, RA_K = 0, agent_types = ('self', AC, AD, TFT, Pavlov, GTFT)) for n in [.1,.3,.5,.7,.9])
+    #limit_param_plot('rounds', player_types = (F, AC, AD, TFT, Pavlov, GTFT), tremble = .05)
     assert 0
     #matchup_plot(player_types = (M,AllC,AllD), rounds = 50, tremble = .1)
     #assert 0
