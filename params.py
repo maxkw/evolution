@@ -117,7 +117,6 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
             prior = [rational_prior if agent_type in rational_types
                      else irrational_prior
                      for agent_type in agent_types]
-            assert len(prior) == len(agent_type)
             
     else:
         return None
@@ -135,26 +134,24 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         agent_types = default_params()["agent_types"]
     if not agent_type:
         agent_type = np.random.choice(agent_types)
+
     try:
         RA_prior = agent_type.genome["RA_prior"]
     except:
         pass
+
     try:
         agent_types = agent_type.genome['agent_types']
     except:
         pass
 
-    try:
-        agent_types = agent_type.genome["agent_types"]
-    except:
-        pass
     agent_types = tuple(t if t is not 'self' else agent_type for t in agent_types)
     genome = {
         'type': agent_type,
         'RA_prior': RA_prior,
         'prior_precision': 0,
         'beta': 3,
-        'prior': prior_generator(agent_type,agent_types,RA_prior),
+        'prior': prior_generator(agent_type, agent_types, RA_prior),
         "agent_types":agent_types,
         'RA_K':0,
         'tremble':0,

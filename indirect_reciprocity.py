@@ -78,7 +78,7 @@ class Agent(object):
     def _utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
-    def decide_likelihood(deciding_agent, game, agents, tremble = 0):
+    def decide_likelihood(self, game, agents, tremble = 0):
         """
         recieves:
         1)deciding_agent, an agent of a particular type
@@ -98,11 +98,17 @@ class Agent(object):
         # assume its uniform since it doesn't matter for dictator
         # game. Can/Should use the belief distribution. May need to do
         # a logit response for simultaneous move games.
-        Us = np.array([deciding_agent.utility(game.payoffs[action], agents)
+        Us = np.array([self.utility(game.payoffs[action], agents)
                        for action in game.actions])
 
-        return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
+        return self.add_tremble(softmax(Us, self.beta), tremble)
 
+    def add_tremble(self, p, tremble):
+        if tremble == 0:
+            return p
+        else:
+            return (1-tremble) * p + tremble * np.ones(len(p))/len(p)
+    
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
         # the world, not the agent
@@ -571,7 +577,7 @@ def is_agent_type(instance,base):
 
 class ClassicAgent(Agent):
     def decide(self, game, agent_ids):
-        ps = self.decide_likelihood(game)
+        ps = self.decide_likelihood(game, tremble = 0)
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
         action = game.actions[action_id]
         return action
@@ -580,7 +586,7 @@ class ClassicAgent(Agent):
 
     def observe_k(self, observations, *args, **kwargs):
         self.observe(observations)
-
+        
 class Pavlov(ClassicAgent):
     def __init__(self,genome,world_id = None):
         self.genome = deepcopy(genome)
@@ -600,8 +606,8 @@ class Pavlov(ClassicAgent):
             if actions[o] == 'keep':
                 self.strat_index = (self.strat_index+1)%2
 
-    def decide_likelihood(self,game,*args,**kwargs):
-        return [self.strats[self.strat_index][action] for action in game.actions]
+    def decide_likelihood(self, game, agents = None, tremble = None):
+        return self.add_tremble(np.array([self.strats[self.strat_index][action] for action in game.actions]), tremble)
 
 class gTFT(ClassicAgent):
     def __init__(self, genome, world_id = None):
@@ -640,7 +646,7 @@ class gTFT(ClassicAgent):
         #        assert False
         rules = self.rules
         last_action = self.cooperated
-        return [rules[last_action][action] for action in game.actions]
+        return self.add_tremble(np.array([rules[last_action][action] for action in game.actions]), tremble)
 
     def observe_k(self,observations,*args,**kwargs):
         self.observe(observations)
@@ -659,15 +665,15 @@ class gTFT(ClassicAgent):
 
 class AllC(ClassicAgent):
     def decide_likelihood(self, game,agents = None, tremble = None):
-        odds = {'give':1,
-                'keep':0}
-        return [odds[action] for action in game.actions]
+        odds = {'give':1-tremble/2,
+                'keep':tremble/2}
+        return self.add_tremble(np.array([odds[action] for action in game.actions]), tremble)
     
 class AllD(ClassicAgent):
     def decide_likelihood(self,game,agents = None, tremble = None):
-        odds = {'give':0,
-                'keep':1}
-        return [odds[action] for action in game.actions]
+        odds = {'give':tremble/2,
+                'keep':1-tremble/2}
+        return self.add_tremble(np.array([odds[action] for action in game.actions]), tremble)
 
 class RandomAgent(ClassicAgent):
     def decide_likelihood(self,game,*args,**kwargs):
