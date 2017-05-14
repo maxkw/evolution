@@ -621,9 +621,6 @@ def self_pay_plot(max_rounds, player_types, data=[],**kwargs):
         p = plt.plot(d['rounds'], d['fitness'], label=hue)
     plt.legend()
 
-
-
-
 if __name__ == "__main__":
     from indirect_reciprocity import AllC,AllD,gTFT
     TFT = gTFT(y=1,p=1,q=0)
