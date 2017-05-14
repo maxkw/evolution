@@ -463,6 +463,7 @@ def plotter(experiment,
             try:
                 plt.savefig(save_file)
             except IOError:
+                print save_file
                 new_file_name = raw_input("Automatic Filename Too Long. Enter new one:")
                 save_file = plot_dir+new_file_name+extension
                 plt.savefig(save_file)
