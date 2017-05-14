@@ -17,7 +17,6 @@ from utils import softmax_utility
 import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
-from math import ceil
 
 def gcd(*numbers):
     """Return the greatest common divisor of the given integers"""
@@ -493,7 +492,7 @@ def pop_matchup_simulator(player_types=(ReciprocalAgent,SelfishAgent), min_pop_s
         raise e
     min_legal_pop_size = sum(proportions.values())
     if min_legal_pop_size < min_pop_size:
-        pop_scale = int(ceil(min_pop_size/min_legal_pop_size))
+        pop_scale = int(np.ceil(min_pop_size/min_legal_pop_size))
         proportions = {k:v*pop_scale for k,v in proportions.iteritems()}
 
     type_to_population = proportions
@@ -638,7 +637,7 @@ if __name__ == "__main__":
     #    belief_plot(believed_types = (MRA,), Ks = k, player_types = MRA, priors = .5, rounds = 50, agent_types = ToM)
     #for t in range(1,10):
     #    belief_plot(believed_types = (MRA,), player_types = MRA, priors = .5, agent_types = (MRA,AC,AD), trials = [t])
+
     M = MRA(RA_prior = .5, RA_K = 1, agent_types = ('self', AC, AD, TFT, Pavlov))
     Ms = tuple(MRA(RA_prior = .5, RA_K = k, agent_types = ToM) for k in [0,1,2])
     self_pay_plot(100, player_types = Ms, extension = '.png')
-    

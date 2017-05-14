@@ -135,11 +135,12 @@ def steady_state(matrix):
         #    vec = vec.real
         #    val = val.real
         if np.isclose(val,1):
+            
             if negative_vec(vec):
                 steady_states.append((val,np.absolute(vec)))
-            elif all(vec>=0):
+            elif all(np.logical_or(np.isclose(vec, 0), vec >= 0)):
                 steady_states.append((val,vec))
-            
+            # for each element must be either greater OR close to 0
  
     try:
         [steady_states] = steady_states

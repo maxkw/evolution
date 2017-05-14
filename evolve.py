@@ -172,6 +172,29 @@ def compare_limit_param(param, player_types, opponent_types, **kwargs):
         
     return pd.concat(dfs,ignore_index = True)
 
+@experiment(unpack = 'record')
+def limit_v_bc(player_types,**kwargs):
+    params = default_params(**kwargs)
+    record = []
+    Bs = [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]
+    for b in Bs:
+        payoff = matchup_matrix(player_types = player_types, benefit = b, **kwargs)
+        print payoff
+        ssd = limit_analysis(payoff, **params)
+        for t,p in zip(player_types,ssd):
+            record.append({
+                "bc":b,
+                "type":t.short_name('agent_types'),
+                "proportion":p
+            })
+    return record
+
+
+def cb_v_rounds(player_types, **kwargs):
+    max_rounds = 10
+    for b in [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]:
+        pass
+
 def AllC_AllD_race():
     prior = 0.5
     r = 10
@@ -193,61 +216,41 @@ def Pavlov_gTFT_race():
     r = 10
     
     # Replicate Nowak early 90s
-    pop = (TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
+    pop = (TFT, AllC, AllD, gTFT(y=1,p=.99,q=.33), Pavlov)
     for t in [0, 0.05]:
-        limit_param_plot('s', pop, rounds = r, tremble = t, file_name = 'nowak_replicate_s_tremble=%d' % t)
+        limit_param_plot('s', pop, rounds = r, tremble = t, file_name = 'nowak_replicate_s_tremble=%.2f' % t)
     sim_plotter(5000, (0,0,0,100,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1, file_name ='nowak_replicate_sim_tremble=0.05')
 
     # Horse race against gTFT and Pavlov
     prior = 0.5
     ToM = ('self', TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
-    pop = (MRA(RA_K=1, agent_types = ToM, RA_prior = prior), TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
+    pop = (MRA(RA_K=1, agent_types = ToM, RA_prior = prior), AllC, AllD, TFT, gTFT(y=1,p=.99,q=.33), Pavlov)
     opponents = (TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
     trembles = [0, 0.05]
     for t in trembles:
-        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%d' % t)
+        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%0.2f' % t)
         limit_param_plot('rounds',
                          player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product([1, 2], [.25, .5, .75])),
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
-                         file_name = 'horse_rounds_no_random_tremble=%d' % t)
+                         file_name = 'horse_rounds_no_random_tremble=%0.2f' % t)
 
     # Add Random to the ToM
     ToM = ('self', TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov, RandomAgent)
     for t in trembles:
-        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%d' % t)
+        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%.2f' % t)
         limit_param_plot('rounds',
                          player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product([1, 2], [.25, .5, .75])),
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
-                         file_name = 'horse_rounds_with_random_tremble=%d' % t)
-@experiment(unpack = 'record')
-def limit_v_bc(player_types,**kwargs):
-    params = default_params(**kwargs)
-    record = []
-    Bs = [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]
-    for b in Bs:
-        payoff = matchup_matrix(player_types = player_types, benefit = b, **kwargs)
-        print payoff
-        ssd = limit_analysis(payoff, **params)
-        for t,p in zip(player_types,ssd):
-            record.append({
-                "bc":b,
-                "type":t.short_name('agent_types'),
-                "proportion":p
-            })
-    return record
-
-def cb_v_rounds(player_types, **kwargs):
-    max_rounds = 10
-    for b in [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]:
-        pass
+                         file_name = 'horse_rounds_with_random_tremble=%.2f' % t)
 
 if __name__ == "__main__":
-    # AllC_AllD_race()
-    #Pavlov_gTFT_race()
+    AllC_AllD_race()
+    Pavlov_gTFT_race()
+    assert 0
 
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent

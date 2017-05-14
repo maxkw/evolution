@@ -211,3 +211,6 @@ def issubclass(C,B):
 
 def excluding_keys(d,*keys):
     return dict((k,v) for k,v in d.iteritems() if k not in keys)
+
+def justcaps(t):
+    return filter(str.isupper,t.__name__)
