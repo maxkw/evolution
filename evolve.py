@@ -166,8 +166,10 @@ def AllC_AllD_race():
     pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior), MRA(RA_K=1, agent_types = ToM, RA_prior=prior), gTFT(y=1,p=1,q=0))
     for t in [0, 0.05]:
         limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t)
+        limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds')
+        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1, agent_types = ToM), MRA(RA_K=0, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior')
 
-<<<<<<< HEAD
+
 #a_type, proportion = max(zip(player_types,ssd), key = lambda tup: tup[1])
 def limit_v_bc(player_types,**kwargs):
     params = default_params(**kwargs)
@@ -191,11 +193,7 @@ def cb_v_rounds(player_types, **kwargs):
 
 
 
-=======
-        limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds')
->>>>>>> ee3ee656387a03271752a7c5bd119774707a5a4e
 
-        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1, agent_types = ToM), MRA(RA_K=0, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior')
 
 def Pavlov_gTFT_race():
     TFT = gTFT(y=1,p=1,q=0)
