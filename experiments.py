@@ -4,7 +4,7 @@ import seaborn as sns
 from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
-from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT,AllC,AllD,Pavlov
+from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT,AllC,AllD,Pavlov, RandomAgent
 from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyObserved,Symmetric
 from collections import defaultdict
 from itertools import combinations_with_replacement, combinations
@@ -601,7 +601,7 @@ def self_pay_v_rounds(max_rounds, player_types, **kwargs):
             t_name = player_type.short_name('agent_types')
         except:
             t_name = player_type.__name__
-        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, trials = 50, per_round = True, **kwargs)
+        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, trials = 100, per_round = True, **kwargs)
         sum = 0
         for r in range(1,max_rounds+1):
             sum += data[data['round']==r].mean()['fitness']
@@ -613,7 +613,7 @@ def self_pay_v_rounds(max_rounds, player_types, **kwargs):
     return record
 
 @plotter(self_pay_v_rounds, plot_exclusive_args = ['data'])
-def self_pay_plot(max_rounds, player_types, data=[],**kwargs):
+def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     fig = plt.figure()
     for hue in data['type'].unique():
         d = data[data['type']==hue]
@@ -623,6 +623,7 @@ def self_pay_plot(max_rounds, player_types, data=[],**kwargs):
 if __name__ == "__main__":
     from indirect_reciprocity import AllC,AllD,gTFT
     TFT = gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
     MRA = ReciprocalAgent
     NRA = NiceReciprocalAgent
     SA = SelfishAgent
@@ -631,106 +632,12 @@ if __name__ == "__main__":
     AD = AllD
     game = BinaryDictator()
 
-    scene_plot()
+    ToM = ('self',AC,AD,TFT,Pavlov)
+    #for k in [0,1,2]:
+    #    belief_plot(believed_types = (MRA,), Ks = k, player_types = MRA, priors = .5, rounds = 50, agent_types = ToM)
+    #for t in range(1,10):
+    #    belief_plot(believed_types = (MRA,), player_types = MRA, priors = .5, agent_types = (MRA,AC,AD), trials = [t])
 
-    
     M = MRA(RA_prior = .5, RA_K = 1, agent_types = ('self', AC, AD, TFT, Pavlov))
-    Ms = tuple(MRA(RA_prior = .5, RA_K = k, agent_types = ('self', AC, AD, TFT, Pavlov)) for k in [0,1,2])
-    self_pay_plot(500, player_types = Ms, agent_types = ('self',AA,SA), RA_prior = .5, extension = '.png')
-    
-    #matchup_plot(player_types = (NRA(RA_K = 2), AC, AD, TFT), agent_types = (NRA(RA_K = 2), AC, AD, TFT), rounds = 200, RA_prior = .5)
-    #for i in range(20):
-    #    belief_plot(belived_type = MRA, player_types = MRA, agent_types = (MRA,AllC,AllD), priors = .5, Ks = 0, rounds = 500, trials = [i])
-    #RA_v_param_plot(param = 'rounds', player_types = (MRA(RA_K = 0),),
-    #                agent_types = ('self', AllC, AllD,TFT), RA_prior = .5)
-    assert 0
-    #print matchup_grid(player_types = (TFT,MRA))
-
-    #fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500)
-    #
-
-    ############# HEATMAPS ###############
-    #N = 5
-    #ks = [0,1]
-    #RAs = [NiceReciprocalAgent,ReciprocalAgent]
-    #for k, RA in product(ks, RAs):
-    #   reward_table(size = N, player_types = RA, Ks = k, agent_types = (AltruisticAgent,SelfishAgent,RA))
-
-#for RA,k in product([NiceReciprocalAgent,ReciprocalAgent],[0,1]):
-#    
-#limit_plotter()
-#proportions = [.01]+[round(n,3) for n in np.linspace(0,1,7)[1:-1]]+[.99]
-#n = 10
-#proportions = [float(i)/n for i in range(n)[1:]]
-#print proportions
-#pop_fitness_plot(beta = 3, proportion = MultiArg(proportions), agent_types = (ReciprocalAgent,SelfishAgent), trials = 100, min_pop_size = 50, Ks = MultiArg(range(3)), moran = .01)
-#cg = comparison_grid(size = 3, player_types = (ReciprocalAgent,SelfishAgent), Ks = 1, trials = 500, agent_types = (ReciprocalAgent,SelfishAgent))
-#print "cg",cg[cg['priors'] == (.5,.5)].mean()
-#priors = MultiArg([round(n,2) for n in np.linspace(0,1,3)])
-#pm = pop_matchup_simulator(player_types = (ReciprocalAgent,SelfishAgent), proportion = .5, Ks = 1, trials = 500, agent_types = (ReciprocalAgent,SelfishAgent),priors = priors, min_pop_size = 2)
-#print cg[cg['priors'] == (.5,.5)]
-#print pm
-#print "cg",cg.mean()
-#print "pm",pm.mean()
-
-#def mean(*numbers):
-#    return sum(numbers)/len(numbers)
-#trials = 100
-
-#a = memo_bin_matchup(trials = trials, return_keys = 'p1_fitness', player_types = ReciprocalAgent, priors = (.25,0),agent_types = (Self#ishAgent,ReciprocalAgent))
-#b = binary_matchup(player_types = ReciprocalAgent, return_keys = ('p1_fitness','fitness'), trials = 100, Ks = 1, agent_types = (Recipr#ocalAgent,SelfishAgent),priors = (.25,0))
-#c = comparison_grid(trials = trials, player_types = ReciprocalAgent,agent_types = (ReciprocalAgent,SelfishAgent),Ks = 1)
-#c = c[c['priors'] == (0.25,0)]['fitness']
-
-#reward_table(size = 5, player_types = ReciprocalAgent, Ks = 1, trials = trials, agent_types = (ReciprocalAgent,SelfishAgent))
-#reward_table(size = 5, player_types = (ReciprocalAgent,SelfishAgent), Ks = 1, trials = trials, agent_types = (ReciprocalAgent,SelfishAgent))
-
-#print 'b',len(b)
-
-#print a.mean()
-#print b.mean()
-#print mean(*map(operator.itemgetter(id),c))
-#for k in range(3):
-#    belief_plot(experiment = forgiveness,trials = 100,player_types = (ReciprocalAgent,ReciprocalAgent),agent_types = (ReciprocalAgent,SelfishAgent), beta = 3, Ks = k)
-
-#print binary_matchup(player_types = ReciprocalAgent,agent_types = (ReciprocalAgent,SelfishAgent),trials = 100)
-
-#a = simulator({ReciprocalAgent:100,SelfishAgent:100},
-#                trials = 100,
-#                agent_types = (ReciprocalAgent,SelfishAgent))
-#print a
-
-#first_impressions_plot()#RA_prior = MultiArg([.25,.5,.75]))
-#binary_matchup(player_types = ReciprocalAgent)
-
-#compare_plot(rational_type = ReciprocalAgent, Ks = 0,  agent_types = (ReciprocalAgent,SelfishAgent), trials = 1000)
-#joint_fitness_plot(player_types = ReciprocalAgent, priors = .25, Ks =(0,0), agent_types = (ReciprocalAgent,SelfishAgent),trials = 1000)
-
-
-#
-#belief_plot(priors = (.75,0),Ks = 0)
-#belief_plot(priors = (.8, 0),Ks = 0)
-#for k in range(3):
-#    belief_plot(priors = (.8,0), Ks = k)
-#belief_plot(priors = (.75,.25))
-#compare_plot(rational_type = ReciprocalAgent, Ks = 1,beta = 1,trials = 50)
-
-#scene_plot(beta = 4)
-
-#for n in range(1,20):
-#    """
-#    this outputs a plot for every 10 trials, progressively refining the quality of the plot
-#    """
-#    ticks = 9
-#    props = np.round(np.linspace(0,1,ticks+2)[1:-1],2)
-#    pop_fitness_plot(
-#        proportion = MultiArg(props),
-#        player_types = (ReciprocalAgent,SelfishAgent),
-#        agent_types = (ReciprocalAgent,SelfishAgent),
-#        trials = 10*n, pop_size = 10, RA_prior = .8, beta=1)
-
-#belief_plot(priors = (), )
-
-#reward_table(player_types = ReciprocalAgent, Ks = 1, agent_types = (ReciprocalAgent,SelfishAgent), beta = 3,size = 11,trials = 200)
-#reward_table(player_types = ReciprocalAgent, Ks = 0, agent_types = (ReciprocalAgent,SelfishAgent), beta = 1)
-
+    Ms = tuple(MRA(RA_prior = .5, RA_K = k, agent_types = ToM) for k in [0,1,2])
+    self_pay_plot(100, player_types = Ms, extension = '.png')

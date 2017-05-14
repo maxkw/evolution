@@ -124,14 +124,28 @@ def limit_v_sim_param(param, player_types, **kwargs):
             })
     return record
 
+def limit_v_rounds(player_types, **kwargs):
+    max_rounds = kwargs.get('max_rounds',100)
+    matrices = matchup_matrix_per_round(player_types, max_rounds, **kwargs)
+    params = default_params(**kwargs)
+    record = []
+    for r, payoff in matrices:
+        for t,p in zip(player_types, limit_analysis(payoff, **params)):
+            record.append({
+                'rounds':r,
+                "type":t.short_name("agent_types"),
+                "proportion":p
+            })
 
 def limit_v_param(param,player_types,**kwargs):
-    if param in ['rounds','beta','RA_prior']:
+    if param in ['beta','RA_prior']:
         return limit_v_sim_param(param,player_types,**kwargs)
     elif param in ['pop_size','s']:
         return limit_v_evo_param(param,player_types,**kwargs)
     elif param == 'bc':
         return limit_v_bc(player_types,**kwargs)
+    elif param == 'rounds':
+        return limit_v_rounds(player_types,**kwargs)
     else:
         raise
 
