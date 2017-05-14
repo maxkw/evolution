@@ -17,7 +17,6 @@ from utils import softmax_utility
 import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
-from math import ceil
 
 def gcd(*numbers):
     """Return the greatest common divisor of the given integers"""
@@ -460,7 +459,7 @@ def pop_matchup_simulator(player_types=(ReciprocalAgent,SelfishAgent), min_pop_s
         raise e
     min_legal_pop_size = sum(proportions.values())
     if min_legal_pop_size < min_pop_size:
-        pop_scale = int(ceil(min_pop_size/min_legal_pop_size))
+        pop_scale = int(np.ceil(min_pop_size/min_legal_pop_size))
         proportions = {k:v*pop_scale for k,v in proportions.iteritems()}
 
     type_to_population = proportions
@@ -602,6 +601,9 @@ if __name__ == "__main__":
     AD = AllD
     game = BinaryDictator()
 
+    scene_plot()
+
+    
     M = MRA(RA_prior = .5, RA_K = 1, agent_types = ('self', AC, AD, TFT, Pavlov))
     Ms = tuple(MRA(RA_prior = .5, RA_K = k, agent_types = ('self', AC, AD, TFT, Pavlov)) for k in [0,1,2])
     self_pay_plot(500, player_types = Ms, agent_types = ('self',AA,SA), RA_prior = .5, extension = '.png')
@@ -614,7 +616,6 @@ if __name__ == "__main__":
     assert 0
     #print matchup_grid(player_types = (TFT,MRA))
 
-    #scene_plot(experiment = tft_scenes, agent_types = (TFT,AllD,AllC,MRA,Pavlov), RA_K = MultiArg([0,1,2]), RA_prior = .1)
     #fitness_trials_plot(100, player_type = MRA, opponent_types = (MRA,AllC,AllD,TFT,NRA), agent_types = (AA,SA,MRA),rounds = 500)
     #
 
