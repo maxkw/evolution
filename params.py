@@ -48,7 +48,7 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
     
 
     if not games:
-        games = RepeatedPrisonersTournament(rounds,tremble = tremble)
+        games = RepeatedPrisonersTournament(rounds,tremble = tremble,**kwargs)
     
     values =  {
         'N_agents' : N_agents,

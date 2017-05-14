@@ -409,10 +409,9 @@ def plotter(experiment,
             file_name = kwargs.get('file_name',default_file_name)
             
             for kw in ["plot_dir","file_name","extension"]:
-                try:
+                if kw in kwargs:
                     del kwargs[kw]
-                except:
-                    pass
+            
             #if not plot_name:
             #    save_file = plot_fun.__name__+"(%s).pdf"
             #else:
@@ -462,8 +461,9 @@ def plotter(experiment,
 
             try:
                 plt.savefig(save_file)
-            except IOError:
-                print save_file
+            except IOError as e:
+                print e
+                print file_name
                 new_file_name = raw_input("Automatic Filename Too Long. Enter new one:")
                 save_file = plot_dir+new_file_name+extension
                 plt.savefig(save_file)

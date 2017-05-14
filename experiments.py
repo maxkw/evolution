@@ -49,7 +49,7 @@ def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), pri
 def matchup(player_types, **kwargs):
     #print "HIIIIIIIIIIIIIIIIIII\n\n\n"
     #assert False
-    assert len(player_types)==2
+    #assert len(player_types)==2
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
@@ -103,6 +103,39 @@ def matchup_matrix(player_types,**kwargs):
         print Warning("matchup_matrix didn't find a round parameter in the game")
      
     return payoffs
+
+def matchup_data_to_matrix(data):
+    index = dict(map(reversed,enumerate(player_types)))
+    payoffs = np.zeros((len(player_types),)*2)
+    for combination in data['player_types'].unique():
+        for matchup in permutations(combination):
+            player,opponent = matchup
+            p,o = tuple(index[t] for t in matchup)
+            trials = data[(data['player_types']==combination) & (data['type']==player)]
+            payoffs[p,o] = trials.mean()['fitness']
+
+def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
+    condition = dict(locals(),**kwargs)
+    params = default_params(**condition)
+
+    all_data = matchup_grid(player_types, per_round = True, **kwargs)
+    index = dict(map(reversed,enumerate(player_types)))
+    payoffs_list = []
+    payoffs = np.zeros((len(player_types),)*2)
+    for r in range(1,max_rounds+1):
+        data = all_data[all_data['rounds']==r]
+        payoffs = np.zeros((len(player_types),)*2)
+        for combination in data['player_types'].unique():
+            for matchup in permutations(combination):
+                player,opponent = matchup
+                p,o = tuple(index[t] for t in matchup)
+                trials = data[(data['player_types']==combination) & (data['type']==player)]
+                payoffs[p,o] += trials.mean()['fitness']
+        payoffs += payoffs_list
+        payoffs_list.append(copy(payoffs))
+    for i,p in enumerate(payoffs_list,start=1):
+        p/=i
+    return list(enumerate(payoffs_list,start=1))
 
 
 
@@ -586,9 +619,6 @@ def self_pay_plot(max_rounds, player_types, data=[],**kwargs):
         d = data[data['type']==hue]
         p = plt.plot(d['rounds'], d['fitness'], label=hue)
     plt.legend()
-
-
-
 
 if __name__ == "__main__":
     from indirect_reciprocity import AllC,AllD,gTFT
