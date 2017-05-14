@@ -77,7 +77,7 @@ def sim_plotter(generations, pop, player_types, data =[]):
 
 @experiment(unpack = 'record', memoize = False)
 def limit_v_evo_param(param, player_types, **kwargs):
-    payoffs = matchup_matrix(player_types = player_types, **kwargs)
+    payoffs = matchup_matrix(player_types = player_types, trials = 10, **kwargs)
     # matchup_plot(player_types = player_types, **kwargs)
 
     if param == 'pop_size':
@@ -108,7 +108,7 @@ def limit_v_sim_param(param, player_types, **kwargs):
     elif param == "beta":
         Xs = logspace(.5,6,11)
     elif param == "rounds":
-        Xs = np.unique(np.geomspace(1,20,10,dtype = int))
+        Xs = np.unique(np.geomspace(1,200,10,dtype = int))
     else:
         raise
 
@@ -247,5 +247,9 @@ if __name__ == "__main__":
     TFT = gTFT(y=1,p=1,q=0)
     GTFT = gTFT(y=1,p=.99,q=.33)
     RA = MRA(RA_prior = .5, agent_types = (MRA, AC, AD, RandomAgent))
-    everyone = (RA, AC, AD)
-    limit_param_plot('bc',everyone)
+    RA = MRA(RA_prior = .5, agent_types = ('self', AC, AD, TFT, GTFT, Pavlov, RandomAgent), RA_K = 2)
+    everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
+    limit_param_plot('s', player_types = everyone, rounds = 200, tremble = 0, file_name='1')
+    limit_param_plot('s', player_types = everyone, rounds = 200, tremble = 0.05, file_name='2')
+
+    # limit_param_plot('bc',everyone)
