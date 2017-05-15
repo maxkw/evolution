@@ -80,7 +80,10 @@ def matchup(player_types, **kwargs):
             ids = [agent.world_id for agent in event['players']]
             r = event['round']
             for t,a_id,p in zip(player_types,ids,payoffs):
-                record.append(dict(type = t, id = a_id, round = r, fitness = p))
+                record.append({'type' : t,
+                               'id' : a_id,
+                               'round' : r,
+                               'fitness' : p})
     return record
 
 def matchup_grid(player_types,**kwargs):
@@ -129,16 +132,18 @@ def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
     index = dict(map(reversed,enumerate(player_types)))
     payoffs_list = []
     payoffs = np.zeros((len(player_types),)*2)
-    for r in range(1,max_rounds+1):
+    # FIXME: Why is this starting from 1?
+    for r in range(1, max_rounds + 1):
         data = all_data[all_data['round']==r]
-        payoffs = np.zeros((len(player_types),)*2)
         for combination in data['player_types'].unique():
-            for matchup in permutations(combination):
+            for matchup in set(permutations(combination)):
                 player,opponent = matchup
                 p,o = tuple(index[t] for t in matchup)
                 trials = data[(data['player_types']==combination) & (data['type']==player)]
+                # import pdb; pdb.set_trace()
                 payoffs[p,o] += trials.mean()['fitness']
         payoffs_list.append(copy(payoffs))
+
     for i,p in enumerate(payoffs_list,start=1):
         p/=i
     return list(enumerate(payoffs_list,start=1))

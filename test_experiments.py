@@ -30,7 +30,5 @@ reward_table(player_types=ReciprocalAgent, size=11, Ks=1, **condition)
 
 scene_plot(RA_prior=.75, RA_K=MultiArg([0, 1]))
 
-first_impressions_plot(max_cooperations=5, RA_prior=MultiArg(
-    [float(i) / 4 for i in range(1, 4)]), **condition)
 pop_fitness_plot((ReciprocalAgent, SelfishAgent), proportion=MultiArg([float(i) / 10 for i in range(10)[1:]]), Ks=MultiArg(
     range(3)), plot_dir=plot_dir, trials=500, agent_types=(ReciprocalAgent, SelfishAgent), min_pop_size=50, beta=1)

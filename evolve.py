@@ -78,7 +78,8 @@ def sim_plotter(generations, pop, player_types, data =[]):
 
 @experiment(unpack = 'record', memoize = False, verbose = 3)
 def limit_v_evo_param(param, player_types, **kwargs):
-    payoffs = matchup_matrix(player_types = player_types, trials = 10, **kwargs)
+    payoffs = matchup_matrix(player_types = player_types, **kwargs)
+    print payoffs
     # matchup_plot(player_types = player_types, **kwargs)
 
     if param == 'pop_size':
@@ -108,8 +109,6 @@ def limit_v_sim_param(param, player_types, **kwargs):
         Xs = np.linspace(0,1,21)[1:-1]
     elif param == "beta":
         Xs = logspace(.5,6,11)
-    #elif param == "rounds":
-    #    Xs = np.unique(np.geomspace(1,200,10,dtype = int))
     else:
         raise
 
@@ -129,6 +128,7 @@ def limit_v_rounds(player_types, max_rounds = 100,  **kwargs):
     matrices = matchup_matrix_per_round(player_types, max_rounds = max_rounds, **kwargs)
     params = default_params(**kwargs)
     record = []
+    
     for r, payoff in matrices:
 
         for t,p in zip(player_types, limit_analysis(payoff, **params)):
@@ -159,7 +159,7 @@ def limit_param_plot(param, player_types, data = [], **kwargs):
         p = plt.plot(d[param], d['proportion'], label=hue)
     if param in ["beta"]:
         plt.axes().set_xscale('log',basex=10)
-    if param == 'pop_size':
+    if param in ['pop_size', 'rounds']:
         plt.axes().set_xscale('log',basex=2)
     elif param == 's':
         plt.axes().set_xscale('log')
@@ -219,11 +219,13 @@ def AllC_AllD_race():
     MRA = ReciprocalAgent
     ToM = ('self', AllC, AllD)
     opponents = (AllC, AllD)
-    pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior), MRA(RA_K=1, agent_types = ToM, RA_prior=prior), gTFT(y=1,p=1,q=0))
+    pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior), MRA(RA_K=1, agent_types = ToM, RA_prior=prior), MRA(RA_K=2, agent_types = ToM, RA_prior=prior), gTFT(y=1,p=1,q=0))
     for t in [0, 0.05]:
-        limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, plot_dir = today)
-        limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds', plot_dir = today)
-        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1, agent_types = ToM), MRA(RA_K=0, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior', plot_dir = today)
+        limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 10, tremble = t, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, plot_dir = today)
+        limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 100, tremble = t, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, plot_dir = today)
+        limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds_tremble=%0.2f' % t, plot_dir = today)
+        
+        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1, agent_types = ToM), MRA(RA_K=0, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior_tremble=%0.2f' % t, plot_dir = today)
 
 
 #a_type, proportion = max(zip(player_types,ssd), key = lambda tup: tup[1])
@@ -269,8 +271,9 @@ def Pavlov_gTFT_race():
                          plot_dir = today)
 
 if __name__ == "__main__":
+    
     AllC_AllD_race()
-    #Pavlov_gTFT_race()
+    Pavlov_gTFT_race()
     assert 0
 
     NRA = NiceReciprocalAgent
