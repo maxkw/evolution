@@ -296,7 +296,8 @@ class RationalAgent(Agent):
         return self.pop_prior
     
     def initialize_likelihood(self):
-        return normalized(self.pop_prior*0+1)
+        # return normalized(self.pop_prior*0+1)
+        return self.pop_prior*0
 
     def initialize_model(self, agent_id):
         genome = self.genome
@@ -377,6 +378,7 @@ class RationalAgent(Agent):
         # order beliefs only diverge from second order beliefs if who
         # observes who is unknown.
 
+        
         #if K < 0: return
         genome = self.genome
         agent_types = genome['agent_types']
@@ -419,14 +421,20 @@ class RationalAgent(Agent):
                 #    model = agent_type(genome, world_id = decider_id)
                 append_to_likelihood(model.decide_likelihood(game,participants,tremble)[action_index])
                 
-            self.likelihood[decider_id] *= likelihood
-            self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
+            # self.likelihood[decider_id] *= likelihood
+            # self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
             
-            prior = self.pop_prior
+            # prior = self.pop_prior
+            # likelihood = self.likelihood[decider_id]
+            # self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
+
+            self.likelihood[decider_id] += np.log(likelihood)
+            prior = np.log(self.pop_prior)
             likelihood = self.likelihood[decider_id]
-            self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
 
-
+            self.belief[decider_id] = np.exp(prior + likelihood)
+            self.belief[decider_id] = normalized(self.belief[decider_id]) 
+            
         # Observe the other person, when this code runs at K=0
         # nothing will happen because of the return at the top
         # of the function.
