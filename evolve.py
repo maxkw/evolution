@@ -79,7 +79,6 @@ def sim_plotter(generations, pop, player_types, data =[]):
 @experiment(unpack = 'record', memoize = False, verbose = 3)
 def limit_v_evo_param(param, player_types, **kwargs):
     payoffs = matchup_matrix(player_types = player_types, **kwargs)
-    print payoffs
     # matchup_plot(player_types = player_types, **kwargs)
 
     if param == 'pop_size':
@@ -219,7 +218,10 @@ def AllC_AllD_race():
     MRA = ReciprocalAgent
     ToM = ('self', AllC, AllD)
     opponents = (AllC, AllD)
-    pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior), MRA(RA_K=1, agent_types = ToM, RA_prior=prior), MRA(RA_K=2, agent_types = ToM, RA_prior=prior), gTFT(y=1,p=1,q=0))
+    pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior),
+           MRA(RA_K=1, agent_types = ToM, RA_prior=prior),
+           gTFT(y=1,p=1,q=0))
+    
     for t in [0, 0.05]:
         limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 10, tremble = t, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, plot_dir = today)
         limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 100, tremble = t, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, plot_dir = today)
@@ -271,7 +273,6 @@ def Pavlov_gTFT_race():
                          plot_dir = today)
 
 if __name__ == "__main__":
-    
     AllC_AllD_race()
     Pavlov_gTFT_race()
     assert 0
