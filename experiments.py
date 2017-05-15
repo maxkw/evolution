@@ -13,7 +13,7 @@ from itertools import product,islice,cycle
 import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy,deepcopy
-from utils import softmax_utility
+from utils import softmax_utility,issubclass
 import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
@@ -208,11 +208,12 @@ id_to_letter = dict(enumerate("ABCDEF"))
 def belief_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
     if not believed_types:
         believed_types = list(set(player_types))
-    K = max(Ks)
+    K = max(Ks)+1
     t_ids = [[list(islice(cycle(order),0,k)) for k in range(1,K+2)] for order in [(1,0),(0,1)]]
     record = []
     for d in data.to_dict('record'):
         for event in d['history']:
+            #print event
             for a_id, believer in enumerate(event['players']):
                 a_id = believer.world_id
                 for ids in t_ids[a_id]:
@@ -227,9 +228,11 @@ def belief_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
                             "type":justcaps(believed_type),
                     })
     bdata = pd.DataFrame(record)
-    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin',hue = 'type', row_order = range(K+1), legend = False,
+    #import pdb; pdb.set_trace()
+    bt = map(justcaps,believed_types)
+    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin', hue = 'type', row_order = range(K+1), legend = False, hue_order = bt,
                    facet_kws = {'ylim':(0,1)})
-    f_grid.map(sns.pointplot,'round','belief')
+    f_grid.map(sns.pointplot,'round','belief','type', hue_order = bt, palette = sns.color_palette('muted'))
     for a_id,k in product([0,1],range(K+1)):
         ids = t_ids[a_id][k]
         axis = f_grid.facet_axis(k,a_id)
@@ -557,7 +560,29 @@ def self_pay_experiments():
         RA_Ks = tuple(RA(RA_K = k) for k in Ks)
         self_pay_plot(rounds, player_types = RA_Ks, agent_types =ToM, RA_prior = prior)
         self_pay_plot(rounds, player_types = RA_Ks, agent_types =ToM, RA_prior = prior, tremble = t)
-    
+
+def belief_experiments():
+    TFT = gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
+    MRA = ReciprocalAgent
+    NRA = NiceReciprocalAgent
+    SA = SelfishAgent
+    AA = AltruisticAgent
+    AC = AllC
+    AD = AllD
+
+    contest_tom = (MRA,AC,AD)
+    race_tom = (MRA,AC,AD,TFT,GTFT,Pavlov)
+    K = 0
+    ToM = contest_tom
+    plot_dir = "./plots/belief examples (K=%s, ToM = %s)/" % (K,ToM)
+
+    for t in range(50):
+        belief_plot(believed_types = contest_tom, player_types = MRA, agent_types = contest_tom, priors = .5,
+                    Ks = K, rounds = 500, trials = [t], tremble = 0.05, beta = 1,
+                    plot_dir = plot_dir,
+                    #file_name = "k1 v k2, t = %s" % t
+        )
 @plotter(self_pay_v_rounds, plot_exclusive_args = ['data'])
 def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     fig = plt.figure()
@@ -567,4 +592,5 @@ def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     plt.legend()
 
 if __name__ == "__main__":
-    self_pay_experiments()
+    #self_pay_experiments()
+    belief_experiments()
