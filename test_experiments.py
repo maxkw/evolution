@@ -2,7 +2,7 @@ from indirect_reciprocity import ReciprocalAgent, AltruisticAgent, NiceReciproca
 from experiments import joint_fitness_plot, reward_table, belief_plot, pop_fitness_plot, forgiveness
 from experiment_utils import MultiArg
 import scenarios
-
+import evolve
 
 def kwarg_to_dict(**kwargs):
     return kwargs
@@ -16,6 +16,8 @@ condition = kwarg_to_dict(trials=50,
                           beta=1)
 
 scenarios.main()
+evolve.AllC_AllD_race()
+evolve.Pavlov_gTFT_race()
 
 belief_plot(believed_type=ReciprocalAgent,
             player_types=ReciprocalAgent, priors=.75, Ks=1, **condition)
