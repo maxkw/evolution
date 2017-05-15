@@ -118,12 +118,12 @@ def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
 
-    all_data = matchup_grid(player_types, per_round = True, **kwargs)
+    all_data = matchup_grid(player_types, per_round = True, rounds = max_rounds, **kwargs)
     index = dict(map(reversed,enumerate(player_types)))
     payoffs_list = []
     payoffs = np.zeros((len(player_types),)*2)
     for r in range(1,max_rounds+1):
-        data = all_data[all_data['rounds']==r]
+        data = all_data[all_data['round']==r]
         payoffs = np.zeros((len(player_types),)*2)
         for combination in data['player_types'].unique():
             for matchup in permutations(combination):
@@ -131,7 +131,6 @@ def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
                 p,o = tuple(index[t] for t in matchup)
                 trials = data[(data['player_types']==combination) & (data['type']==player)]
                 payoffs[p,o] += trials.mean()['fitness']
-        payoffs += payoffs_list
         payoffs_list.append(copy(payoffs))
     for i,p in enumerate(payoffs_list,start=1):
         p/=i
@@ -601,7 +600,7 @@ def self_pay_v_rounds(max_rounds, player_types, **kwargs):
             t_name = player_type.short_name('agent_types')
         except:
             t_name = player_type.__name__
-        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, trials = 100, per_round = True, **kwargs)
+        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, trials = 50, per_round = True, **kwargs)
         sum = 0
         for r in range(1,max_rounds+1):
             sum += data[data['round']==r].mean()['fitness']
@@ -612,6 +611,32 @@ def self_pay_v_rounds(max_rounds, player_types, **kwargs):
             })
     return record
 
+def self_pay_experiments():
+    TFT = gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
+    MRA = ReciprocalAgent
+    NRA = NiceReciprocalAgent
+    SA = SelfishAgent
+    AA = AltruisticAgent
+    AC = AllC
+    AD = AllD
+
+    RA = MRA
+
+    rounds = 100
+    prior = .5
+    Ks = [0,1,2,3]
+    t = .05
+    ToMs = [('self', AC, AD),
+            ('self', AC, AD, TFT, Pavlov),
+            ('self', AC, AD, TFT, Pavlov, GTFT),
+            ('self', AC, AD, TFT, Pavlov, GTFT, RandomAgent)]
+
+    for ToM in ToMs:
+        RA_Ks = tuple(RA(RA_K = k) for k in Ks)
+        self_pay_plot(rounds, player_types = RA_Ks, agent_types =ToM, RA_prior = prior)
+        self_pay_plot(rounds, player_types = RA_Ks, agent_types =ToM, RA_prior = prior, tremble = t)
+    
 @plotter(self_pay_v_rounds, plot_exclusive_args = ['data'])
 def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     fig = plt.figure()
@@ -621,23 +646,4 @@ def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     plt.legend()
 
 if __name__ == "__main__":
-    from indirect_reciprocity import AllC,AllD,gTFT
-    TFT = gTFT(y=1,p=1,q=0)
-    GTFT = gTFT(y=1,p=.99,q=.33)
-    MRA = ReciprocalAgent
-    NRA = NiceReciprocalAgent
-    SA = SelfishAgent
-    AA = AltruisticAgent
-    AC = AllC
-    AD = AllD
-    game = BinaryDictator()
-
-    ToM = ('self',AC,AD,TFT,Pavlov)
-    #for k in [0,1,2]:
-    #    belief_plot(believed_types = (MRA,), Ks = k, player_types = MRA, priors = .5, rounds = 50, agent_types = ToM)
-    #for t in range(1,10):
-    #    belief_plot(believed_types = (MRA,), player_types = MRA, priors = .5, agent_types = (MRA,AC,AD), trials = [t])
-
-    M = MRA(RA_prior = .5, RA_K = 1, agent_types = ('self', AC, AD, TFT, Pavlov))
-    Ms = tuple(MRA(RA_prior = .5, RA_K = k, agent_types = ToM) for k in [0,1,2])
-    self_pay_plot(100, player_types = Ms, extension = '.png')
+    self_pay_experiments()
