@@ -162,7 +162,13 @@ def limit_param_plot(param, player_types, data = [], **kwargs):
         plt.axes().set_xscale('log',basex=2)
     elif param == 's':
         plt.axes().set_xscale('log')
+
+    plt.xlabel(param)
+    plt.ylim([0, 1.05])
+    plt.yticks([0,0.5,1])
+    sns.despine()
     plt.legend()
+    plt.tight_layout()
 
 def compare_limit_param(param, player_types, opponent_types, **kwargs):
     dfs = []
@@ -188,28 +194,40 @@ def limit_v_bc(player_types,**kwargs):
             })
     return record
 
-
-def bc_v_rounds(player_types, max_rounds = 50, **kwargs):
+@experiment(unpack = 'record', verbose = 2, memoize = False)
+def bc_v_rounds(player_types, max_rounds, **kwargs):
     params = default_params(**kwargs)
-    record = []
-    for b in [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3, 3.2, 3.4, 3.6]:
+    records = []
+    Rs = np.unique(np.geomspace(2, max_rounds, 10, dtype=int))
+    for b in [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]:
         matrices = matchup_matrix_per_round(player_types, max_rounds, benefit = b, **kwargs)
         for rounds, payoffs in matrices:
             ssd = limit_analysis(payoffs, **params)
             #winner = max(zip(ssd,player_types),key = lambda t: t[0])[1]
-            if rounds%2 == 0:
-                record.append({
-                    "benefit":b,
-                    "frequency":ssd[0],
-                    "rounds":rounds,
-                })
-    return pd.DataFrame(record).pivot(columns = 'benefit', index = 'rounds', values = 'frequency')
-
+            if rounds in Rs:
+                for i, t in enumerate(player_types):
+                    records.append({
+                        "benefit":b,
+                        "frequency":ssd[i],
+                        "rounds":rounds,
+                        "type": t.short_name('agent_types')
+                    })
+    return records
 
 @plotter(bc_v_rounds)
 def bc_rounds_plot(player_types,data=[],**kwargs):
-    plt.figure(figsize = (10,50))
-    sns.heatmap(data,annot=True,fmt="0.2f")
+    def draw_heatmap(*args, **kwargs):
+        data = kwargs.pop('data')
+        d = data.pivot(index=args[1], columns=args[0], values=args[2])
+        sns.heatmap(d, **kwargs)
+    
+    # data = pd.DataFrame(data)
+    # .pivot(columns =, index = 'rounds', values = 'frequency')
+    # plt.figure(figsize = (10,50))
+    g = sns.FacetGrid(data = data, col = 'type')
+    g.map_dataframe(draw_heatmap, 'benefit', 'rounds', 'frequency',  cbar=False, square=True, vmin=0, vmax=data['frequency'].max())
+    # g.map(sns.heatmap(data,annot=True,fmt="0.2f", square=True, cbar=False))
+    # for t in data['type'].unique():
 
 def AllC_AllD_race():
     today = "./plots/"+date.today().isoformat()+"/"
@@ -227,7 +245,7 @@ def AllC_AllD_race():
         limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 100, tremble = t, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, plot_dir = today)
         limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds_tremble=%0.2f' % t, plot_dir = today)
         
-        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1, agent_types = ToM), MRA(RA_K=0, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior_tremble=%0.2f' % t, plot_dir = today)
+        limit_param_plot("RA_prior", player_types = (MRA(RA_K=0, agent_types = ToM), MRA(RA_K=1, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior_tremble=%0.2f' % t, plot_dir = today)
 
 
 #a_type, proportion = max(zip(player_types,ssd), key = lambda tup: tup[1])
@@ -242,7 +260,7 @@ def Pavlov_gTFT_race():
     pop = (TFT, AllC, AllD, gTFT(y=1,p=.99,q=.33), Pavlov)
     for t in [0, 0.05]:
         limit_param_plot('s', pop, rounds = r, tremble = t, file_name = 'nowak_replicate_s_tremble=%.2f' % t, plot_dir = today)
-    sim_plotter(5000, (0,0,0,100,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1, file_name ='nowak_replicate_sim_tremble=0.05', plot_dir = today)
+    sim_plotter(5000, (0,0,100,0,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1, file_name ='nowak_replicate_sim_tremble=0.05', plot_dir = today)
 
     # Horse race against gTFT and Pavlov
     prior = 0.5
@@ -250,10 +268,12 @@ def Pavlov_gTFT_race():
     pop = (MRA(RA_K=1, agent_types = ToM, RA_prior = prior), AllC, AllD, TFT, gTFT(y=1,p=.99,q=.33), Pavlov)
     opponents = (TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
     trembles = [0, 0.05]
+    priors = [.5]
+    Ks = [2]
     for t in trembles:
         limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%0.2f' % t, plot_dir = today)
         limit_param_plot('rounds',
-                         player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product([1, 2], [.25, .5, .75])),
+                         player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product(Ks, priors)),
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
@@ -265,7 +285,7 @@ def Pavlov_gTFT_race():
     for t in trembles:
         limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%.2f' % t,plot_dir = today)
         limit_param_plot('rounds',
-                         player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product([1, 2], [.25, .5, .75])),
+                         player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product(Ks, priors)),
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
@@ -273,9 +293,10 @@ def Pavlov_gTFT_race():
                          plot_dir = today)
 
 if __name__ == "__main__":
-    AllC_AllD_race()
-    Pavlov_gTFT_race()
-    assert 0
+
+    # AllC_AllD_race()
+    # Pavlov_gTFT_race()
+    # assert 0
 
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
@@ -291,7 +312,10 @@ if __name__ == "__main__":
     everyone_ToM = ('self', AC, AD, TFT, gTFT, Pavlov, RandomAgent)
     everyone_RA = MRA(RA_prior = .5, RA_K = 2, agent_types = everyone_ToM)
     everyone = (everyone_RA, AC, AD, TFT, gTFT, Pavlov)
+
+    bc_rounds_plot(everyone, max_rounds = 20)
+    assert 0
+    
     #limit_param_plot('bc',everyone)
-    bc_rounds_plot(everyone, trials = 20)
     #limit_param_plot('rounds', everyone)
 
