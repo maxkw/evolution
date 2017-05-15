@@ -199,8 +199,9 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             #print "trials:%s" % len(trials)
 
             try:
-                del arg_dict['trials']
-                call_data = fun_call_labeler(function,[],arg_dict)
+                if 'trials' not in call_data['defined_args']:
+                    del arg_dict['trials']
+                    call_data = fun_call_labeler(function,[],arg_dict)
             except:
                 pass
 
