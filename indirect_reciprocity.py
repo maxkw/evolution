@@ -485,12 +485,22 @@ class RationalAgent(Agent):
             # SelfishAgent.__name__ : 1-out.x[0]
         # }
 
+def belongs_to_ingroup(ingroup,t):
+    if t in agent.ingroup():
+        return True
+    for i in ingroup:
+        try:
+            issubclass(t,i)
+        except:
+            pass
+
 class IngroupAgent(RationalAgent):
     def __init__(self, genome, world_id=None):
         super(IngroupAgent, self).__init__(genome, world_id)
+        my_ingroup = self.ingroup()
         self.ingroup_indices = np.array([self._type_to_index[agent_type]
                                          for agent_type in genome['agent_types']
-                                         if self.is_in_ingroup(agent_type)])
+                                         if agent_type in my_ingroup])
 
     def sample_alpha(self,agent_id):
         if agent_id == self.world_id:
@@ -566,7 +576,12 @@ class PrefabAgent(Agent):
     def __hash__(self):
         return hash(str(self))
     def __eq__(self,other):
-        return hash(self)==hash(other)
+        if hash(self)==hash(other):
+            return True
+        if hash(self.type) == hash(other):
+            return True
+        return False
+
 
     def ingroup(self):
         return self.type.ingroup()
@@ -861,6 +876,8 @@ def diagnostics():
 if __name__ == '__main__':
     NRA = NiceReciprocalAgent
     a = NiceReciprocalAgent(RA_prior = 1)
+    print (a in [a])
+    assert 0
     print a
     print type(a)
     print a.__name__
