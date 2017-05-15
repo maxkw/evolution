@@ -505,6 +505,8 @@ class IngroupAgent(RationalAgent):
 
     def is_in_ingroup(self,a_type):
         for i in self.ingroup():
+            if a_type == i:
+                return True
             if issubclass(a_type,i):
                 return True
         return False
