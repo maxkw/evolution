@@ -218,16 +218,23 @@ class TypeDict(dict):
         agent_types = genome['agent_types']
         rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
         model = self.agent = RationalAgent(genome,agent_id)
-        belief = self.belief = model.belief #= defaultdict(model.initialize_prior)
-        likelihood = self.likelihood = model.likelihood# = defaultdict(model.initialize_likelihood)
-        
+        belief = self.belief = model.belief
+        likelihood = self.likelihood = model.likelihood
+        self.observers = observers = [model]
         for agent_type in agent_types:
-            dict.__setitem__(self,agent_type,agent_type(genome,agent_id))
+            m = agent_type(genome,agent_id)
+            if agent_type in [gTFT,Pavlov]:
+                observers.append(m)
+            dict.__setitem__(self,agent_type,m)
 
         for rational_type in rational_types:
             r_model = dict.__getitem__(self,rational_type)
             r_model.belief = belief
             r_model.likelihood = likelihood
+
+    def observe_k(self,observations, k, tremble):
+        for observer in self.observers:
+            observer.observe_k(observations,k,tremble)
 
 
 class AgentDict(dict):
@@ -280,6 +287,7 @@ class RationalAgent(Agent):
         except ValueError:
             a_id = a_ids[0]
             a_ids = a_ids[1:]
+            my_type = self.genome['type']
             return self.model[a_id].agent.k_belief(a_ids,a_type)
 
     def purge_models(self, ids):
@@ -419,12 +427,13 @@ class RationalAgent(Agent):
                 #    model = agent_type(genome, world_id = decider_id)
                 append_to_likelihood(model.decide_likelihood(game,participants,tremble)[action_index])
                 
-            self.likelihood[decider_id] *= likelihood
-            self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
+            #self.likelihood[decider_id] *= likelihood
+            #self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
             
             prior = self.pop_prior
             likelihood = self.likelihood[decider_id]
-            self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
+            self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)
+            assert not any(self.belief[decider_id] == 1.0)
 
 
         # Observe the other person, when this code runs at K=0
@@ -433,8 +442,7 @@ class RationalAgent(Agent):
 
         if K == 0:return
         for agent_id, models in self.model.iteritems():
-            for agent_type, model in models.iteritems():
-                model.observe_k(observations, K-1, tremble)
+            models.observe_k(observations, K-1, tremble)
 
             
         # if K>0:
@@ -603,7 +611,10 @@ class ClassicAgent(Agent):
 
     def observe_k(self, observations, *args, **kwargs):
         self.observe(observations)
-        
+
+    def k_belief(self,*args,**kwargs):
+        return 0
+
 class Pavlov(ClassicAgent):
     def __init__(self,genome,world_id = None):
         self.genome = deepcopy(genome)
