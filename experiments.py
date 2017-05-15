@@ -18,6 +18,12 @@ import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
 
+priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
+diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
+
+letter_to_id = dict(map(reversed,enumerate("ABCDEFGHIJK")))
+letter_to_action = {"C":'give',"D":'keep'}
+
 def gcd(*numbers):
     """Return the greatest common divisor of the given integers"""
     return reduce(binary_gcd, numbers)
@@ -31,6 +37,7 @@ def lcm(*numbers):
 
 def justcaps(t):
     return filter(str.isupper,t.__name__)
+
 #@memoize
 @multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'], verbose=3)
 @experiment(unpack = 'dict', trials = 100, verbose = 3)
@@ -316,61 +323,6 @@ def reward_table(data = [],**kwargs):
     plt.figure(figsize = (10,10))
     sns.heatmap(meaned,annot=True,fmt="0.2f")
 
-priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
-diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
-
-
-letter_to_id = dict(map(reversed,enumerate("ABCDEFGHIJK")))
-letter_to_action = {"C":'give',"D":'keep'}
-@multi_call()
-@experiment(unpack = 'record', unordered = ['agent_types'])
-def scenarios(agent_types = (NiceReciprocalAgent,SelfishAgent,AltruisticAgent),**kwargs):
-    condition = dict(locals(),**kwargs)
-    genome = default_genome(agent_type = RationalAgent,**condition)
-    game = BinaryDictator()
-    def vs(players,action,observers = "ABO"):
-        players = [letter_to_id[p] for p in players]
-        observers = [letter_to_id.get(p,p) for p in observers]
-        action = letter_to_action[action]
-        return [(game,players,observers,action)]
-
-    scenarios = ["C","D","CD","CC","DD","DC"]
-    scenario_dict = {}
-    for actions in scenarios:
-        scenario_dict[actions] = []
-        for action,players,times  in reversed(zip(reversed(actions),["AB","BA"],[1,1])):
-            scenario_dict[actions].append(vs(players,action)*times)
-
-    record = []
-    for name, observations in scenario_dict.iteritems():
-        observer = RationalAgent(genome = genome, world_id = "O")
-        for observation in observations:
-            observer.observe(observation)
-        for agent_type in agent_types:
-            record.append({
-                'scenario':name,
-                'belief':observer.belief_that(0,agent_type),
-                'type':justcaps(agent_type),
-            })
-    return record
-
-@plotter(scenarios,plot_exclusive_args = ['data'])
-def scene_plot(agent_types, RA_prior =.75, RA_K = MultiArg([0,1]), data = []):
-    sns.set_context("poster",font_scale = 1.5)
-    f_grid = sns.factorplot(data = data, x = "RA_K", y = 'belief', col = 'scenario', row = "RA_prior", kind = 'bar', hue = 'type',
-                            #hue_order = ["NRA","AA","SA"],
-                            #col_order = ["C","D","DD","DC","CD","CC"],
-                            aspect = 1.5,
-                            facet_kws = {'ylim': (0,1),
-                                         'margin_titles':True})
-    def draw_prior(data,**kwargs):
-        plt.axhline(data.mean(),linestyle = ":")
-    f_grid.map(draw_prior,'RA_prior')
-    f_grid.set_xlabels("")
-    f_grid.set(yticks=np.linspace(0,1,5))
-    f_grid.set_yticklabels(['','0.25','0.50','0.75','1.0'])
-    #f_grid.despine(bottom=True)
-
 @multi_call()
 @experiment(unpack = 'record',unordered = ['agent_type'],memoize = False)
 def tft_scenes(agent_types, **kwargs):
@@ -419,40 +371,6 @@ def tft_scenes(agent_types, **kwargs):
             })
     return record
 
-letter_2_index = dict(map(reversed,enumerate('ABCDEFG')))
-@multi_call()
-@experiment(unordered = ['agent_types'], unpack = 'record', memoize = False)
-def first_impressions(max_cooperations, agent_types, RA_prior, **kwargs):
-    condition = dict(locals(),**kwargs)
-    observer_genome = default_genome(**condition)
-    observer = RationalAgent(genome = default_genome(**condition), world_id = 'O')
-    game = BinaryDictator()
-
-    def vs(action):
-        return [(game,[0,1],[0,1,'O'],action)]
-
-    record = []
-    for cooperations in range(max_cooperations+1):
-        observer = RationalAgent(genome = observer_genome, world_id = 'O')
-        observations = [vs('give')*cooperations,
-                        vs('keep')]
-        for observation in observations:
-            observer.observe(observation)
-        for agent_type in agent_types:
-            record.append({'cooperations': cooperations,
-                           'belief': observer.belief_that(0,agent_type),
-                           'type': justcaps(agent_type)})
-    return record
-
-@plotter(first_impressions)
-def first_impressions_plot(max_cooperations = 5, agent_types = (NiceReciprocalAgent,AltruisticAgent,SelfishAgent),
-                           RA_prior =.75, data = None):
-    fplot = sns.factorplot(data = data, x='cooperations', y='belief', col='RA_prior', bw = .1,
-                           hue = 'type', hue_order = map(justcaps,agent_types),
-                           facet_kws = {'ylim':(0,1)})
-    fplot.fig.suptitle("A and B's beliefs that the other is RA")
-    plt.subplots_adjust(top = 0.85)
-
 def minimal_ratios(ratio_dict):
     if 1 > ratio_dict.values()[0]:
         objs,ratios = zip(*ratio_dict.items())
@@ -462,8 +380,6 @@ def minimal_ratios(ratio_dict):
         ratio_dict = dict(zip(objs,ratios))
     divisor = gcd(*ratio_dict.values())
     return {k:int(v/divisor) for k,v in ratio_dict.iteritems()}
-
-
 
 memo_bin_matchup = memoize(binary_matchup)
 

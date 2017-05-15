@@ -77,7 +77,7 @@ def sim_plotter(generations, pop, player_types, data =[]):
 
 @experiment(unpack = 'record', memoize = False)
 def limit_v_evo_param(param, player_types, **kwargs):
-    payoffs = matchup_matrix(player_types = player_types, **kwargs)
+    payoffs = matchup_matrix(player_types = player_types, trials = 10, **kwargs)
     # matchup_plot(player_types = player_types, **kwargs)
 
     if param == 'pop_size':
@@ -108,7 +108,7 @@ def limit_v_sim_param(param, player_types, **kwargs):
     elif param == "beta":
         Xs = logspace(.5,6,11)
     elif param == "rounds":
-        Xs = np.unique(np.geomspace(1,20,10,dtype = int))
+        Xs = np.unique(np.geomspace(1,200,10,dtype = int))
     else:
         raise
 
@@ -285,3 +285,4 @@ if __name__ == "__main__":
     #limit_param_plot('bc',everyone)
     bc_rounds_plot(everyone, trials = 20)
     #limit_param_plot('rounds', everyone)
+
