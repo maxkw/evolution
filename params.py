@@ -83,10 +83,6 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
         agent_types = tuple(agent_types)
         type2index = dict(map(reversed,enumerate(agent_types)))
         rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
-        #ingroup = []
-        #for a_type in agent_types:
-        #    if any([(a_type == t or issubclass(a_type,i)) for i in agent_type.ingroup()]):
-        #        ingroup.append(a_type)
         a_ingroup = agent_type.ingroup()
         ingroup = [t for t in agent_types if t in a_ingroup]
         if not (RA_prior or ingroup):
