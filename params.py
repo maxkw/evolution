@@ -77,7 +77,6 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
     if RA_prior is a number it divides that number uniformly among all rational types
     """
 
-    
     size = len(agent_types)
     if issubclass(agent_type,IngroupAgent):
         agent_types = tuple(agent_types)
@@ -85,7 +84,7 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
         rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
         ingroup = []
         for a_type in agent_types:
-            if any([issubclass(a_type,i) for i in agent_type.ingroup()]):
+            if any([(a_type == t or issubclass(a_type,i)) for i in agent_type.ingroup()]):
                 ingroup.append(a_type)
         if not (RA_prior or ingroup):
             return np.array(np.ones(size)/size)
