@@ -16,6 +16,7 @@ from indirect_reciprocity import gTFT, AllC, AllD, Pavlov, RandomAgent
 from params import default_params
 from steady_state import limit_analysis, complete_analysis
 import pandas as pd
+from datetime import date
 
 def logspace(start = .001,stop = 1, samples=10):
     mult = (np.log(stop)-np.log(start))/np.log(10)
@@ -75,7 +76,7 @@ def sim_plotter(generations, pop, player_types, data =[]):
 
     plt.legend()
 
-@experiment(unpack = 'record', memoize = False)
+@experiment(unpack = 'record', memoize = False, verbose = 3)
 def limit_v_evo_param(param, player_types, **kwargs):
     payoffs = matchup_matrix(player_types = player_types, trials = 10, **kwargs)
     # matchup_plot(player_types = player_types, **kwargs)
@@ -101,20 +102,20 @@ def limit_v_evo_param(param, player_types, **kwargs):
             })
     return record
 
-@experiment(unpack = 'record', memoize = False)
+@experiment(unpack = 'record', memoize = False, verbose = 3)
 def limit_v_sim_param(param, player_types, **kwargs):
     if param == "RA_prior":
         Xs = np.linspace(0,1,21)[1:-1]
     elif param == "beta":
         Xs = logspace(.5,6,11)
-    elif param == "rounds":
-        Xs = np.unique(np.geomspace(1,200,10,dtype = int))
+    #elif param == "rounds":
+    #    Xs = np.unique(np.geomspace(1,200,10,dtype = int))
     else:
         raise
 
     record = []
     for x in Xs:
-        payoffs = matchup_matrix(player_types = player_types, trials = 10, **dict(kwargs,**{param:x}))
+        payoffs = matchup_matrix(player_types = player_types, **dict(kwargs,**{param:x}))
 
         for t,p in zip(player_types, limit_analysis(payoffs, **default_params(**{param:x}))):
             record.append({
@@ -123,9 +124,9 @@ def limit_v_sim_param(param, player_types, **kwargs):
                 "proportion":p
             })
     return record
-@experiment(unpack = 'record', memoize = False)
-def limit_v_rounds(player_types, max_rounds = 100, trials = 50, **kwargs):
-    matrices = matchup_matrix_per_round(player_types, max_rounds = max_rounds, trials = trials, **kwargs)
+@experiment(unpack = 'record', memoize = False, verbose = 3)
+def limit_v_rounds(player_types, max_rounds = 100,  **kwargs):
+    matrices = matchup_matrix_per_round(player_types, max_rounds = max_rounds, **kwargs)
     params = default_params(**kwargs)
     record = []
     for r, payoff in matrices:
@@ -172,7 +173,7 @@ def compare_limit_param(param, player_types, opponent_types, **kwargs):
         
     return pd.concat(dfs,ignore_index = True)
 
-@experiment(unpack = 'record')
+@experiment(unpack = 'record', verbose = 3)
 def limit_v_bc(player_types,**kwargs):
     params = default_params(**kwargs)
     record = []
@@ -212,6 +213,7 @@ def bc_rounds_plot(player_types,data=[],**kwargs):
     sns.heatmap(data,annot=True,fmt="0.2f")
 
 def AllC_AllD_race():
+    today = "./plots/"+date.today().isoformat()+"/"
     prior = 0.5
     r = 10
     MRA = ReciprocalAgent
@@ -219,14 +221,15 @@ def AllC_AllD_race():
     opponents = (AllC, AllD)
     pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior), MRA(RA_K=1, agent_types = ToM, RA_prior=prior), gTFT(y=1,p=1,q=0))
     for t in [0, 0.05]:
-        limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t)
-        limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds')
-        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1, agent_types = ToM), MRA(RA_K=0, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior')
+        limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, plot_dir = today)
+        limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds', plot_dir = today)
+        limit_param_plot("RA_prior", player_types = (MRA(RA_K=1, agent_types = ToM), MRA(RA_K=0, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior', plot_dir = today)
 
 
 #a_type, proportion = max(zip(player_types,ssd), key = lambda tup: tup[1])
 
 def Pavlov_gTFT_race():
+    today = "./plots/"+date.today().isoformat()+"/"
     TFT = gTFT(y=1,p=1,q=0)
     MRA = ReciprocalAgent
     r = 10
@@ -234,8 +237,8 @@ def Pavlov_gTFT_race():
     # Replicate Nowak early 90s
     pop = (TFT, AllC, AllD, gTFT(y=1,p=.99,q=.33), Pavlov)
     for t in [0, 0.05]:
-        limit_param_plot('s', pop, rounds = r, tremble = t, file_name = 'nowak_replicate_s_tremble=%.2f' % t)
-    sim_plotter(5000, (0,0,0,100,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1, file_name ='nowak_replicate_sim_tremble=0.05')
+        limit_param_plot('s', pop, rounds = r, tremble = t, file_name = 'nowak_replicate_s_tremble=%.2f' % t, plot_dir = today)
+    sim_plotter(5000, (0,0,0,100,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1, file_name ='nowak_replicate_sim_tremble=0.05', plot_dir = today)
 
     # Horse race against gTFT and Pavlov
     prior = 0.5
@@ -244,29 +247,31 @@ def Pavlov_gTFT_race():
     opponents = (TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
     trembles = [0, 0.05]
     for t in trembles:
-        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%0.2f' % t)
+        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%0.2f' % t, plot_dir = today)
         limit_param_plot('rounds',
                          player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product([1, 2], [.25, .5, .75])),
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
-                         file_name = 'horse_rounds_no_random_tremble=%0.2f' % t)
+                         file_name = 'horse_rounds_no_random_tremble=%0.2f' % t,
+                         plot_dir = today)
 
     # Add Random to the ToM
     ToM = ('self', TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov, RandomAgent)
     for t in trembles:
-        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%.2f' % t)
+        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%.2f' % t,plot_dir = today)
         limit_param_plot('rounds',
                          player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product([1, 2], [.25, .5, .75])),
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
-                         file_name = 'horse_rounds_with_random_tremble=%.2f' % t)
+                         file_name = 'horse_rounds_with_random_tremble=%.2f' % t,
+                         plot_dir = today)
 
 if __name__ == "__main__":
-    #AllC_AllD_race()
+    AllC_AllD_race()
     #Pavlov_gTFT_race()
-    #assert 0
+    assert 0
 
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
