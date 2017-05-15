@@ -207,7 +207,7 @@ def issubclass(C,B):
         try:
             return _issubclass(C.type,B)
         except:
-            raise e
+            return False
 
 def excluding_keys(d,*keys):
     return dict((k,v) for k,v in d.iteritems() if k not in keys)
