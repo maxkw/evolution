@@ -2,258 +2,378 @@ from __future__ import division
 import scipy as sp
 import numpy as np
 import pandas as pd
-import networkx as nx
 import itertools
-import random
-from collections import Counter
+from collections import Counter,defaultdict,Iterable
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
 # import dirichlet
-from utils import softmax, sample_softmax, softmax_utility, flip
+from utils import softmax, sample_softmax, softmax_utility, flip, namedArrayConstructor, normalized, constraint_min, excluding_keys
 from copy import deepcopy
 from pprint import pprint
 from scipy.spatial.distance import cosine
-from joblib import Parallel, delayed
 import operator
 import os.path
 from scipy.special import (psi, polygamma, gammaln)
-
+from operator import mul as multiply
 from copy import copy, deepcopy
+from functools import partial
+from utils import unpickled, pickled, HashableDict,issubclass
 
-print
+
 sns.set_style('white')
 sns.set_context('paper', font_scale=1.5)
 
+from collections import MutableMapping
 
-class StageGame(object):
-    """
-    base class for all games, initialized with a payoff dict
-    TODO: Build a game generator that can capture an ultimatum game by stringing together simple games. For instance,
-    GAME 1: P1 gets 10 and can share X [0 through 10] with P2
-    GAME 2: P2 can do nothing and keep X, or lose -X and have P1 lose 10-X
-    
-    """
-    def __init__(self, payoffs):
-        self.N_players = len(payoffs.values()[0])
+import warnings
+warnings.filterwarnings("ignore",category=np.VisibleDeprecationWarning)
 
-        # Create the action space
-        self.actions = payoffs.keys()
-        self.action_lookup = {a:i for i, a in enumerate(self.actions)}
-        self.payoffs = payoffs        
-        
-class BinaryDictator(StageGame):
-    """
-    dictator game in which cooperation produces more rewards in total
-    """
-    def __init__(self, endowment = 0, cost = 1, benefit = 2):
-        payoffs = {
-            "keep": (endowment, 0),
-            "give": (endowment-cost, benefit),
-        }
-        super(BinaryDictator, self).__init__(payoffs)
+from itertools import ifilterfalse
+#from games import RepeatedPrisonersTournament
 
-class CostlyAllocationGame(StageGame):
-    """
-    Three player version of dictator
-    """
-    def __init__(self, endowment = 0, cost = 1, benefit = 2):
-        payoffs = {
-            "give 1": (endowment-cost, benefit, 0),
-            "give 2": (endowment-cost, 0, benefit),
-            "keep": (endowment, 0, 0),
-        }
-        super(CostlyAllocationGame, self).__init__(payoffs)
 
-        
-class AllocationGame(StageGame):
-    """
-    Three player game, first player must give to one of two others
-    """
-    def __init__(self, endowment = 0, cost = 1, benefit = 2):
-        payoffs = {
-            "give 1": (endowment-cost, benefit, 0),
-            "give 2": (endowment-cost, 0, benefit),
-        }
-        super(AllocationGame, self).__init__(payoffs)
+"""
+Begin:
+Agent Definitions
 
-        
+Agents play games and make observations.
+They are characteristically defined by their utilities and whether or not they can observe.
+"""
+
+
+
+class AgentType(type):
+    def __str__(cls):
+        return cls.__name__
+    def __repr__(cls):
+        return str(cls)
+    def __hash__(cls):
+        return hash(cls.__name__)
+    def __eq__(cls,other):
+        return hash(cls)==hash(other)
+    def short_name(cls, *args):
+        return cls.__name__
+    #def __reduce__(self):
+    #    return (eval,(self.__name__,))
+
 class Agent(object):
+    __metaclass__ = AgentType
+    def __new__(cls, genome=None, world_id=None, **kwargs):
+        if not genome and kwargs:
+            return PrefabAgent(cls,**kwargs)
+        else:
+            return object.__new__(cls)
+
     def __init__(self, genome, world_id=None):
         self.genome = deepcopy(genome)
         self.beta = self.genome['beta']
         self.world_id = world_id
         self.belief = dict()
-
-    def utility(self, payoff, agent):
-        # TODO: Change in each of the agent classes to do the loop to
-        # reflect the new decide_likelihood code.
+        self.likelihood = dict()
         
+    def utility(self, payoffs, agent_ids):
+        return sum(self._utility(payoff,id) for payoff,id in itertools.izip(payoffs,agent_ids))
+
+    def _utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
-    def observe_k(self, observations, k, tremble = 0):
-        pass
+    def decide_likelihood(self, game, agents, tremble = 0):
+        """
+        recieves:
+        1)deciding_agent, an agent of a particular type
 
-    @staticmethod
-    def decide_likelihood(deciding_agent, game, agent_ids, tremble = 0):
-        """This function is importantly used in two places. 
-        1) It is used by the Agent when he makes his decision and returns a probability of taking each action.
-        2) It is also used by the Agent when he makes an observation. This function then returns a likelihood of that decision. 
-
-        `deciding_agent`: A reference to the agent who made the
-        decision in this game. The first agent in the `agent_ids` is
-        always this variable.
-
-        `game`: an instance of the game being played.
-
-        `agent_ids`: the world_ids of the agents playing the game. The
-        order is important since the order of agent_ids corresponds to
-        the order of the payoffs.
-
-        `tremble`: trembling hand probability this should be 0 when deciding. It is only used in the likelihood.
-
-        returns a probability vector representing what I think the
-        deciding agent (possibly myself) would do in this game.
-
+        returns:
+        a probability vector representing what I think the deciding agent would do in this game?
         """
 
+        # The first agent is always the deciding agent
         # Only have one action so just pick it
         if len(game.actions) == 1:
             # Returning a probability a vector
             return np.array([1])
 
-        # BUG: META COMMENT ON BELOW. This is just saying the below
-        # code is specific for the DictatorGames currently implemented
-        # but it doesn't do any planning etc in multistage games. This
-        # could be place that code will have to change to handle more
-        # interesting games.
-
-        # BUG: Get probability of the other players taking an action,
+        # TODO: Get probability of the other players taking an action,
         # otherwise this only works for dictator game. For now just
         # assume its uniform since it doesn't matter for dictator
         # game. Can/Should use the belief distribution. May need to do
         # a logit response for simultaneous move games.
+        Us = np.array([self.utility(game.payoffs[action], agents)
+                       for action in game.actions])
 
-        # Utilities: Map between action_id and the utility for that action. 
-        Us = np.zeros(len(game.actions))
+        return self.add_tremble(softmax(Us, self.beta), tremble)
 
-        # Iterate over the actions in the game
-        for a in game.actions:
-            # Get the action id for that action
-            a_id = game.action_lookup[a]
-
-            # TODO: Assess the payoffs one-by-one for each of the
-            # payoffs generated by that action. You should move this
-            # loop into the utility function. So you can call
-            # deciding_agent.utility(game.payoffs[a], agent_ids)
-            # works.
-            for payoff, agent_id in zip(game.payoffs[a], agent_ids):
-                Us[a_id] += deciding_agent.utility(payoff, agent_id)
-
-        # Return a linear combination of the softmax utility and a uniform distribution. 
-        return (1-tremble) * softmax(Us, deciding_agent.beta) + tremble * np.ones(len(Us))/len(Us)
-
+    def add_tremble(self, p, tremble):
+        if tremble == 0:
+            return p
+        else:
+            return (1-tremble) * p + tremble * np.ones(len(p))/len(p)
+    
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
         # the world, not the agent
-
-        # Get the likelihood of each action. 
-        ps = self.decide_likelihood(self, game, agent_ids, tremble = 0)
-
-        # Samples from the distribution and selects the action_id
+        ps = self.decide_likelihood(game, agent_ids, tremble = 0)
         action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
-
-        # Return the label of the action
         return game.actions[action_id]
 
+    #For uniformity with Rational Agents
 
+    def observe(self,observations):
+        pass
+    def observe_k(self, observations, k, tremble = 0):
+        pass
+    # def short_name(self, *args):
+        # return self.__name__
+
+class Puppet(Agent):
+    def __init__(self, world_id = 'puppet'):
+        self.world_id = world_id
+        self.belief = self.likelihood = None
+        
+    def decide(self,decision,agent_ids):
+        print decision.name
+        for i,(action,payoff) in enumerate(decision.payoffs.iteritems()):
+            print i,action, payoff
+        choice = decision.actions[int(input("enter a number: "))]
+        print ""
+        return choice
+class TitForTat(Agent):
+    """
+    Abstract Tit-For-Tat agent
+    collaboration is maximizing the sum of payoffs
+    defection is anything else
+    """
+    def __init__(self, genome, world_id=None):
+        self.world_id = world_id
+        self.genome = genome
+        self.grudge = defaultdict(int)
+        self.punishments = 1
+        self.belief = {}
+        self.likelihood = {}
+    def utility(self,payoffs,agent_ids):
+        if agent_ids[0] == self.world_id and self.grudge[agent_ids[1]]:
+            return -payoffs[1]
+        else:
+            return self.social_good(payoffs)
+        
+    def social_good(self,payoffs):
+        return sum(payoffs)
+    
+    def decide(self,game,agent_ids):
+        if self.grudge[agent_ids[1]]:
+            action = min(game.actions, key = lambda a: game.payoffs[a][1])
+            self.grudge[agent_ids[1]] -= 1
+        else:
+            action = max(game.actions, key = lambda a: sum(game.payoffs[a]))
+            
+        return action
+        
+    def observe_k(self,observations,k,tremble=0):
+        for observation in observations:
+            decision,participants,observers,actions = observation
+            decider_id = participants[0]
+            my_id = self.world_id
+            
+            if decider_id == my_id or my_id not in participants: continue
+
+            best_action = max(decision.actions,key=lambda a: sum(decision.payoffs[a]))
+
+            if actions is not best_action:
+                self.grudge[decider_id] += self.punishments
+    
+    
 class SelfishAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(SelfishAgent, self).__init__(genome, world_id)
+    
+    def utility(self, payoffs, agent_ids):
 
-    def utility(self, payoff, agent_id):
-        # TODO: Update for new decide_likelihood
-        if agent_id == self.world_id:
-            return payoff
-        else:
-            return 0
+        weights = [1 if agent_id == self.world_id else 0
+                   for agent_id in agent_ids]   
+        return sum(itertools.imap(multiply,weights,payoffs))
 
 class AltruisticAgent(Agent):
+
     def __init__(self, genome, world_id=None):
         super(AltruisticAgent, self).__init__(genome, world_id)
 
-    def utility(self, payoff, agent_id):
-        # TODO: Update for new decide_likelihood
-        return payoff
+    def utility(self,payoffs,agent_ids):
+        weights = [1]*len(agent_ids)
+        return sum(itertools.imap(multiply,weights,payoffs))
+
+class keydefaultdict(defaultdict):
+    def __missing__(self,key):
+        ret = self[key] = self.default_factory(key)
+        return ret
+
+class constantdefaultdict(dict):
+    def __init__(self,val):
+        self.val = val
+    def __missing__(self,key):
+        ret = self[key] = copy(self.val)
+        return ret
+    
+class TypeDict(dict):
+    def __init__(self,genome,agent_id=None):
+        agent_types = genome['agent_types']
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+        model = self.agent = RationalAgent(genome,agent_id)
+        belief = self.belief = model.belief
+        likelihood = self.likelihood = model.likelihood
+        self.observers = observers = [model]
+        for agent_type in agent_types:
+            m = agent_type(genome,agent_id)
+            if agent_type in [gTFT,Pavlov]:
+                observers.append(m)
+            dict.__setitem__(self,agent_type,m)
+
+        for rational_type in rational_types:
+            r_model = dict.__getitem__(self,rational_type)
+            r_model.belief = belief
+            r_model.likelihood = likelihood
+
+    def observe_k(self,observations, k, tremble):
+        for observer in self.observers:
+            observer.observe_k(observations,k,tremble)
+
+
+class AgentDict(dict):
+    def __init__(self,genome):
+        self.genome = genome
+    def __missing__(self,agent_id):
+        ret = self[agent_id] = TypeDict(self.genome,agent_id)
+        return ret
+        
+class RationalAgent(Agent):
+    #def __new__(cls, genome = None, world_id = None, prior = None):
+    #    if not (genome or world_id) and prior:
+    #        return AgentWithPrior(cls,prior)
+    #    else:
+    #        return Agent.__new__(cls,genome,world_id)
+    def __init__(self, genome, world_id=None):#, *args, **kwargs):
+        super(RationalAgent, self).__init__(genome, world_id)
+        #print genome
+        #print world_id
+
+        #NamedArray mapping agent_type to odds that an arbitrary agent is of that type
+        self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
+        self.pop_prior = copy(self.genome['prior'])
+
+        self.uniform_likelihood = normalized(self.pop_prior*0+1)
+        self.model = AgentDict(genome)
+        
+        self.likelihood = constantdefaultdict(self.initialize_likelihood())
+        self.belief = constantdefaultdict(self.initialize_prior())
+
+    """
+    the following are wrappers for convenience
+    """
+    def belief_that(self, a_id,a_type):
+        try:
+            return self.belief[a_id][self._type_to_index[a_type]]
+        except KeyError:
+            return 0
+
+    def likelihood_that(self, a_id,a_type):
+        return self.likelihood[a_id][self._type_to_index[a_type]]
+    def k_belief(self,a_ids,a_type):
+        """
+        call with list of agent_ids. If you want A's belief that B believes A is reciprocal
+        agent_A.k_belief(('B','A'),ReciprocalAgent)
+        """
+        try:
+            [a_id] = a_ids
+            return self.belief_that(a_id, a_type)
+        except ValueError:
+            a_id = a_ids[0]
+            a_ids = a_ids[1:]
+            my_type = self.genome['type']
+            return self.model[a_id].agent.k_belief(a_ids,a_type)
+
+    def purge_models(self, ids):
+        #must explicitly use .keys() below because mutation
+        for id in (id for id in ids if id in set(self.model.keys())): 
+            del self.model[id]
+            del self.belief[id]
+            del self.likelihood[id]
+        for model in self.model.itervalues():
+            model.purge_models(ids)
+        
+    def initialize_prior(self):
+        # This needs to initialize the data structure that is used for the online update
+        return self.pop_prior
+    
+    def initialize_likelihood(self):
+        # return normalized(self.pop_prior*0+1)
+        return self.pop_prior*0
+
+    def initialize_model(self, agent_id):
+        genome = self.genome
+        agent_types = genome['agent_types']
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+        
+        self.agent = rational_model = RationalAgent(genome,agent_id)
+        self.rational_models[agent_id] = rational_model
+        self.models[agent_id] = {}
+        
+        for rational_type in rational_types:
+            model = self.models[agent_id][rational_type] = rational_type(genome,agent_id)
+            model.belief = rational_model.belief
+            model.likelihood = rational_model.likelihood
+            model.models = rational_model.models
+        return self.models[agent_id]
+
+    def _use_defaultdicts(self):
+        belief,likelihood,models = copy(self.belief),copy(self.likelihood),copy(self.models)
+        
+        self.belief.update(belief)
+        
+        self.likelihood = defaultdict(self.initialize_likelihood)
+        self.likelihood.update(likelihood)
+        
+        self.models = keydefaultdict(self.initialize_model)
+        self.models.update(models)
+
+        for model in self.rational_models.values():
+            model._use_defaultdicts()
+        return self
 
         
-class ReciprocalAgent(Agent):
-    def __init__(self, genome, world_id=None):
-        super(ReciprocalAgent, self).__init__(genome, world_id)
-        # The prior probability that this agent believes the a new
-        # agent will be of a certain type. The values should sum to 1.
-        # FIXME: This will need to change if you use more than these
-        # two agents.
-        self.pop_prior = {
-            ReciprocalAgent.__name__: self.genome['RA_prior'],
-            SelfishAgent.__name__ : 1-self.genome['RA_prior']
-        }
+    def utility(self, payoffs, agent_ids):
+        sample_alpha = self.sample_alpha
+        weights = map(sample_alpha,agent_ids)
+        return sum(itertools.imap(multiply,weights,payoffs))
 
-        # My belief about each agent in the world. The key is the
-        # world_id of the agent and the value is a single number that
-        # is the probability that the agent with that key is a ReciprocalAgent. 
-        self.belief = dict()
-        # Simulated models of other agents for likelihood comparisons etc. 
-        self.agents = dict()
-        self.likelihood = dict()
-        
-    def utility(self, payoff, agent_id):
-        # TODO: Update for new decide_likelihood
-        if agent_id == self.world_id:
-            return payoff
-        else:
-            # If I don't have any beliefs about that agent, use my prior. 
-            if agent_id not in self.belief:
-                self.belief[agent_id] = self.initialize_prior()
-
-            alpha = self.sample_alpha(self.belief[agent_id])
-            return alpha * payoff
-
-    def sample_alpha(self, belief):
-        # Decide what to do here? Should this be sampling and
+    def sample_alpha(self, agent_id):
+        """
+        this function basically tells us how much we care about
+        a particular agent's payoff as a function of our beliefs about them
+        every reciprocal agent type is defined by just defining this function
+        """
+                   
+        # TODO: Decide what to do here? Should this be sampling and
         # then giving full weight? Or should it be weighting how much
         # we care? The weighted version is worse at punishing the bad
         # guys since it will still weight them a bit even when its
         # highly unlikely that they are reciprocal... Maybe this is
-        # just a downside of being a nice person?
-
-        # TODO: Make this abstract. What if you I want my alpha to be:
-        # the probability that YOU would value me. So if I'm 100% sure
-        # you are Reciprocalagent I will give you a 1. BUT this should
-        # be true for the Altrustic type too so it can't just depend
-        # on my belief but something richer than that.
+        # just a downside of being a nice person?0
         
         # return int(flip(belief))
-        return belief
+        print "Rational Agents don't know how to choose, subclasses do"
+        raise NotImplementedError
 
-    def initialize_prior(self):
-        # This needs to initialize the data structure that is used for the online update
-        return self.pop_prior[ReciprocalAgent.__name__]
+    #@profile
+    def observe(self,observations):
+        if self.genome['RA_prior'] in [1,0]:
+            return
+        self.observe_k(observations,self.genome['RA_K'],self.genome['tremble'])
 
     def observe_k(self, observations, K, tremble = 0):
         """
-        takes in observations = [(game, agent_ids, observer_ids, action), ...]
-        
-        everything in the observe list is observed at the same time. If you want to observe things in a sequence you need to call this function multiple times. 
-
+        takes in
+        observations = [(game, agent_ids, observer_ids, action), ...]
         k = an integer. (function has special behavior for k =,<,> 0)
         
-        Undefined for K<0. 
-        K = 0 means that my model of you is one where you are not learning.
-        K = 1 means that my model of you is one where you are learning but assuming everyone else is not learning. 
-        K = 2 means that my model of you is one where you are learning, and assuming that everyone else is learning but that they don't think anyone is learning. 
-        ....
-
         """
         # Key assumption: everyone who observes the action, observes
         # who observes the action. Thus observation of action is
@@ -266,556 +386,545 @@ class ReciprocalAgent(Agent):
         # order beliefs only diverge from second order beliefs if who
         # observes who is unknown.
 
-        if K < 0: return
-
-        # This loop is for initializing the agents models of other agents
-        for observation in observations:
-
-            game, agent_ids, observer_ids, action = observation
         
-            # Do recursive theory of mind on all of the agents 
-            # for pair in list(itertools.permutations(observer_ids,K+1)):
-            for observer_id in observer_ids:
-                # Can't have a belief about what I think about what I
-                #think. Beliefs about others are first order beliefs.
-                #continue skips the remainder of this looping instance
-                if observer_id == self.world_id: continue
+        #if K < 0: return
+        genome = self.genome
+        agent_types = genome['agent_types']
+        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
 
-                # Initialize the level-2 agents
-                if observer_id not in self.agents:
-                    #assume the agent is reciprocal
-                    self.agents[observer_id] = ReciprocalAgent(self.genome, world_id = observer_id)
-                    #for every observer, initialize their beliefs about the new agent to their prior
-                    for o_id in observer_ids:
-                        self.agents[observer_id].belief[o_id] = self.agents[observer_id].initialize_prior()
+        my_id = self.world_id 
+        observations = filter(lambda obs: my_id in obs[2], observations)
+        for observation in observations:
+            observers = observation[2]
+            
+            for agent_id in observers:
+                if agent_id == self.world_id: continue
 
+                if agent_id not in self.model:
+                    model = self.model[agent_id]
+                    for o_id in observers:
+                        model.belief[o_id]
+                        model.likelihood[o_id]
                 
         for observation in observations:
-            game, agent_ids, observer_ids, action = observation
+            game, participants, observers, action = observation
 
-            # Can't have a belief about what I think about what I think. Beliefs about others are first order beliefs.
-            # so if i'm considering myself, skip to the next round of the loop. BUG: Remember the first agent_ids is the agent who acted
-            if agent_ids[0] == self.world_id: continue
+            decider_id= participants[0]
             
-            #if I'm not one of the observers this round, skip to the next round. 
-            if self.world_id not in observer_ids: continue
+            if decider_id == my_id: continue
 
-            action_indx = game.action_lookup[action]
+            likelihood = []
+            append_to_likelihood = likelihood.append
+            #decide_likelihood = Agent.decide_likelihood
+            action_index = game.action_lookup[action]
 
-            # TODO: The rest of this loop doesn't generalize to more than one agent. 
+            #calculate the normalized likelihood for each type
+            for agent_type in agent_types:
+                model = self.model[decider_id][agent_type]
+                #if agent_type in rational_types:
+                    #fetch model
+                #    model = self.model[decider_id][agent_type]
+                #else:
+                    #make model
+                #    model = agent_type(genome, world_id = decider_id)
+                append_to_likelihood(model.decide_likelihood(game,participants,tremble)[action_index])
+                
+
+            # self.likelihood[decider_id] *= likelihood
+            # self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
             
-            selfish_agent = SelfishAgent(self.genome)
-            selfish_likelihood = Agent.decide_likelihood(selfish_agent, game, [selfish_agent.world_id, self.world_id], tremble)[action_indx]
+            # prior = self.pop_prior
+            # likelihood = self.likelihood[decider_id]
+            # self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
 
-            # BUG: This needs to be generalized to more agent types.
-            # Because self.agents *only* includes reciprocal agent
-            # types!
-            reciprocal_agent = self.agents[agent_ids[0]]
-            reciprocal_likelhood = Agent.decide_likelihood(reciprocal_agent, game, agent_ids, tremble)[action_indx]
+            self.likelihood[decider_id] += np.log(likelihood)
+            prior = np.log(self.pop_prior)
+            likelihood = self.likelihood[decider_id]
 
-            # TODO: Change to log-likelihood
-            if agent_ids[0] not in self.likelihood:
-                self.likelihood[agent_ids[0]] = {
-                    SelfishAgent.__name__ : 1,
-                    ReciprocalAgent.__name__: 1
-                }
-
-
-            self.likelihood[agent_ids[0]][SelfishAgent.__name__] *= selfish_likelihood
-            self.likelihood[agent_ids[0]][ReciprocalAgent.__name__] *= reciprocal_likelhood
-
+            self.belief[decider_id] = np.exp(prior + likelihood)
+            self.belief[decider_id] = belief = normalized(self.belief[decider_id])
+            #assert not any(belief == 1.0)
             
-        # Update the priors after getting the likelihood estimate for each agent
-        # TODO: Should the K-1 agents also have priors that get updated?
-
-        # Update all beliefs
-        # for a_id in self.likelihood:
-            # game, agent_ids, observer_ids, action = observation
-
-            # if agent_ids[0] == self.world_id: continue
-            # if self.world_id not in observer_ids: continue
-            # if K>0:
-                # import ipdb; ipdb.set_trace()
-
-            # Combine my likelihood with my prior to get my belief that agent_ids[0] is reciprocal. 
-            self.belief[agent_ids[0]] = (self.pop_prior[ReciprocalAgent.__name__] * self.likelihood[agent_ids[0]][ReciprocalAgent.__name__]) / (self.pop_prior[ReciprocalAgent.__name__] * self.likelihood[agent_ids[0]][ReciprocalAgent.__name__] + self.pop_prior[SelfishAgent.__name__] * self.likelihood[agent_ids[0]][SelfishAgent.__name__])
-
         # Observe the other person, when this code runs at K=0
         # nothing will happen because of the return at the top
-        # of the function. BUG: Should this only run on agents that are in the observer_ids or does it need to run on ALL agents that the agent has beliefs about?
-        for a_id in self.agents:
-            self.agents[a_id].observe_k(observations, K-1, tremble)
+        # of the function.
 
-        # # Update the prior at the end but can comment it out and it will still work!
+        if K == 0:return
+        for agent_id, models in self.model.iteritems():
+            models.observe_k(observations, K-1, tremble)
+
+            
         # if K>0:
-            # self.update_prior()
+        #     self.update_prior()
 
     def update_prior(self):
-        """Do a hierarchical update on the prior by considering the agents
-        confidence in the types of agents and finds the MAP prior.
-        Will need to go from a Beta prior to a Dirichlet code to
-        generalize to multiple agent types.
-        """
-        
-        if self.genome['RA_prior_precision'] == 0: return
+        if self.genome['prior_precision'] == 0: return
         
         D = list()
-        for a, l in self.likelihood.iteritems():
-            p = l[ReciprocalAgent.__name__] / (l[ReciprocalAgent.__name__] + l[SelfishAgent.__name__])
-
-            w = abs(p - (1 - p))
-            D.append([p*w, (1-p)*w])
-
-        if not len(D): return # No observations
-
-        D = np.array(D)
+        n_agent_types = len(self.genome['agent_types'])
+        NamedArray = namedArrayConstructor(self.genome['agent_types'])
         
-        prior = np.array([self.genome['RA_prior'], 1-self.genome['RA_prior']]) * self.genome['RA_prior_precision']
+        prior = self.genome['prior'] * self.genome['prior_precision']
 
         def ll(p):
-            # Beta Prior on Mean
-            logprior = sum((prior-1) * np.log([p[0], 1-p[0]]))
+            p[-1] = 1-sum(p[0:-1])
+            like = 0
+            for order in itertools.product(range(n_agent_types), repeat=len(self.likelihood)):
+                agent_counts = [sum(np.array(order)==t) for t in range(n_agent_types)]
+                counts = np.array(prior + agent_counts)
 
-            # Binomial likelihood
-            RA, S = D.sum(axis=0)
-            return -(
-                RA * np.log(p[0]) + S * np.log(1-p[0]) 
-                + logprior)
+            #     # lnB = np.sum(gammaln(counts)) - gammaln(np.sum(counts))
+            #     # pdf = np.exp( - lnB + np.sum((np.log(p.T) * (counts - 1)).T, 0) )
+            #     # term = np.array(pdf) #FIXME: Shouldn't need this... named array issue
+            
+                term = sp.stats.dirichlet.pdf(p, counts)
+                for a_id, agent_type in zip(self.likelihood.keys(), order):
+                    # wrong not a dependence on p (theta) a dependence on alpha which is the prior
+                    # belief = (self.likelihood[a_id][agent_type]*p[agent_type]) / np.dot(p, self.likelihood[a_id])
+
+                    # still wrong since this just using the mean and not doing the full integration
+                    belief = (self.likelihood[a_id][self._type_to_index[agent_type]]*prior[self._type_to_index[agent_type]]) / np.dot(prior, self.likelihood[a_id])
+
+                    term *= belief
+
+                like += term
+
+            return -(np.log(like))
+
+        out = constraint_min(ll, np.ones(n_agent_types)/n_agent_types)
         
-        out = sp.optimize.minimize(ll, D.sum(axis=0)[0], bounds = [(.001, .999)])
+        print out
         
-        self.pop_prior = {
-            ReciprocalAgent.__name__: out.x[0],
-            SelfishAgent.__name__ : 1-out.x[0]
+        # FIXME: Need to save these out to the pop_prior and then update the belief of all the agents by using the new prior when combining the likelihood and prior. 
+        
+        # self.pop_prior = {
+            # ReciprocalAgent.__name__: out.x[0],
+            # SelfishAgent.__name__ : 1-out.x[0]
+        # }
+
+def belongs_to_ingroup(ingroup,t):
+    if t in agent.ingroup():
+        return True
+    for i in ingroup:
+        try:
+            issubclass(t,i)
+        except:
+            pass
+
+class IngroupAgent(RationalAgent):
+    def __init__(self, genome, world_id=None):
+        super(IngroupAgent, self).__init__(genome, world_id)
+        my_ingroup = self.ingroup()
+        self.ingroup_indices = np.array([self._type_to_index[agent_type]
+                                         for agent_type in genome['agent_types']
+                                         if agent_type in my_ingroup])
+
+    def sample_alpha(self,agent_id):
+        if agent_id == self.world_id:
+            return 1
+        try:
+            return sum(self.belief[agent_id][self.ingroup_indices])
+        except IndexError:
+            return sum([self.belief_that(agent_id,t) for t in self.genome['agent_types'] if self.is_in_ingroup(t)])
+        except KeyError:
+            self.belief[agent_id] = self.initialize_prior()
+            return sum(self.belief[agent_id][self.ingroup_indices])
+
+    def is_in_ingroup(self,a_type):
+        for i in self.ingroup():
+            if a_type == i:
+                return True
+            if issubclass(a_type,i):
+                return True
+        return False
+
+class ReciprocalAgent(IngroupAgent):
+    @staticmethod
+    def ingroup():
+        return [ReciprocalAgent]
+
+class NiceReciprocalAgent(IngroupAgent):
+    @staticmethod
+    def ingroup():
+        return [NiceReciprocalAgent, AltruisticAgent, AllC, gTFT]
+
+class prefabABC(Agent):
+    def __new__(self,genome,world_id = None):
+        return self.type(dict(genome,**self.genome), world_id = world_id)
+import copy_reg
+def pickle_prefab(prefab):
+    return eval,prefab.name
+
+class PrefabAgent2(type):
+    def __new__(cls,a_type,**genome_kwargs):
+        name = str(a_type)+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in sorted(genome_kwargs.iteritems())])
+        t = AgentType(name,(prefabABC,a_type),{"genome":genome_kwargs,"type":a_type})
+        
+        class prefab(a_type):
+            def __new__(self,genome,world_id = None):
+                return a_type(dict(genome,**genome_kwargs), world_id = world_id)
+
+        prefab.name = name
+        copy_reg.pickle(prefab,pickle_prefab)
+        return prefab
+
+pretty_keys = {"RA_prior":"prior"}
+class PrefabAgent(Agent):
+    def __init__(self,a_type,**genome_kwargs):
+        self.type = a_type
+        self.__name__ = str(a_type)+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in sorted(genome_kwargs.iteritems())])
+        try:
+            tom = genome_kwargs['agent_types']
+            genome_kwargs['agent_types'] = tuple(t if t is not 'self' else self for t in tom)
+        except:
+            pass
+        self.genome = HashableDict(genome_kwargs)
+
+    def __call__(self,genome,world_id = None):
+        return self.type(dict(genome,**self.genome), world_id = world_id)
+
+    def short_name(self,*without):
+        genome = excluding_keys(self.genome,*without)
+        return str(self.type)+"(%s)" % ",".join(["%s=%s" % (pretty_keys.get(key,key),val) for key,val in sorted(genome.iteritems())])
+    def __str__(self):
+        return self.__name__
+    def __repr__(self):
+        return str(self)
+    def __hash__(self):
+        return hash(str(self))
+    def __eq__(self,other):
+        if hash(self)==hash(other):
+            return True
+        if hash(self.type) == hash(other):
+            return True
+        return False
+
+
+    def ingroup(self):
+        return self.type.ingroup()
+
+def is_agent_type(instance,base):
+    try:
+        return issubclass(instance,base)
+    except TypeError:
+        return issubclass(instance.type, base)
+
+class ClassicAgent(Agent):
+    def decide(self, game, agent_ids):
+        ps = self.decide_likelihood(game, tremble = 0)
+        action_id = np.squeeze(np.where(np.random.multinomial(1,ps)))
+        action = game.actions[action_id]
+        return action
+    def observe(self, *args, **kwargs):
+        pass
+
+    def observe_k(self, observations, *args, **kwargs):
+        self.observe(observations)
+
+    def k_belief(self,*args,**kwargs):
+        return 0
+
+class Pavlov(ClassicAgent):
+    def __init__(self,genome,world_id = None):
+        self.genome = deepcopy(genome)
+        self.world_id = world_id
+        self.strats = strats = [{'give':1,'keep':0}, {'keep':1,'give':0}]
+        self.strat_index = 0
+        #self.strat = strats[strat_index]
+
+    def observe(self,observations):
+        obs1, obs2 = observations
+        actions = [obs1[3], obs2[3]]
+        players = [obs1[1][0], obs2[1][0]]
+        me = self.world_id
+        if me in players:
+            a = players.index(me)
+            o = (a+1)%2
+            if actions[o] == 'keep':
+                self.strat_index = (self.strat_index+1)%2
+
+    def decide_likelihood(self, game, agents = None, tremble = None):
+        return self.add_tremble(np.array([self.strats[self.strat_index][action] for action in game.actions]), tremble)
+
+class gTFT(ClassicAgent):
+    def __init__(self, genome, world_id = None):
+        self.world_id = world_id
+        self.genome = genome
+
+        self.y = y = genome['y']
+        self.p = p = genome['p']
+        self.q = q = genome['q']
+        
+        self.rules = {
+            None:
+            {"give": y, 'keep': 1-y},
+            True:
+            {"give": p, 'keep': 1-p},
+            False:
+            {'give': q, 'keep': 1-q}
         }
-        
-def generate_random_genomes(N, agent_types, RA_prior, RA_prior_precision, beta):
-    # Currently only agent_types is a list. So its the only thing
-    # being randomized over. You can make the others into lists which
-    # will cause those to be randomized over as well.
-    genomes = []
 
-    for _ in range(N):
-        genomes.append({
-            'type': np.random.choice(agent_types),
-            'RA_prior': RA_prior,
-            'RA_prior_precision': RA_prior_precision,
-            'beta': beta,
-        })
+        self.cooperation = 'give'
+        self.cooperated = None
 
-    return genomes
+    def decide_likelihood(self,game,agents = None, tremble = None):
+        #if self.cooperated == "First":
+        #    coop_prob = self.y
+        #else:
+        #    coop_prob = self.p if self.cooperated else self.q
+        #ps = []
+    
+        #for action in game.actions:
+        #    if action == "give":
+        #        ps.append(coop_prob)
+        #    elif action == "keep":
+        #        ps.append(1-coop_prob)
+        #    else:
+        #        assert False
+        rules = self.rules
+        last_action = self.cooperated
+        return self.add_tremble(np.array([rules[last_action][action] for action in game.actions]), tremble)
+
+    def observe_k(self,observations,*args,**kwargs):
+        self.observe(observations)
+
+    def observe(self,observations):
+        assert len(observations)==2
+        for observation in observations:
+            game, participants, observers, action = observation
+            if self.world_id not in observers: continue
+            if self.world_id not in participants: continue
+            decider_id = participants[0]
+            if decider_id == self.world_id: continue
+            #print observation
+            #assert participants[1] == self.world_id
+            self.cooperated = action is "give"
+
+class AllC(ClassicAgent):
+    def decide_likelihood(self, game,agents = None, tremble = None):
+        odds = {'give':1-tremble/2,
+                'keep':tremble/2}
+        return self.add_tremble(np.array([odds[action] for action in game.actions]), tremble)
+    
+class AllD(ClassicAgent):
+    def decide_likelihood(self,game,agents = None, tremble = None):
+        odds = {'give':tremble/2,
+                'keep':1-tremble/2}
+        return self.add_tremble(np.array([odds[action] for action in game.actions]), tremble)
+
+class RandomAgent(ClassicAgent):
+    def decide_likelihood(self,game,*args,**kwargs):
+        l = len(game.actions)
+        return (1/l,)*l
+
+class OpportunisticRA(RationalAgent):
+    """
+    The idea here is "nice to anyone who would be nice to me".
+    It's interesting to try to define this guy's behavior
+    should it be anyone who would give him 100% of his payoff?
+    or should he take whatever he can get?
+    What about "nice to anyone who would be nice to me if they knew the real me"?
+    
+    try these utilities
+    summing over types: 
+    (belief that they are of a type)*(how much that type values me, according to their beliefs about me)
+    (belief that they are of a type)*(how much that type would value me if they knew the real me)
+    (belief in type) if (they absolutely value my type)
+    (belief in type) if (they absolutely value who they think I am)
+    
+    """
+    pass
+
+"""
+End Agent Definitions
+"""
+
+"""
+Start Essential Auxiliary Definitions
+
+These define structures that are necessary to define other structures in this file, namely params and genomes
+"""
+
+def discount_stop_condition(x,n):
+    return not flip(x)
+def constant_stop_condition(x,n):
+    return n >= x
+
+"""
+End Essential Auxiliary Definitions
+"""
 
 class World(object):
     # TODO: spatial or interaction probabilities
     
     def __init__(self, params, genomes):
         self.agents = []
+        self.counter = itertools.count()
         self.id_to_agent = {}
         
-        # Generate some Genomes and instantiate them as agents
-        for world_id, genome in enumerate(genomes):
-            # Initialize a new agent and add it to a list. 
-            self.agents.append(
-                genome['type'](genome, world_id)
-            )
-            self.id_to_agent[world_id] = self.agents[-1]
+        self.add_agents(genomes)
+
+        #self.agent_types = self.agents[0].genome['agent_types']
         
+        self.pop_size = len(self.agents)
+        self.tremble = params['tremble']
         self.game = params['games']
-        self.stop_condition = params['stop_condition']
+        #self._stop_condition = params['stop_condition']
+        #self.stop_condition = partial(*params['stop_condition'])
         self.params = params
-        
+        self.last_run_results = {}
+
+        for id, agent in enumerate(self.agents):
+            if isinstance(agent,RationalAgent):
+                for a_id in range(self.pop_size):
+                    if a_id is not id:
+                        agent.belief[a_id] = agent.initialize_prior()
+
+
+
+    def add_agents(self, genomes):
+        self.agents = list(self.agents)
+        for genome, world_id in itertools.izip(genomes,self.counter):
+            agent = genome['type'](genome,world_id)
+            self.agents.append(agent)
+            self.id_to_agent[world_id] = agent
+        self.agents = np.array(self.agents)
+
+    def purge_agents(self, ids):
+        pass
+            
     def evolve(self, fitness, p=1, beta=1, mu=0.05):
-        """
-        This should implement something like the moran process. 
-        Search for moran in this: http://www.pnas.org/content/110/7/2581.full.pdf for references
-        Also: https://en.wikipedia.org/wiki/Moran_process
-
-        `fitness`: the vector of fitnesses for these agents.
-
-        `p`: proportion of agents who die and replaced by selection
-
-        `beta`: selection strength. When 0 random replication, when Inf, only the top agent reproduces. This is the moran Beta
-
-        `mu`: drift rate. Which corresponds to random replication (mutation). You can think of this like a trembling hand. Proportion of agents who die and are changed by drift.  
-        """
         # FIXME: Need to increment the id's. Can't just make new
         # agents, otherwise new agents will be treated as old agents
         # if they share the same ID
 
-        # FIXME: Can't overwrite the self.agents[] with a new agent
-        # since everything is by agent_id.
-        
+
+        #problem solved?
         assert 0 # BROKEN (See above)
-
-        # See who will be replaced by selection
-        die = np.random.choice(range(len(self.agents)), int(p*len(self.agents)), replace=False)
         
-        # See who will be replaced by drift. (these guys also die)
-        die_random = np.random.choice(range(len(self.agents)), int(mu*len(self.agents)), replace=False)
-
-        # Replace by selection
+        die = np.random.choice(range(self.pop_size), int(p*self.pop_size), replace=False)
+        random = np.random.choice(range(self.pop_size), int(mu*self.pop_size), replace=False)
         for a in die:
-            # Pick based on the softmax so this is where selection happens. 
             copy_id = sample_softmax(fitness, beta)
             self.agents[a] = self.agents[copy_id].__class__(self.agents[copy_id].genome)
 
-        # Replace by drift. Select a new genome randomly from the
-        # space of possible genomes. NOT from the population.
-        new_genomes = generate_random_genomes(len(die_random), self.params['agent_types'], self.params['RA_prior'], self.params['beta'])
-        for a, ng in zip(die_random, new_genomes):
+        new_genomes = generate_random_genomes(len(random), self.params['agent_types'], self.params['RA_prior'], self.params['beta'])
+        for a, ng in zip(random, new_genomes):
             self.agents[a] = ng['type'](ng)
 
-    def run(self):
-        # take in a sampling function
-        fitness = np.zeros(len(self.agents))
-        history = []
-
-        # Get all pairs
-        pairs = list(itertools.combinations(range(len(self.agents)), 2))
-        np.random.shuffle(pairs)
-
-        for pair in pairs:
-            rounds = 0
-            while True:
-                rounds += 1
-                
-                observations = []
-                payoff = np.zeros(len(self.agents))
-                # Have both players play both roles in the dictator game
-                for p0, p1 in [[pair[0], pair[1]], [pair[1], pair[0]]]:
-                    agents = [self.agents[p0], self.agents[p1]]
-                    agent_ids = [self.agents[p0].world_id, self.agents[p1].world_id]
-
-                    # Intention -> Trembling Hand -> Action
-                    intentions = agents[0].decide(self.game, agent_ids)
-                    actions = copy(intentions)
-
-                    #does this assume that everyone has the same actions?
-                    #does everyone tremble independently?
-                    #are these joint actions?
-                    
-                    for i in range(len(intentions)):
-                        if flip(params['p_tremble']):
-                            actions = np.random.choice(self.game.actions)
-                            
-                    intentions = intentions
-                    actions = actions
-
-                    payoff[[p0, p1]] += self.game.payoffs[actions]
-
-                    # Determine who gets to observe this action. 
-                    
-                    # Reveal observations to update the belief state. This
-                    # is where we can include more agents to increase the
-                    # amount of observability
-                    observer_ids = pair
-                    observations.append((self.game, agent_ids, observer_ids, actions))
-
-                # Update fitness
-                fitness += payoff
-
-                # All observers see who observed the action. 
-                # for o in observations:
-                    # Iterate over all of the observers
-                for a in self.agents:
-                    a.observe_k(observations, self.params['RA_K'], self.params['p_tremble'])
-                    
-                history.append({
-                    'round': rounds,
-                    'players': (self.agents[pair[0]].world_id, self.agents[pair[1]].world_id),
-                    'actions': (observations[0][2][0], observations[1][2][0]),
-                    'payoff': payoff,
-                    'belief': (copy(self.agents[0].belief), copy(self.agents[1].belief))
-                })
-
-                if self.stop_condition(rounds): break
-                
-        return fitness, history
-                
-discount_stop_condition = lambda x: lambda n: not flip(x)
-constant_stop_condition = lambda x: lambda n: n >= x
-
-# adding multistep games and games that depend on the outcome of previosu games (e.g., ultimatum game)
-# TODO: This currently expects a single game instance. TODO: Make this accept a list of games or a game generator function. 
-
-def default_params():
-    """
-    generates clean dict containing rules that determine agent qualities
-    this dict provides a simple way to change conditions of experiments
-
-    `games`: Instance of a StageGame object to be used as the default if no game is specified. 
-
-    `stop_condition`: The current `World` matches players together for either a single or a repeated interaction. This expects a reference to a function that takes in the number of rounds played (`n`). The function returns True if the interaction should stop and false if the interaction should continue. 
-
-    `constant_stop_condition`: means that each dyad plays a fixed number of round together up to X. 
-
-    `discount_stop condition`: randomly terminates the interaction with probability `x` and hence does not depend on the round number. 
-
-    `agent_types`: Default agent types which will be initialized through `generate_random_genomes`.
-
-    `beta`: is the beta in the softmax function for the agent decision making. When beta is Inf the agents always select the option that maximizes utility when beta is 0, the agents choose actions randomly. 
-
-    `moran_beta`: is the beta in the evolutionary selection. When moran_beta is 0 the next generation randomly copies from the previous generation. When moran_beta is Inf, all agents in the next generation copy the best agent in the previous generation. 
-
-    I've been using the `RA_` prefix to denote parameters that are special to the reciprocal agent time. 
-
-    `RA_prior`: The prior probability that a ReciprocalAgent has on another agent also being a ReciprocalAgent. The higher this value, the more likely the ReciprocalAgent is to believe the other agent is also ReciprocalAgent without observing any of their actions. 
-    TODO: This will probability need to be generalized a bit to handle other Agent types.
-
-    `RA_prior_precision`: This is how confident the agent is in its prior (its like a hyperprior). If it is 0, there is no uncertainty and the prior never changes. If this is non-zero, then `RA_prior` is just the mean of a distribution. The agent will learn the `RA_prior` as it interacts with more and more agents. 
-
-    `p_tremble`: probability of noise in between forming a decision and making an action. 
-
-    `RA_K`: is the number of theory-of-mind recursions to carry out. When RA_K is 0 the agent just tries to infer the type directly, when it is 1, you first infer what each agent knows and then infer what you know based on those agents and so on. 
-
-    """
-    return {
-        'games': BinaryDictator(0, 1, 2), 
-        'stop_condition': constant_stop_condition(10),
-        'agent_types' : [
-            SelfishAgent,
-            ReciprocalAgent
-        ],
-        'beta': 3,
-        'moran_beta': .1,
-        'RA_prior': .8,
-        'RA_prior_precision': 0, # setting this to 0 turns off updating the prior
-        'p_tremble': 0.0,
-        'RA_K': 1,
-    }
-
-def forgiveness_experiment(path = 'sims/forgiveness.pkl', overwrite = False):
-    """
-    When two reciprocal agents interact, how likely are they to figure out that they are both reciprocal agent types?
-    This will depend on the RA_prior. 
-
-    Compare with something like TFT which if it gets off on the wrong foot will never recover. There are forgiving versions of TFT but they are not context sensitive. Experiments here should explore how the ReciprocalAgent is a more robust cooperator since it can reason about types. 
-
-    TODO: This could be an interesting place to explore p_tremble, and show that agents can recover. 
-    """
-    print 'Running Forgiveness Experiment'
-    if os.path.isfile(path) and not overwrite: 
-        print path, 'exists. Delete or set the overwrite flag.'
-        return
+    def cull_list(self):
+        """
+        returns a list of agent_ids to be removed from the population
+        
+        goes through every agent and adds them to list with probability proportional
+        to age and maybe fitness
+        
+        """
+        pass
     
-    params = default_params()
-    params['N_agents'] = 2
-    params['agent_types'] = [ReciprocalAgent]
-    N_round = 10
-    params['stop_condition'] = constant_stop_condition(N_round)
-    data = []
-    N_runs = 500
-    for RA_prior in np.linspace(0.5, 0.95, 4):
-        params['RA_prior'] = RA_prior
-        print 'running prior', RA_prior
+    def reproduce(self):
+        """
+        returns a list of agent_ids to reproduce
 
-        for r_id in range(N_runs):
-            np.random.seed(r_id) # Increment a new seed for each run
-            w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'], params['RA_prior_precision'], params['beta']))
-            fitness, history = w.run()
-            for nround in range(len(history)):
-                avg_beliefs = np.mean([history[nround]['belief'][0][w.agents[1].world_id], history[nround]['belief'][1][w.agents[0].world_id]])
-                data.append({
-                    'RA_prior': RA_prior,
-                    'avg_beliefs': avg_beliefs,
-                    'round': nround+1
-                })
+        runs through list of agents and selects for reproduction with probability 
+        proportional to fitness
+        """
+        pass
 
-            data.append({
-                'RA_prior': RA_prior,
-                'avg_beliefs': RA_prior,
-                'round': 0
-            })
+    def run(self,agents = None,observers = None,notes = {}):
+        agents = np.array(self.agents)
+        if notes:
+            payoff, observations, record = self.game.play(agents, agents, tremble=self.params['tremble'],notes = notes)
+        else:
+            payoff, observations, record = self.game.play(agents ,agents, tremble=self.params['tremble'])
+        return payoff, record
 
-
-    df = pd.DataFrame(data)
-    df.to_pickle(path)
-
-def forgiveness_plot(in_path = 'sims/forgiveness.pkl', out_path='writing/evol_utility/figures/forgiveness.pdf'):
-    df = pd.read_pickle(in_path)
-
-    sns.factorplot(x='round', y='avg_beliefs', hue='RA_prior', data=df)
-    sns.despine()
-    plt.ylim([0,1.05])
-    plt.ylabel('P(Other is reciprocal | Round)'); plt.xlabel('Round')
-    plt.tight_layout()
-    plt.savefig(out_path); plt.close()
-
-def protection_experiment(path = 'sims/protection.pkl', overwrite = False):
-    """
-    If a ReciprocalAgent and a Selfish agent are paired together. How quickly will the ReicprocalAgent detect it. Look at how fast this is learned as a function of the prior. 
-    """
-    
-    print 'Running Protection Experiment'
-    if os.path.isfile(path) and not overwrite: 
-        print path, 'exists. Delete or set the overwrite flag.'
-        return
+def diagnostics():
 
     params = default_params()
-    params['agent_types'] = [ReciprocalAgent, SelfishAgent]
-    params['stop_condition'] = constant_stop_condition(10)
-    data = []
-    N_runs = 500
-    for RA_prior in np.linspace(0.5, .95, 4):
-        params['RA_prior'] = RA_prior
-        print 'running prior', RA_prior
 
-        for r_id in range(N_runs):
-            np.random.seed(r_id)
-            w = World(params, [
-                {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'], 'RA_prior_precision': params['RA_prior_precision'],'beta': params['beta']},
-                {'type': SelfishAgent, 'beta': params['beta']},
-            ])
-            
-            fitness, history = w.run()
-            for h in history:
-                data.append({
-                    'round': h['round'],
-                    'RA_prior': RA_prior,
-                    'belief': h['belief'][0][h['players'][1]],
-                })
-
-            data.append({
-                'round': 0,
-                'RA_prior': RA_prior,
-                'belief': RA_prior,
-            })
-
-    df = pd.DataFrame(data)
-    df.to_pickle(path)
-
-def protection_plot(in_path = 'sims/protection.pkl', out_path='writing/evol_utility/figures/protection.pdf'):
-    df = pd.read_pickle(in_path)
-
-    sns.factorplot('round', 'belief', hue='RA_prior', data=df, ci=68)
-    sns.despine()
-    plt.ylim([0,1])
-    plt.ylabel('P(Other is reciprocal | Interactions)'); plt.xlabel('Round #')
-    plt.tight_layout()
-    plt.savefig(out_path); plt.close()
     
-def fitness_rounds_experiment(path = 'sims/fitness_rounds.pkl', overwrite = False):
-    """
-    Repetition supports cooperation. Look at how the number of rounds each dyad plays together and the average fitness of the difference agent types. 
-    """
+    typesClassic = agent_types = (ReciprocalAgent,SelfishAgent)
     
-    print 'Running Fitness Rounds Experiment'
-    if os.path.isfile(path) and not overwrite: 
-        print path, 'exists. Delete or set the overwrite flag.'
-        return
+    params['stop_condition'] = [constant_stop_condition,10]
+    params['tremble'] = 0
+    params['RA_prior'] = 0.8
+    params['RA_prior_precision'] = 0
+    prior = prior_generator(agent_types,params['RA_prior'])
 
+    w = World(params, [default_genome(params,NiceReciprocalAgent)])
 
-    params = default_params()
-    params['N_agents'] = 50
-    params['RA_K'] = 1
-    params['RA_prior'] = .8
-    N_runs = 10
-    data = []
+    #g = RepeatedPrisonersTournament().game
+    #print g.name
+    #for key,val in g.__dict__.items():
+    #    print key,val
+    #    pickled(val,"./world.pkl")
 
-    for rounds in np.linspace(1, 8, 8, dtype=int):
-        print rounds
-        for r_id in range(N_runs):
-            np.random.seed(r_id)
-
-            params['stop_condition'] = constant_stop_condition(rounds)
-            w = World(params, generate_random_genomes(params['N_agents'], params['agent_types'], params['RA_prior'],  params['RA_prior_precision'], params['beta']))
-            fitness, history = w.run()
-
-            genome_fitness = Counter()
-            genome_count = Counter()
-
-            for a_id, a in enumerate(w.agents):
-                genome_fitness[a.__class__.__name__] += fitness[a_id]
-                genome_count[a.__class__.__name__] += 1
-
-            average_fitness = {a:genome_fitness[a]/genome_count[a] for a in genome_fitness}
-
-            moran_fitness = softmax_utility(average_fitness, params['moran_beta'])
-
-            for a in moran_fitness:
-                data.append({
-                    'rounds': rounds,
-                    'genome': a,
-                    'fitness': moran_fitness[a]
-                })
-
-        df = pd.DataFrame(data)
-        df.to_pickle(path)
-
-def fitness_rounds_plot(in_path = 'sims/fitness_rounds.pkl', out_path='writing/evol_utility/figures/fitness_rounds.pdf'):
-
-    df = pd.read_pickle(in_path)
-    sns.factorplot('rounds', 'fitness', hue='genome', data=df,)
-    sns.despine()
-    plt.ylim([0,1.05])
-    plt.ylabel('Fitness ratio'); plt.xlabel('# of repetitions')
-    plt.tight_layout()
-    plt.savefig(out_path); plt.close()
-
-params = default_params()
-
-params['stop_condition'] = constant_stop_condition(10)
-params['p_tremble'] = 0
-params['RA_prior'] = 0.8
-params['RA_prior_precision'] = 10
-
-w = World(params, [
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
-    {'type': ReciprocalAgent, 'RA_prior': params['RA_prior'],'RA_prior_precision': params['RA_prior_precision'], 'beta': params['beta']},
-])
-
-observations= [
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    (w.game, [1, 2], range(len(w.agents)), 'give'),
-    (w.game, [1, 2], range(len(w.agents)), 'give'),
+    #
+    pickled(w,"./world.pkl")
+    w = unpickled("./world.pkl")
+    return "YAY"
     
-    # (w.game, [2, 1], range(len(w.agents)), 'give'),
-    # (w.game, [1, 2], range(len(w.agents)), 'give'),
-    # (w.game, [0, 1], range(len(w.agents)), 'keep'),
-    # (w.game, [2, 3], range(len(w.agents)), 'give'),
-    # (AllocationGame(), [2, 0, 1], range(len(w.agents)), 'give 1'),
-]
+    
+    K = 0
+    
+    observations= [
+        (w.game, [0, 1], [0, 1], 'give'),
+        (w.game, [1, 0], [0, 1], 'keep'),
+    ]
 
-obs = [
-    (w.game, [1, 0], range(len(w.agents)), 'keep'),
-    (w.game, [1, 0], range(len(w.agents)), 'keep'),
-    (w.game, [1, 0], range(len(w.agents)), 'keep'),
-    (w.game, [1, 0], range(len(w.agents)), 'keep'),
-]
-K = 1
-i = 2
-w.agents[i].observe_k(observations, K)
-print w.agents[i].belief
+    for a in w.agents:
+        a.observe_k(observations, K)
+    for a in w.agents:
+        print a.world_id,a.belief
+    assert_almost_equal = np.testing.assert_almost_equal
+    assert_almost_equal(w.agents[0].belief[1],[0.37329758,  0.62670242])
+    
+    observations= [
+        (w.game, [0, 2], [0, 2], 'give'),
+        (w.game, [2, 0], [0, 2], 'give'),
+    ]
 
-w.agents[i].observe_k(obs, K)
-print w.agents[i].belief
+    for a in w.agents:
+        a.observe_k(observations, K)
+    for a in w.agents:
+        print a.world_id,a.belief
+        assert_almost_equal(w.agents[0].belief[1],[ 0.37329758,  0.62670242])
+        assert_almost_equal(w.agents[0].belief[2],[ 0.98637196,  0.01362804])
+        assert_almost_equal(w.agents[1].belief[0],[ 0.98637196,  0.01362804])
 
-# print w.agents[i].pop_prior['ReciprocalAgent']
+if __name__ == '__main__':
+    NRA = NiceReciprocalAgent
+    a = NiceReciprocalAgent(RA_prior = 1)
+    print (a in [a])
+    assert 0
+    print a
+    print type(a)
+    print a.__name__
+    print type(eval(a.__name__))
+    d = {a:True}
+    print d[a]
+    #print a.hi
+    #print a.__str__
+    #print a.__reduce__(a)
 
+    #pickled(NiceReciprocalAgent,"./agent.pkl")
+    #print unpickled("./agent.pkl")
+    #import ipdb; ipdb.set_trace()
+    #forgiveness_experiment(overwrite=True)
+    #forgiveness_plot() 
 
+    #protection_experiment(overwrite=True)
+    #protection_plot()
 
+    #fitness_rounds_experiment(20,overwrite=True)
+    #fitness_rounds_plot()
 
-# for i in range(len(w.agents)):
-#     w.agents[i].observe_k(observations, K)
-#     print i
-#     pprint(w.agents[i].belief)
-    # for k in w.agents[i].agents:
-    #     print k,
-    #     pprint( w.agents[i].agents[k].belief)
+    #diagnostics()
+    pass
 
-
-
-# forgiveness_experiment(overwrite=True)
-# forgiveness_plot() 
-
-# protection_experiment(overwrite=True)
-# protection_plot()
-
-fitness_rounds_experiment(overwrite=True)
-fitness_rounds_plot()
-
+"""
+Trust game
+public goods
+chicken?
+"""
