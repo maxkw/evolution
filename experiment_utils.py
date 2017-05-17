@@ -408,8 +408,8 @@ def plotter(experiment,
             plot_dir = kwargs.get("plot_dir",default_plot_dir)
             extension = kwargs.get("extension",default_extension)
             file_name = kwargs.get('file_name',default_file_name)
-            
-            for kw in ["plot_dir","file_name","extension"]:
+            plot_trials = kwargs.get('plot_trials', False)
+            for kw in ["plot_dir","file_name","extension", "plot_trials"]:
                 if kw in kwargs:
                     del kwargs[kw]
             
@@ -419,9 +419,8 @@ def plotter(experiment,
             #    save_file = plot_name+".pdf"
             call_data = make_arg_dicts(args,kwargs)
             plot_args = call_data['valid_args']
-
-            if call_data['defined_args'].get('data',False):
-                ret = plot_fun(**call_data['defined_args'])
+            if False:#type(call_data['valid_args'].get('data',[])) == pd.DataFrame:
+                ret = plot_fun(**call_data['valid_args'])
             else:
                 fun = call_data['args'].get('experiment',experiment)
 
@@ -450,12 +449,24 @@ def plotter(experiment,
                             plot_args[key] = val
                 except:
                     pass
-                
-                    
-                ret = plot_fun(**dict(plot_args,**{'data':data}))
+
+            if type(call_data['valid_args'].get('data',[])) == pd.DataFrame:
+                data = call_data['valid_args']['data']
+
+            ret = plot_fun(**dict(plot_args,**{'data':data}))
+
             if not file_name:
                 file_name = call_data['make_call_str'](call_args)
-                
+
+            if plot_trials:
+                trial_plot_dir = plot_dir+file_name+"/"
+                for t,d in data.groupby('trial'):
+                    call(*args,**dict(kwargs,**dict(data=d,
+                                                    plot_dir=trial_plot_dir,
+                                                    file_name = str(int(t)),
+                                                    extension = extension,
+                                                    plot_trials = False)))
+
             save_file = plot_dir+file_name+extension
             if not os.path.exists(plot_dir):
                 os.makedirs(plot_dir)
@@ -469,6 +480,7 @@ def plotter(experiment,
                 save_file = plot_dir+new_file_name+extension
                 plt.savefig(save_file)
             plt.close()
+            return ret
         call.make_arg_dicts = make_arg_dicts
         return call
     return wrapper
@@ -521,86 +533,6 @@ def apply_to_args(**f_to_argnames):
             return function(**arg_dict)
         return call
     return wrapper
-
-class cplotter(Decorator):
-    def __init__(self, default_experiment, experiment_args = [], plot_args = True, plot_dir = "./plots/"):
-        self.__dict__.update(locals())
-
-    def make_arg_dicts(self,args,kwargs):
-        plot_fun = self.decorated
-        try:
-            plot_fun_call_data = fun_call_labeler(plot_fun,args,kwargs)
-            #print plot_fun_call_data['arg_names']
-
-        except TypeError as e:
-            incomplete_plot_fun_args = fun_call_labeler(plot_fun,args,kwargs,intolerant = False)['args']
-            if 'experiment' in incomplete_plot_fun_args:
-                experiment = plot_fun_call_data['args']['experiment']
-            else:
-                experiment = self.default_experiment
-            #print "in",incomplete_plot_fun_args
-            fun_args = fun_call_labeler(experiment,[],incomplete_plot_fun_args)['args']
-            #print 'fun',fun_args
-            try:
-                if not fun_args['data']:
-                    del fun_args['data']
-            except:
-                pass
-            plot_fun_call_data = fun_call_labeler(plot_fun,[],fun_args)
-        return plot_fun_call_data
-
-    def call(self,call_data):
-        plot_fun = self.decorated
-        plot_args = call_data['valid_args']
-        if call_data['defined_args'].get('data',False):
-            ret = plot_fun(**call_data['valid_args'])
-            raise NotImplemented
-            #plt.savefig(plot_fun.__name__+"(%s)"%str(hash()))
-        else:
-            if 'experiment' in call_data['args']:
-                fun = call_data['args']['experiment']
-            else:
-                fun = self.default_experiment
-
-            if self.plot_args:
-                try:
-                    
-                    experiment_args = {k:v for k,v in call_data['args'].iteritems() if k not in self.plot_args}
-                except TypeError:
-                    given_args = call_data['args']
-
-                    experiment_argnames = get_arg_dicts(fun,[],given_args)['defined_args']
-                    plot_exclusive_argnames = [k for k in given_args
-                                               if k in call_data['defined_args'] and
-                                               k not in experiment_argnames.keys()+self.experiment_args]
-                    experiment_args = dict((key,val) for key,val in given_args.items() if key not in plot_exclusive_argnames)
-                experiment_call_data = get_arg_dicts(fun,[],experiment_args)
-                call_args = experiment_call_data['valid_args']
-            else:
-                call_args = get_arg_dicts(fun,[],call_data['args'])['valid_args']
-            data = fun(**call_args)
-            plot_args = call_data['defined_args']
-
-            #this tries to capture what ACTUALLY made it into the function that was called
-            try:
-                for key,val in fun._last_args.iteritems():
-                    if key in plot_args:
-                        plot_args[key] = val
-            except:
-                pass
-            
-            ret = plot_fun(**dict(plot_args,**{'data':data}))
-            call_args = call_data['args']
-            del call_args['data']
-            
-            save_file = plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
-
-            try:
-                save_file = plot_dir+call_data['make_call_str'](call_args)+".pdf"#save_file % experiment_call_data['call']
-                plt.savefig(save_file)
-            except IOError:
-                plt.savefig
-            plt.close()
 
 def save_prompt(obj,path):
     print obj
