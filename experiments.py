@@ -1,7 +1,7 @@
 from __future__ import division
 import pandas as pd
 import seaborn as sns
-from experiment_utils import multi_call,experiment,plotter,MultiArg,cplotter, memoize, apply_to_args
+from experiment_utils import multi_call,experiment,plotter,MultiArg, memoize, apply_to_args
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
 from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT,AllC,AllD,Pavlov, RandomAgent
@@ -41,7 +41,7 @@ def justcaps(t):
 #@memoize
 @multi_call(unordered = ['agent_types'], twinned = ['player_types','priors','Ks'], verbose=3)
 @experiment(unpack = 'dict', trials = 100, verbose = 3)
-def binary_matchup(player_types = (NiceReciprocalAgent,NiceReciprocalAgent), priors = (.75, .75), Ks=(1,1), **kwargs):
+def binary_matchup(player_types, priors, Ks, **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
     genomes = [default_genome(agent_type = t, RA_prior=p, RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
@@ -233,6 +233,7 @@ def belief_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
     f_grid = sns.factorplot(data = bdata, x = 'round', y = 'belief', row = 'k', col = 'believer', kind = 'violin', hue = 'type', row_order = range(K+1), legend = False, hue_order = bt,
                    facet_kws = {'ylim':(0,1)})
     f_grid.map(sns.pointplot,'round','belief','type', hue_order = bt, palette = sns.color_palette('muted'))
+    f_grid.set(xticks=[])
     for a_id,k in product([0,1],range(K+1)):
         ids = t_ids[a_id][k]
         axis = f_grid.facet_axis(k,a_id)
@@ -251,12 +252,53 @@ def belief_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
                 agents.append("%s" % (str(t),n))
             else:
                 agents.append(str(t))
-    #print agents
-    #plt.subplots_adjust(top = 0.9)
-    #if kwargs.get('experiment',False) == 'forgiveness':
-     #   f_grid.fig.suptitle("A and B's beliefs that the other is %s after A defects some number of times\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
-    #else:
-    #f_grid.fig.suptitle("A and B's beliefs that the other is %s\nA=%s B=%s" % (justcaps(believed_type),agents[0],agents[1]))
+
+@apply_to_args(twinned = ['player_types','priors','Ks'])
+@plotter(binary_matchup,plot_exclusive_args = ['data','believed_type'])
+def coop_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
+    if not believed_types:
+        believed_types = list(set(player_types))
+    K = max(Ks)
+    t_ids = [[list(islice(cycle(order),0,k)) for k in range(0,K+1)] for order in [
+        (1,0),
+        (0,1)
+    ]]
+    #scale = lambda n: n*.99+.005
+    logit = lambda p:  np.log(p/(1-p))
+    E = 0.000000000000000001
+    logiter = lambda p: logit(max(min(p,1-E), p))
+    record = []
+    for d in data.to_dict('record'):
+        for event in d['history'][1:]:
+            #print event
+            game = event['games'][0]
+            
+            for a_id, believer in enumerate(event['players']):
+                players = [a_id,(a_id+1)%2]
+                # print "here"
+                # print a_id
+                # print players
+                # print believer.belief_that((a_id+1)%2,ReciprocalAgent)
+                # print believer.decide_likelihood(game,players,kwargs.get('tremble',0))[game.actions.index('give')]
+                for t in ['belief','coop']:
+                    if t == 'belief':
+                        it = believer.belief_that((a_id+1)%2,ReciprocalAgent)
+                    else:
+                        it = believer.decide_likelihood(game,players,kwargs.get('tremble',0))[game.actions.index('give')]
+                    
+                    record.append({
+                        'believer':a_id,
+                        'k':0,
+                        'value': it,
+                        'round':event['round'],
+                        'type':t,
+                    })
+    bdata = pd.DataFrame(record)
+    #import pdb; pdb.set_trace()
+    bt =  ['belief','coop']
+    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'value', row = 'k', col = 'believer', kind = 'point', hue = 'type', legend = False, facet_kws = {'ylim':(0,1)}, ci = None)
+    #f_grid.set(yscale = "logit") 
+
 
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,Ks,data = []):
@@ -515,8 +557,8 @@ def fitness_trials_plot(max_trials,player_type,opponent_types,data=[],**kwargs):
         p = plt.plot(d['trials'], d['fitness'], label=hue)
     plt.legend()
 
-@experiment(unpack = 'record', memoize = False)
-def self_pay_v_rounds(max_rounds, player_types, **kwargs):
+@experiment(unpack = 'record')
+def self_pay_v_rounds(max_rounds, player_types, e_trials = 50, **kwargs):
     Xs = range(1,max_rounds)
     record = []
     for player_type in player_types:
@@ -524,14 +566,13 @@ def self_pay_v_rounds(max_rounds, player_types, **kwargs):
             t_name = player_type.short_name('agent_types')
         except:
             t_name = player_type.__name__
-        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, trials = 50, per_round = True, **kwargs)
+        data = matchup(player_types = (player_type, player_type), rounds = max_rounds, trials = e_trials, per_round = True, **kwargs)
         sum = 0
         for r in range(1,max_rounds+1):
-            sum += data[data['round']==r].mean()['fitness']
             record.append({
                 "rounds":r,
                 "type":t_name,
-                "fitness":sum/r
+                "fitness": data[data['round']==r].mean()['fitness']
             })
     return record
 
@@ -545,21 +586,46 @@ def self_pay_experiments():
     AC = AllC
     AD = AllD
 
+    plot_dir = "./plots/self_pay/"
+    file_name = "ToM = %s, beta = %s, tremble = %s, rounds = %r"
     RA = MRA
 
-    rounds = 100
+    rounds = 1000
     prior = .5
-    Ks = [0,1,2,3]
+    Ks = [0,1,2]
     t = .05
-    ToMs = [('self', AC, AD),
-            ('self', AC, AD, TFT, Pavlov),
-            ('self', AC, AD, TFT, Pavlov, GTFT),
-            ('self', AC, AD, TFT, Pavlov, GTFT, RandomAgent)]
+    ToMs = [
+        ('self', AD)
+        #('self', AC, AD),
+        #('self', AC, AD, TFT, Pavlov),
+        #('self', AC, AD, TFT, Pavlov, GTFT),
+        #('self', AC, AD, TFT, Pavlov, GTFT, RandomAgent)
+    ]
+    betas = [1,3,10]
+    betas = [.5,1,1.5,2,2.5,3,3.5,4,4.5]
+    betas = [3]
+    trembles = [
+        #0,
+        0.05
+    ]
+    max_k = 5
+    Ks = range(max_k+1)
+    rounds_list = [max_k+50]
+    for trials in [100]:#[n*10 for n in range(1,11)]:
+        for ToM,beta,tremble,rounds in product(ToMs,betas,trembles,rounds_list):
+            RA_Ks = tuple(RA(RA_K = k) for k in Ks)
+            self_pay_plot(rounds, player_types = RA_Ks, agent_types = ToM, RA_prior = prior, beta = beta, e_trials = trials,
+                          tremble = tremble,
+                          plot_dir = plot_dir,
+                          file_name = file_name % (ToM,beta,tremble,rounds))
 
-    for ToM in ToMs:
-        RA_Ks = tuple(RA(RA_K = k) for k in Ks)
-        self_pay_plot(rounds, player_types = RA_Ks, agent_types =ToM, RA_prior = prior)
-        self_pay_plot(rounds, player_types = RA_Ks, agent_types =ToM, RA_prior = prior, tremble = t)
+    #for ToM,beta,tremble,rounds in product(ToMs,betas,trembles,rounds_list):
+    #    for trials in [n*10 for n in range(1,6)]:
+    #        RA_Ks = tuple(RA(RA_K = k) for k in Ks)
+    #        self_pay_plot(rounds, player_types = RA_Ks, agent_types = ToM, RA_prior = prior, beta = beta, e_trials = trials,
+    #                      tremble = tremble,
+    #                      plot_dir = plot_dir,
+    #                      file_name = file_name % (ToM,beta,tremble,rounds))
 
 def belief_experiments():
     TFT = gTFT(y=1,p=1,q=0)
@@ -571,26 +637,39 @@ def belief_experiments():
     AC = AllC
     AD = AllD
 
-    contest_tom = (MRA,AC,AD)
+    contest_tom = (MRA,AC,AD,RandomAgent)
     race_tom = (MRA,AC,AD,TFT,GTFT,Pavlov)
-    K = 0
+    K = 2
     ToM = contest_tom
     plot_dir = "./plots/belief examples (K=%s, ToM = %s)/" % (K,ToM)
 
-    for t in range(50):
-        belief_plot(believed_types = contest_tom, player_types = MRA, agent_types = contest_tom, priors = .5,
-                    Ks = K, rounds = 500, trials = [t], tremble = 0.05, beta = 1,
-                    plot_dir = plot_dir,
+    #for t in [50]:#range(1,50):
+    for t in [10]:
+        coop_plot(believed_types = contest_tom, player_types = MRA, agent_types = contest_tom, priors = .5,
+                    Ks = K, rounds = 10, trials = t, tremble = 0.05, beta = 3,
+                    plot_dir = plot_dir, plot_trials = True
                     #file_name = "k1 v k2, t = %s" % t
         )
+        #belief_plot(believed_types = contest_tom, player_types = MRA, agent_types = contest_tom, priors = .5,
+        #            Ks = K, rounds = 500, trials = [t], tremble = 0.05, beta = 10,
+        #            plot_dir = plot_dir,
+        #            #file_name = "k1 v k2, t = %s" % t
+        #)
+        
 @plotter(self_pay_v_rounds, plot_exclusive_args = ['data'])
 def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     fig = plt.figure()
     for hue in data['type'].unique():
         d = data[data['type']==hue]
         p = plt.plot(d['rounds'], d['fitness'], label=hue)
+    axes = plt.gca()
+    axes.set_ylim(0,3)
     plt.legend()
 
 if __name__ == "__main__":
+    from indirect_reciprocity import WeAgent
+    RA = ReciprocalAgent
+    Ks = tuple(RA(RA_K = k) for k in [0,1,2])
+    self_pay_plot(500, player_types = (WeAgent,)+Ks, agent_types = ('self', AllD, AllC), e_trials = 100)
     #self_pay_experiments()
-    belief_experiments()
+    #belief_experiments()
