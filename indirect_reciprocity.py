@@ -220,7 +220,7 @@ class TypeDict(dict):
         model = self.agent = RationalAgent(genome,agent_id)
         belief = self.belief = model.belief
         likelihood = self.likelihood = model.likelihood
-        self.observers = observers = [model]
+        self.observers = observers = []#[model]
         for agent_type in agent_types:
             m = agent_type(genome,agent_id)
             if agent_type in [gTFT,Pavlov]:
@@ -260,6 +260,7 @@ class RationalAgent(Agent):
         self.pop_prior = copy(self.genome['prior'])
 
         self.uniform_likelihood = normalized(self.pop_prior*0+1)
+
         self.model = AgentDict(genome)
         
         self.likelihood = constantdefaultdict(self.initialize_likelihood())
@@ -289,6 +290,15 @@ class RationalAgent(Agent):
             a_ids = a_ids[1:]
             my_type = self.genome['type']
             return self.model[a_id].agent.k_belief(a_ids,a_type)
+    def k_model(self,a_ids):
+        my_type = self.genome['type']
+        if a_ids == []:
+            return self
+        else:
+            #print a_ids
+            a_id = a_ids[0]
+            a_ids = a_ids[1:]
+            return self.model[a_id][my_type].k_model(a_ids)
 
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
@@ -421,21 +431,7 @@ class RationalAgent(Agent):
             #calculate the normalized likelihood for each type
             for agent_type in agent_types:
                 model = self.model[decider_id][agent_type]
-                #if agent_type in rational_types:
-                    #fetch model
-                #    model = self.model[decider_id][agent_type]
-                #else:
-                    #make model
-                #    model = agent_type(genome, world_id = decider_id)
                 append_to_likelihood(model.decide_likelihood(game,participants,tremble)[action_index])
-                
-
-            # self.likelihood[decider_id] *= likelihood
-            # self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
-            
-            # prior = self.pop_prior
-            # likelihood = self.likelihood[decider_id]
-            # self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
 
             self.likelihood[decider_id] += np.log(likelihood)
             prior = np.log(self.pop_prior)
@@ -717,6 +713,99 @@ class RandomAgent(ClassicAgent):
         l = len(game.actions)
         return (1/l,)*l
 
+
+class wTypeDict(dict):
+    def __init__(self,genome,agent_id=None):
+        agent_types = genome['agent_types']
+        self.observers = observers = []#[model]
+        for agent_type in agent_types:
+            m = agent_type(genome,agent_id)
+            if agent_type in [gTFT,Pavlov]:
+                observers.append(m)
+            dict.__setitem__(self,agent_type,m)
+
+    def observe_k(self,observations, k, tremble):
+        for observer in self.observers:
+            observer.observe_k(observations,k,tremble)
+
+
+class wAgentDict(dict):
+    def __init__(self,genome):
+        self.genome = genome
+    def __missing__(self,agent_id):
+        ret = self[agent_id] = wTypeDict(self.genome,agent_id)
+        return ret
+
+class WeAgent(Agent):
+    def __init__(self,genome,world_id):
+        self.world_id = world_id
+        self.genome = genome
+        self.beta = genome['beta']
+
+        tmp_genome = deepcopy(genome)
+        tmp_genome['agent_types'] = tuple(a_type for a_type in tmp_genome['agent_types'] if a_type != WeAgent)
+        self.models = wAgentDict(tmp_genome)
+
+        print genome['agent_types']
+        RA_prior = genome['RA_prior']
+        non_WA_prior = (1-RA_prior)/(len(genome['agent_types'])-1)
+        self.pop_prior = prior = np.array([RA_prior if t is WeAgent else non_WA_prior for t in genome['agent_types']])
+
+        self.belief = constantdefaultdict(prior)
+        self.likelihood = constantdefaultdict(prior*0)
+
+    def utility(self,payoffs,agent_ids):
+        t = self.genome['agent_types'].index(WeAgent)
+        weights = [1]+[self.belief[a][t] for a in agent_ids[1:]]
+        return sum(p*w for p,w in zip(payoffs,weights))
+
+    def decide_likelihood(self,game,agents,tremble):
+        if len(game.actions) == 1:
+            return np.array([1])
+
+        Us = np.array([self.utility(game.payoffs[action], agents)
+                       for action in game.actions])
+        return self.add_tremble(softmax(Us, self.beta), tremble)
+
+    def observe(self, observations):
+        agent_types = self.genome['agent_types']
+        tremble = self.genome['tremble']
+        new_likelihoods = defaultdict(int)
+        for observation in observations:
+            game, participants, observers, action = observation
+            decider_id = participants[0]
+            action_index = game.action_lookup[action]
+
+            likelihood = []
+            for agent_type in agent_types:
+                if agent_type == WeAgent:
+                    model = self
+                else:
+                    model = self.models[decider_id][agent_type]
+                likelihood.append(model.decide_likelihood(game,participants,tremble)[action_index])
+
+            new_likelihoods[decider_id] += np.log(likelihood)
+
+        prior = np.log(self.pop_prior)
+        for decider_id, new_likelihood in new_likelihoods.iteritems():
+            self.likelihood[decider_id] += new_likelihood
+            likelihood = self.likelihood[decider_id]
+            self.belief[decider_id] = np.exp(prior+likelihood)
+            self.belief[decider_id] = normalized(self.belief[decider_id])
+
+
+class Mimic(RationalAgent):
+    def decide_likelihood(self,game,agents,tremble):
+        target_id = agents[1]
+        likelihood = 0
+        flipped = list(reversed(agents))
+        for agent_type, model in self.model[agent_id].iteritems():
+            if agent_type == Mimic:
+                model_likelihood
+            model_likelihood = model.decide_likelihood(game,flipped,0)
+            likelihood += self.belief_that(agent_id,agent_type)
+    def utility(self,payoffs,agents):
+        pass
 class OpportunisticRA(RationalAgent):
     """
     The idea here is "nice to anyone who would be nice to me".
