@@ -179,6 +179,11 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
     def wrapper(function):
         @copy_function_identity(function)
         def experiment_call(*args,**kwargs):
+            memoized = kwargs.get('memoized',True)
+
+            for k in ['memoized']:
+                if k in kwargs:
+                    del kwargs[k]
             call_data = fun_call_labeler(function,args,kwargs)
             return_keys = call_data['args'].get('return_keys', None)
             try:
@@ -222,7 +227,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             cache_file =data_dir+str(arg_hash)+".pkl"
             #print "Loading cache..."
             try:
-                assert memoize and not overwrite 
+                assert memoize and memoized and not overwrite 
                 cache = pd.read_pickle(cache_file)
                 cached_trials = list(cache['trial'])
                 uncached_trials = [trial for trial in trials if trial not in cached_trials]
@@ -259,7 +264,10 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                         results.append(dict(args,**result))
                 elif unpack == 'record':
                     for d in result:
-                        results.append(dict(args,**d))
+                        if return_keys:
+                            results.append(dict(args,**{k:v for k,v in d.iteritems() if k in return_keys}))
+                        else:
+                            results.append(dict(args,**d))
 
                 if verbose == 3:
                     ticks = int(total_ticks*n/total_calls)
@@ -276,7 +284,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                     print ""
             #consolidate new and old results and save
             cache = pd.concat([cache,pd.DataFrame(results)])
-            if memoize:
+            if memoize and memoized:
                 cache.to_pickle(cache_file)
 
             #return only those trials that were asked for
