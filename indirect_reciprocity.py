@@ -220,7 +220,7 @@ class TypeDict(dict):
         model = self.agent = RationalAgent(genome,agent_id)
         belief = self.belief = model.belief
         likelihood = self.likelihood = model.likelihood
-        self.observers = observers = []#[model]
+        self.observers = observers = [model]
         for agent_type in agent_types:
             m = agent_type(genome,agent_id)
             if agent_type in [gTFT,Pavlov]:
@@ -243,7 +243,7 @@ class AgentDict(dict):
     def __missing__(self,agent_id):
         ret = self[agent_id] = TypeDict(self.genome,agent_id)
         return ret
-        
+
 class RationalAgent(Agent):
     #def __new__(cls, genome = None, world_id = None, prior = None):
     #    if not (genome or world_id) and prior:
@@ -260,7 +260,6 @@ class RationalAgent(Agent):
         self.pop_prior = copy(self.genome['prior'])
 
         self.uniform_likelihood = normalized(self.pop_prior*0+1)
-
         self.model = AgentDict(genome)
         
         self.likelihood = constantdefaultdict(self.initialize_likelihood())
@@ -290,15 +289,6 @@ class RationalAgent(Agent):
             a_ids = a_ids[1:]
             my_type = self.genome['type']
             return self.model[a_id].agent.k_belief(a_ids,a_type)
-    def k_model(self,a_ids):
-        my_type = self.genome['type']
-        if a_ids == []:
-            return self
-        else:
-            #print a_ids
-            a_id = a_ids[0]
-            a_ids = a_ids[1:]
-            return self.model[a_id][my_type].k_model(a_ids)
 
     def purge_models(self, ids):
         #must explicitly use .keys() below because mutation
@@ -431,7 +421,21 @@ class RationalAgent(Agent):
             #calculate the normalized likelihood for each type
             for agent_type in agent_types:
                 model = self.model[decider_id][agent_type]
+                #if agent_type in rational_types:
+                    #fetch model
+                #    model = self.model[decider_id][agent_type]
+                #else:
+                    #make model
+                #    model = agent_type(genome, world_id = decider_id)
                 append_to_likelihood(model.decide_likelihood(game,participants,tremble)[action_index])
+                
+
+            # self.likelihood[decider_id] *= likelihood
+            # self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
+            
+            # prior = self.pop_prior
+            # likelihood = self.likelihood[decider_id]
+            # self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)     
 
             self.likelihood[decider_id] += np.log(likelihood)
             prior = np.log(self.pop_prior)
@@ -452,51 +456,6 @@ class RationalAgent(Agent):
             
         # if K>0:
         #     self.update_prior()
-
-    def update_prior(self):
-        if self.genome['prior_precision'] == 0: return
-        
-        D = list()
-        n_agent_types = len(self.genome['agent_types'])
-        NamedArray = namedArrayConstructor(self.genome['agent_types'])
-        
-        prior = self.genome['prior'] * self.genome['prior_precision']
-
-        def ll(p):
-            p[-1] = 1-sum(p[0:-1])
-            like = 0
-            for order in itertools.product(range(n_agent_types), repeat=len(self.likelihood)):
-                agent_counts = [sum(np.array(order)==t) for t in range(n_agent_types)]
-                counts = np.array(prior + agent_counts)
-
-            #     # lnB = np.sum(gammaln(counts)) - gammaln(np.sum(counts))
-            #     # pdf = np.exp( - lnB + np.sum((np.log(p.T) * (counts - 1)).T, 0) )
-            #     # term = np.array(pdf) #FIXME: Shouldn't need this... named array issue
-            
-                term = sp.stats.dirichlet.pdf(p, counts)
-                for a_id, agent_type in zip(self.likelihood.keys(), order):
-                    # wrong not a dependence on p (theta) a dependence on alpha which is the prior
-                    # belief = (self.likelihood[a_id][agent_type]*p[agent_type]) / np.dot(p, self.likelihood[a_id])
-
-                    # still wrong since this just using the mean and not doing the full integration
-                    belief = (self.likelihood[a_id][self._type_to_index[agent_type]]*prior[self._type_to_index[agent_type]]) / np.dot(prior, self.likelihood[a_id])
-
-                    term *= belief
-
-                like += term
-
-            return -(np.log(like))
-
-        out = constraint_min(ll, np.ones(n_agent_types)/n_agent_types)
-        
-        print out
-        
-        # FIXME: Need to save these out to the pop_prior and then update the belief of all the agents by using the new prior when combining the likelihood and prior. 
-        
-        # self.pop_prior = {
-            # ReciprocalAgent.__name__: out.x[0],
-            # SelfishAgent.__name__ : 1-out.x[0]
-        # }
 
 def belongs_to_ingroup(ingroup,t):
     if t in agent.ingroup():
@@ -739,14 +698,18 @@ class wAgentDict(dict):
 class WeAgent(Agent):
     def __init__(self,genome,world_id):
         self.world_id = world_id
-        self.genome = genome
+        self.genome = genome = copy(genome)
+        self.genome['agent_types'] = tuple(t if t != 'self' else genome['type'] for t in genome['agent_types'])
+
         self.beta = genome['beta']
+
+        self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
 
         tmp_genome = deepcopy(genome)
         tmp_genome['agent_types'] = tuple(a_type for a_type in tmp_genome['agent_types'] if a_type != WeAgent)
         self.models = wAgentDict(tmp_genome)
 
-        print genome['agent_types']
+        #print genome['agent_types']
         RA_prior = genome['RA_prior']
         non_WA_prior = (1-RA_prior)/(len(genome['agent_types'])-1)
         self.pop_prior = prior = np.array([RA_prior if t is WeAgent else non_WA_prior for t in genome['agent_types']])
@@ -755,9 +718,16 @@ class WeAgent(Agent):
         self.likelihood = constantdefaultdict(prior*0)
 
     def utility(self,payoffs,agent_ids):
-        t = self.genome['agent_types'].index(WeAgent)
+        t = self.genome['agent_types'].index(self.genome['type'])
         weights = [1]+[self.belief[a][t] for a in agent_ids[1:]]
+        #weights = [self.belief[a][t] for a in agent_ids]
         return sum(p*w for p,w in zip(payoffs,weights))
+
+    def belief_that(self, a_id,a_type):
+        try:
+            return self.belief[a_id][self._type_to_index[a_type]]
+        except KeyError:
+            return 0
 
     def decide_likelihood(self,game,agents,tremble):
         if len(game.actions) == 1:
@@ -792,6 +762,10 @@ class WeAgent(Agent):
             likelihood = self.likelihood[decider_id]
             self.belief[decider_id] = np.exp(prior+likelihood)
             self.belief[decider_id] = normalized(self.belief[decider_id])
+        for a_id,model in self.models.iteritems():
+            model.observe_k(observations,0,tremble)
+
+
 
 
 class Mimic(RationalAgent):
