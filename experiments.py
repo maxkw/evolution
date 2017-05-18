@@ -79,13 +79,25 @@ def matchup(player_types, **kwargs):
             payoffs = event['payoff']
             ids = [agent.world_id for agent in event['players']]
             r = event['round']
-            for t,a_id,p in zip(player_types,ids,payoffs):
-                record.append({'type' : t,
-                               'id' : a_id,
-                               'round' : r,
-                               'fitness' : p})
+            for t, a_id, p, a in zip(player_types, ids, payoffs, event['players']):
+                if kwargs.get('unpack_beliefs',False):
+                    for believed_type in kwargs['believed_types']:
+                        try:
+                            record.append({'type' : t.short_name('agent_types'),
+                                           'id' : a_id,
+                                           'round' : r,
+                                           'belief' : a.belief_that((a_id+1)%2, believed_type),
+                                           'believed_type':believed_type.short_name('agent_types'),
+                                           'fitness' : p})
+                        except:
+                            pass
+                else:
+                    record.append({'type' : t,
+                                   'id' : a_id,
+                                   'round' : r,
+                                   'fitness' : p})
     return record
-
+                
 def matchup_grid(player_types,**kwargs):
     player_types = MultiArg(combinations_with_replacement(player_types,2))
     return matchup(player_types,**kwargs)
@@ -296,9 +308,25 @@ def coop_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
     bdata = pd.DataFrame(record)
     #import pdb; pdb.set_trace()
     bt =  ['belief','coop']
-    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'value', row = 'k', col = 'believer', kind = 'point', hue = 'type', legend = False, facet_kws = {'ylim':(0,1)}, ci = None)
-    #f_grid.set(yscale = "logit") 
-
+    f_grid = sns.factorplot(data = bdata, x = 'round', y = 'value', row = '', col = 'believer', kind = 'point', hue = 'type', legend = False, facet_kws = {'ylim':(0,1)}, ci = None)
+    #f_grid.set(yscale = "logit")
+    
+def beliefs(believer, opponent_types, believed_types, **kwargs):
+    dfs = []
+    b_name = believer.short_name('agent_types')
+    for opponent in opponent_types:
+        data = matchup(player_types = (believer,opponent),
+                       actual_type = opponent,
+                       believed_types = believed_types,
+                       per_round = True, unpack_beliefs = True, **kwargs)
+                       
+        
+        dfs.append(data[data['type'] == b_name])
+    return pd.concat(dfs, ignore_index = True)
+@plotter(beliefs)
+def plot_beliefs(believer, opponent_types, believed_types, data = [],**kwargs):
+    print data
+    sns.factorplot(data = data, x = 'round', y = 'belief', row = 'actual_type', col = 'type', kind = 'point', hue = "believed_type")
 
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,Ks,data = []):
@@ -627,9 +655,8 @@ def self_pay_experiments():
     #                      plot_dir = plot_dir,
     #                      file_name = file_name % (ToM,beta,tremble,rounds))
 
-def belief_experiments():
-    TFT = gTFT(y=1,p=1,q=0)
-    GTFT = gTFT(y=1,p=.99,q=.33)
+def belief_experiments2():
+
     MRA = ReciprocalAgent
     NRA = NiceReciprocalAgent
     SA = SelfishAgent
@@ -666,10 +693,65 @@ def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     axes.set_ylim(0,3)
     plt.legend()
 
+def belief_experiments():
+
+    plot_dir = "./plots/belief_experiments/"
+    WA = WeAgent
+    MRA = ReciprocalAgent
+    NRA = NiceReciprocalAgent
+    SA = SelfishAgent
+    AA = AltruisticAgent
+    AC = AllC
+    AD = AllD
+    TFT= gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
+    RA = WeAgent
+
+    priors = [
+        .1,
+        #.5,
+        #.75
+    ]
+
+    ToMs = [
+        ('self', AC, AD, TFT, GTFT, Pavlov)
+    ]
+
+    betas = [
+        #1,
+        #3,
+        #5,
+        10,
+    ]
+
+    trembles = [
+        0,
+        #0.05
+    ]
+
+    for prior, ToM, beta,tremble in product(priors,ToMs,betas,trembles):
+        agent = RA(RA_prior = prior, agent_types = ToM, beta = beta)
+        everyone = (AC, AD, TFT, GTFT, Pavlov)
+        for t in trembles:
+            plot_beliefs(agent,
+                         everyone,
+                         (agent,)+everyone,
+                         tremble = tremble,
+                         plot_dir = plot_dir,
+                         file_name = "belief")
+                         
+
 if __name__ == "__main__":
     from indirect_reciprocity import WeAgent
     RA = ReciprocalAgent
+    TFT = gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
     Ks = tuple(RA(RA_K = k) for k in [0,1,2])
-    self_pay_plot(500, player_types = (WeAgent,)+Ks, agent_types = ('self', AllD, AllC), e_trials = 100)
+    As = tuple(WeAgent(beta = b) for b in [1,3,5,10])
+
+    belief_experiments()
+    assert 0
+    for t in [t*10 for t in range(1,11)]:
+        self_pay_plot(200, player_types = As, agent_types = ('self', AllD, AllC, TFT, GTFT, Pavlov), RA_prior = .5,  e_trials = t, extension = '.png', tremble = .05)
     #self_pay_experiments()
     #belief_experiments()
