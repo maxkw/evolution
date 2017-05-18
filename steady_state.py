@@ -6,8 +6,8 @@ from math import factorial
 import numpy as np
 from copy import copy
 import operator
-from experiments import NiceReciprocalAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from experiment_utils import multi_call, experiment, plotter, MultiArg, cplotter, memoize, apply_to_args
+from indirect_reciprocity import NiceReciprocalAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent, WeAgent
+from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
 import matplotlib.pyplot as plt
 import seaborn as sns
 from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot
