@@ -7,12 +7,12 @@ import numpy as np
 from copy import copy
 import operator
 from experiments import NiceReciprocalAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from experiment_utils import multi_call, experiment, plotter, MultiArg, cplotter, memoize, apply_to_args
+from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
 import matplotlib.pyplot as plt
 import seaborn as sns
 from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,matchup_matrix_per_round
 from params import default_genome
-from indirect_reciprocity import gTFT, AllC, AllD, Pavlov, RandomAgent
+from indirect_reciprocity import gTFT, AllC, AllD, Pavlov, RandomAgent,WeAgent
 from params import default_params
 from steady_state import limit_analysis, complete_analysis
 import pandas as pd
@@ -232,18 +232,19 @@ def bc_rounds_plot(player_types, data=[], **kwargs):
         data = kwargs.pop('data')
         d = data.pivot(index=args[1], columns=args[0], values=args[2])
         sns.heatmap(d, **kwargs)
-    
+
     g = sns.FacetGrid(data = data, col = 'type')
-    g.map_dataframe(draw_heatmap, 'benefit', 'rounds', 'frequency',  cbar=False, square=True, vmin=0, vmax=data['frequency'].max(), cmap=plt.cm.gray_r, linewidths=.5)
+    g.map_dataframe(draw_heatmap, 'benefit', 'rounds', 'frequency',  cbar=False, square=True, vmin=0, vmax=data['frequency'].max(),
+                    #cmap=plt.cm.gray_r,
+                    linewidths=.5)
     # .pivot(columns =, index = 'rounds', values = 'frequency')
 
-    g.set(
-        yticks=[],
-        xticks=[],
-        xlabel='',
-        ylabel='')
-    
-    
+    #g.set(
+    #    yticks=[],
+    #    xticks=[],
+    #    xlabel='',
+    #    ylabel='')
+
 def AllC_AllD_race():
     today = "./plots/"+date.today().isoformat()+"/"
     prior = 0.5
@@ -268,7 +269,7 @@ def AllC_AllD_race():
 def Pavlov_gTFT_race():
     today = "./plots/"+date.today().isoformat()+"/"
     TFT = gTFT(y=1,p=1,q=0)
-    MRA = ReciprocalAgent
+    MRA = WeAgent#ReciprocalAgent
     r = 10
     
     # Replicate Nowak early 90s
@@ -279,16 +280,23 @@ def Pavlov_gTFT_race():
 
     # Horse race against gTFT and Pavlov
     prior = 0.5
-    ToM = ('self', TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
-    pop = (MRA(RA_K=1, agent_types = ToM, RA_prior = prior), AllC, AllD, TFT, gTFT(y=1,p=.99,q=.33), Pavlov)
-    opponents = (TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
+    beta = 10
+
     trembles = [0, 0.05]
-    priors = [.5]
-    Ks = [1 ,2]
+    priors = [.5,.75]
+    betas = [3,5,10]
+    opponents = (TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
+
+    ToM = ('self',)+opponents
+    agent = MRA(agent_types = ToM, beta = beta, RA_prior = prior)
+    pop = (agent, AllC, AllD, TFT, gTFT(y=1,p=.99,q=.33), Pavlov)
+
+    comparables = tuple(MRA(RA_prior=p, beta = b, agent_types=ToM) for p,b in product(priors,betas))
+
     for t in trembles:
         limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%0.2f' % t, plot_dir = today)
         limit_param_plot('rounds',
-                         player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product(Ks, priors)),
+                         player_types = comparables,
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
@@ -300,34 +308,139 @@ def Pavlov_gTFT_race():
     for t in trembles:
         limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%.2f' % t,plot_dir = today)
         limit_param_plot('rounds',
-                         player_types = tuple(MRA(RA_K=k, RA_prior=p, agent_types=ToM) for k, p in product(Ks, priors)),
+                         player_types = comparables,
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_limit_param,
                          file_name = 'horse_rounds_with_random_tremble=%.2f' % t,
                          plot_dir = today)
 
-def bc_rounds_race():
-    MRA = ReciprocalAgent
+def bc_rounds_contest():
+    WA = WeAgent
     prior = 0.5
-    RA = MRA(RA_prior = prior, RA_K = 2, agent_types = ('self', AllC, AllD))
+    NRA = NiceReciprocalAgent
+    MRA = ReciprocalAgent
+    SA = SelfishAgent
+    AA = AltruisticAgent
+    AC = AllC
+    AD = AllD
+    TFT = gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
+
+    RA = WA(RA_prior = prior, agent_types = ('self', AllC, AllD))
     player_types = (RA, TFT, GTFT, Pavlov)
-    
+
     for t in [0, 0.05]:
         bc_rounds_plot(
             max_rounds = 20,
             experiment = compare_bc_v_rounds,
+            player_types = player_types,
             opponent_types = (AllC, AllD),
             tremble = t
         )
 
+def bc_rounds_race():
+    file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
+    plot_dir = "./plots/bc_rounds_race/"
 
-    
+    NRA = NiceReciprocalAgent
+    MRA = ReciprocalAgent
+    SA = SelfishAgent
+    AA = AltruisticAgent
+    AC = AllC
+    AD = AllD
+    TFT = gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
+
+    max_rounds = 20
+
+    priors = [
+        #.1,
+        #.5,
+        .75
+    ]
+
+    ToMs = [
+        ('self', AC, AD, TFT, GTFT, Pavlov)
+    ]
+
+    betas = [
+        #1,
+        #3,
+        #5,
+        10,
+    ]
+
+    trembles = [
+        0,
+        0.05
+    ]
+
+    for prior, ToM, beta in product(priors,ToMs,betas):
+        RA = WeAgent(RA_prior = prior, agent_types = ToM, beta = beta)
+        everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
+        for t in trembles:
+            bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t,
+                           plot_dir = plot_dir,
+                           file_name = file_name % (ToM,beta,prior,t)
+            )
+
+def limit_rounds_race():
+    file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
+    plot_dir = "./plots/limit_rounds_race/"
+
+    NRA = NiceReciprocalAgent
+    MRA = ReciprocalAgent
+    SA = SelfishAgent
+    AA = AltruisticAgent
+    AC = AllC
+    AD = AllD
+    TFT = gTFT(y=1,p=1,q=0)
+    GTFT = gTFT(y=1,p=.99,q=.33)
+
+    max_rounds = 50
+
+    priors = [
+        #.1,
+        #.5,
+        #.75
+        #.99
+    ]
+
+    ToMs = [
+        ('self', AC, AD, TFT, GTFT, Pavlov)
+    ]
+
+    betas = [
+        #.5,
+        #1,
+        #3,
+        #5,
+        10,
+    ]
+
+    trembles = [
+        0,
+        0.05
+    ]
+
+    for prior, ToM, beta in product(priors,ToMs,betas):
+        RA = WeAgent(RA_prior = prior, agent_types = ToM, beta = beta)
+        everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
+        for t in trembles:
+            limit_param_plot(param = 'rounds', player_types = everyone, max_rounds = max_rounds, tremble = t,
+                             plot_dir = plot_dir,
+                             file_name = file_name % (ToM,beta,prior,t),
+                             extension = '.png'
+            )
+
 if __name__ == "__main__":
 
-    # AllC_AllD_race()
-    # Pavlov_gTFT_race()
-    # assert 0
+    #AllC_AllD_race()
+    Pavlov_gTFT_race()
+    #bc_rounds_race()
+    #limit_rounds_race()
+    assert 0
 
     NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
@@ -341,26 +454,26 @@ if __name__ == "__main__":
     prior = 0.5
     Ks = [0,1]
     trembles = [0, 0.05]
-    max_rounds = 30
-    beta = 5
+    max_rounds = 20
+    beta = 1
     
-    for t in trembles:
-        bc_rounds_plot(
-            max_rounds = max_rounds,
-            experiment = compare_bc_v_rounds,
-            player_types = tuple(MRA(RA_prior = prior, RA_K = k, agent_types = ('self', AC, AD)) for k in Ks) + (TFT, GTFT, Pavlov),
-            opponent_types = (AC, AD),
-            tremble = t,
-            beta = beta,
-            file_name = 'heat_tremble=%0.2f' % t)
+    #for t in trembles:
+    #    bc_rounds_plot(
+    #        max_rounds = max_rounds,
+    #        experiment = compare_bc_v_rounds,
+    #        player_types = tuple(MRA(RA_prior = prior, RA_K = k, agent_types = ('self', AC, AD)) for k in Ks) + (TFT, GTFT, Pavlov),
+    #        opponent_types = (AC, AD),
+    #        tremble = t,
+    #        beta = beta,
+    #        file_name = 'heat_tremble=%0.2f' % t)
 
     # assert 0
     
-    everyone_ToM = ('self', AC, AD, TFT, GTFT, Pavlov)
-    everyone_RA = MRA(RA_prior = .5, RA_K = 2, agent_types = everyone_ToM)
-    everyone = (everyone_RA, AC, AD, TFT, GTFT, Pavlov)
+    everyone_ToM = ('self', AC, AD, TFT, GTFT, Pavlov, RandomAgent)
+    RA = WeAgent(RA_prior = prior, agent_types = everyone_ToM, beta = beta)
+    everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
     for t in trembles:
-        bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t, beta = beta)
+        bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t)
 
     assert 0
     
