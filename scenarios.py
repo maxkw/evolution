@@ -38,6 +38,7 @@ def scenarios(scenario_func, agent_types, **kwargs):
 
 @plotter(scenarios, plot_exclusive_args=['data'])
 def scene_plot(agent_types, data=[]):
+    #print data
     sns.set_context("poster", font_scale=1.5)
     if AltruisticAgent in agent_types:
         order = ["Reciprocal", "Selfish", "Altruistic"]
@@ -53,7 +54,7 @@ def scene_plot(agent_types, data=[]):
 
     (f_grid
      .set_xlabels("P(A = type)")
-     .set_titles("")
+     #.set_titles("")
      .set_ylabels("")
      .set(xlim=(0, 1),
           xticks=np.linspace(0, 1, 5),
