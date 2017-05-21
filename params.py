@@ -3,6 +3,10 @@ from agents import SelfishAgent,ReciprocalAgent,AltruisticAgent,RationalAgent,In
 from games import RepeatedPrisonersTournament
 import math
 from utils import issubclass
+import seaborn as sns
+
+sns.set_style('white')
+sns.set_context('paper', font_scale=1.5)
 
 def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent), games = None,
                    RA_prior = .75, N_agents= 10, tremble = 0, rounds = 10, **kwargs):
@@ -36,15 +40,9 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
     `RA_K`: is the number of theory-of-mind recursions to carry out. When RA_K is 0 the agent just tries to infer the type directly, when it is 1, you first infer what each agent knows and then infer what you know based on those agents and so on. 
 
     """
-    #agent_types =  [
-    #    SelfishAgent,
-    #    AltruisticAgent
-    #]
 
     given_values = locals()
     given_values.update(kwargs)
-
-    
 
     if not games:
         games = RepeatedPrisonersTournament(rounds,tremble = tremble,**kwargs)
