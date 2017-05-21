@@ -1,4 +1,4 @@
-from indirect_reciprocity import ReciprocalAgent, AltruisticAgent, NiceReciprocalAgent, RationalAgent, SelfishAgent
+from agents import ReciprocalAgent, AltruisticAgent, RationalAgent, SelfishAgent
 from experiments import joint_fitness_plot, reward_table, belief_plot, pop_fitness_plot, forgiveness
 from experiment_utils import MultiArg
 import scenarios

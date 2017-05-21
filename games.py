@@ -1,7 +1,7 @@
 from utils import flip, randomly_chosen
-from itertools import product,combinations,permutations
+from itertools import product, combinations, permutations
 from numpy import array
-from copy import copy,deepcopy
+from copy import copy, deepcopy
 import numpy as np
 from experiment_utils import fun_call_labeler
 from inspect import getargspec
@@ -708,10 +708,9 @@ def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3,**junk):
         return Repeated(rounds, PubliclyObserved(PD))
 
 if __name__ == "__main__":
-    from indirect_reciprocity import ReciprocalAgent
+    from agents import ReciprocalAgent, Puppet
     from params import default_genome
     
-    from indirect_reciprocity import Puppet
     puppets = array([Puppet("Alpha"),Puppet("Beta"),Puppet("C")])
     agents = array([ReciprocalAgent(default_genome(),world_id = n) for n in range(3)])
     game = RepeatedDynamicPrisoners(10)

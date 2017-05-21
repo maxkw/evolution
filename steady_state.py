@@ -1,19 +1,10 @@
 from __future__ import division
 from collections import Counter, defaultdict
-from itertools import product, permutations, izip
+from itertools import product, permutations
 from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
-from copy import copy
-import operator
-from indirect_reciprocity import NiceReciprocalAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent, WeAgent
-from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
-import matplotlib.pyplot as plt
-import seaborn as sns
-from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot
-from params import default_genome
-from indirect_reciprocity import gTFT, AllC, AllD
-from params import default_params
+from experiment_utils import multi_call, experiment, plotter, MultiArg
 
 def fixed_length_partitions(n,L):
     """

@@ -5,15 +5,12 @@ from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
 from copy import copy
-import operator
-from experiments import NiceReciprocalAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
 from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
 import matplotlib.pyplot as plt
 import seaborn as sns
 from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,matchup_matrix_per_round
-from params import default_genome
-from indirect_reciprocity import gTFT, AllC, AllD, Pavlov, RandomAgent,WeAgent
-from params import default_params
+from params import default_genome, default_params
+from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
 from steady_state import limit_analysis, complete_analysis
 import pandas as pd
 from datetime import date
@@ -61,6 +58,9 @@ def agent_simulation(generations, pop, player_types, **kwargs):
     populations = agent_sim(payoffs, pop, params['s'], params['mu'])
 
     record = []
+
+    # Populations is an infinite iterator so need to combine it with a
+    # finite iterator which sets the number of generations to look at.
     for n, pop in izip(xrange(generations), populations):
         for t, p in zip(player_types, pop):
             record.append({'generation' : n,
@@ -318,7 +318,6 @@ def Pavlov_gTFT_race():
 def bc_rounds_contest():
     WA = WeAgent
     prior = 0.5
-    NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
@@ -343,7 +342,6 @@ def bc_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
     plot_dir = "./plots/bc_rounds_race/"
 
-    NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
@@ -389,7 +387,6 @@ def limit_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
     plot_dir = "./plots/limit_rounds_race/"
 
-    NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
@@ -442,7 +439,6 @@ if __name__ == "__main__":
     #limit_rounds_race()
     assert 0
 
-    NRA = NiceReciprocalAgent
     MRA = ReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent

@@ -4,7 +4,7 @@ import seaborn as sns
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
 from params import default_params, default_genome
-from indirect_reciprocity import ReciprocalAgent, SelfishAgent, AltruisticAgent, NiceReciprocalAgent, RationalAgent, gTFT, AllC, AllD, Pavlov
+from agents import ReciprocalAgent, SelfishAgent, AltruisticAgent, RationalAgent, gTFT, AllC, AllD, Pavlov
 from games import BinaryDictator
 import matplotlib.pyplot as plt
 

@@ -4,7 +4,9 @@ import seaborn as sns
 from experiment_utils import multi_call,experiment,plotter,MultiArg, memoize, apply_to_args
 import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
-from indirect_reciprocity import World,ReciprocalAgent,SelfishAgent,AltruisticAgent,NiceReciprocalAgent,RationalAgent,gTFT,AllC,AllD,Pavlov, RandomAgent
+from world import World
+from agents import ReciprocalAgent, SelfishAgent, AltruisticAgent, RationalAgent, WeAgent
+from agents import gTFT, AllC, AllD, Pavlov, RandomAgent
 from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyObserved,Symmetric
 from collections import defaultdict
 from itertools import combinations_with_replacement, combinations
@@ -201,7 +203,7 @@ def history_maker(observations,agents,start=0,annotation = {}):
 
 @multi_call(twinned = ['player_types','priors','Ks'])
 @experiment(unordered = ['agent_types'],unpack = 'dict')
-def forgiveness(player_types = NiceReciprocalAgent, Ks= 1, priors=(.75,.75), defections=3, **kwargs):
+def forgiveness(player_types, Ks= 1, priors=(.75,.75), defections=3, **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
     game = BinaryDictator()
@@ -608,7 +610,6 @@ def self_pay_experiments():
     TFT = gTFT(y=1,p=1,q=0)
     GTFT = gTFT(y=1,p=.99,q=.33)
     MRA = ReciprocalAgent
-    NRA = NiceReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
     AC = AllC
@@ -658,7 +659,6 @@ def self_pay_experiments():
 def belief_experiments2():
 
     MRA = ReciprocalAgent
-    NRA = NiceReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
     AC = AllC
@@ -698,7 +698,6 @@ def belief_experiments():
     plot_dir = "./plots/belief_experiments/"
     WA = WeAgent
     MRA = ReciprocalAgent
-    NRA = NiceReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
     AC = AllC
@@ -742,7 +741,6 @@ def belief_experiments():
                          
 
 if __name__ == "__main__":
-    from indirect_reciprocity import WeAgent
     RA = ReciprocalAgent
     TFT = gTFT(y=1,p=1,q=0)
     GTFT = gTFT(y=1,p=.99,q=.33)

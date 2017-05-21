@@ -37,8 +37,6 @@ Make some plots for `binary_matchup`
 
 2. `RecpirocalAgent`: An IngroupAgent that cares about only its own type.
 
-2. `NiceReciprocalAgent`: An IngroupAgent that cares about its own type and AltruisticAgents.
-
 <!-- ## Util functions (indirect_reciprocity.py) -->
 
 <!-- 2. `default_params`: returns a dictionary with common parameters used by agents and World. the function will overwrite any of the parameters in this dict if provided with them as keyword arguments in the function call. Most common use is to define a dict with parameters one cares about and feed it to this function to fill in the rest, (eg. "params = default_params(**dict)")  -->

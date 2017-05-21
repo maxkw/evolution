@@ -1,5 +1,5 @@
 import numpy as np
-from indirect_reciprocity import SelfishAgent,ReciprocalAgent,NiceReciprocalAgent,AltruisticAgent,RationalAgent,IngroupAgent,PrefabAgent, is_agent_type
+from agents import SelfishAgent,ReciprocalAgent,AltruisticAgent,RationalAgent,IngroupAgent,PrefabAgent, is_agent_type
 from games import RepeatedPrisonersTournament
 import math
 from utils import issubclass
@@ -38,7 +38,6 @@ def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent
     """
     #agent_types =  [
     #    SelfishAgent,
-    #    NiceReciprocalAgent,
     #    AltruisticAgent
     #]
 
