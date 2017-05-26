@@ -9,9 +9,14 @@ from utils import softmax, sample_softmax, softmax_utility, flip, normalized, ex
 from copy import deepcopy
 from copy import copy, deepcopy
 from utils import unpickled, pickled, HashableDict, issubclass
+from itertools import chain, product, combinations
 
 PRETTY_KEYS = {"RA_prior": "prior",
                "RA_K": 'K'}
+
+class HashableSet(set):
+    def __hash__(self):
+        return hash(tuple(self))
 
 def is_agent_type(instance, base):
     try:
@@ -537,7 +542,7 @@ class wAgentDict(dict):
 
 
 class WeAgent(Agent):
-    def __init__(self, genome, world_id):
+    def __init__(self, genome, world_id, world_ids = []):
         self.world_id = world_id
         self.genome = genome = copy(genome)
         self.genome['agent_types'] = tuple(t if t != 'self' else genome['type'] for t in genome['agent_types'])
@@ -604,6 +609,183 @@ class WeAgent(Agent):
         # Update the models of the other agents
         for a_id, model in self.models.iteritems():
             model.observe_k(observations, 0, tremble)
+def power_set(s):
+    return chain.from_iterable(combinations(s,r) for r in range(len(s)+1))
+
+class SharedNode(object):
+    def __init__(self, genome, self_ids = 'everyone', default_node = None):
+
+        self.ids = self_ids
+        self.beliefs = None
+        self.likelihood = None
+
+        #route to the 'everyone' by default
+        if default_node is None:
+            self.models = defaultdict(lambda: self)
+        else:
+            self.models = defaultdict(lambda: default_node)
+
+        if self_ids is not 'everyone':
+            for a_id in self_ids:
+                self.models[a_id] = self
+
+        self.genome = genome = copy(genome)
+        self.genome['agent_types'] = tuple(t if t != 'self' else genome['type'] for t in genome['agent_types'])
+
+        self.beta = genome['beta']
+
+        self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
+
+        tmp_genome = deepcopy(genome)
+        tmp_genome['agent_types'] = tuple(a_type for a_type in tmp_genome['agent_types'] if a_type != WeAgent2)
+        self.other_models = wAgentDict(tmp_genome)
+
+        #print genome['agent_types']
+        RA_prior = genome['RA_prior']
+        non_WA_prior = (1-RA_prior)/(len(genome['agent_types'])-1)
+        self.pop_prior = prior = np.array([RA_prior if t is WeAgent2 else non_WA_prior for t in genome['agent_types']])
+
+        self.belief = ConstantDefaultDict(self.pop_prior)
+        self.likelihood = ConstantDefaultDict(np.zeros_like(self.pop_prior))
+
+    def belief_that(self, a_id, a_type):
+        if a_type in self._type_to_index:
+            return self.belief[a_id][self._type_to_index[a_type]]
+        else:
+            return 0
+
+    def utility(self,payoffs,agent_ids):
+        t = self.genome['agent_types'].index(self.genome['type'])
+        weights = [1]+[self.models[agent_ids[0]].belief[a][t] for a in agent_ids[1:]]
+        #weights = [self.belief[a][t] for a in agent_ids]
+        return sum(p*w for p,w in zip(payoffs,weights))
+
+
+    def decide_likelihood(self, game, agents, tremble):
+        if len(game.actions) == 1:
+            return np.array([1])
+
+        Us = np.array([self.utility(game.payoffs[action], agents)
+                       for action in game.actions])
+        return self.add_tremble(softmax(Us, self.beta), tremble)
+
+    def observe(self, observations):
+        agent_types = self.genome['agent_types']
+        tremble = self.genome['tremble']
+        new_likelihoods = defaultdict(int)
+        for observation in observations:
+            game, participants, observers, action = observation
+            decider_id = participants[0]
+            action_index = game.action_lookup[action]
+
+            likelihood = []
+            for agent_type in agent_types:
+                if agent_type == WeAgent2:
+                    model = self
+                else:
+                    model = self.other_models[decider_id][agent_type]
+                likelihood.append(model.decide_likelihood(game,participants,tremble)[action_index])
+
+            new_likelihoods[decider_id] += np.log(likelihood)
+
+        prior = np.log(self.pop_prior)
+        for decider_id, new_likelihood in new_likelihoods.iteritems():
+            self.likelihood[decider_id] += new_likelihood
+            likelihood = self.likelihood[decider_id]
+            self.belief[decider_id] = np.exp(prior+likelihood)
+            self.belief[decider_id] = normalized(self.belief[decider_id])
+        for a_id,model in self.other_models.iteritems():
+            model.observe_k(observations,0,tremble)
+
+    def add_tremble(self, p, tremble):
+        if tremble == 0:
+            return p
+        else:
+            return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
+
+
+class SharedModel(object):
+    def __init__(self, genome, modeler_id, world_ids):
+        #make a powerset of the sets of ids that are not the modeler, add the modeler's id to each.
+        my_id = HashableSet(modeler_id)
+        a = list(s for s in power_set(world_ids))
+        powerset = [HashableSet(my_id|set(s)) for s in power_set(set(world_ids).difference(my_id))]
+
+        #make a dict to Models keyed by their corresponding subset
+        default_node = SharedNode(genome,'everyone')
+        models = {s:SharedNode(genome,s,default_node) for s in powerset}
+        models['everyone'] = default_node
+
+        #make a list for which nodes observe for a given set of observers
+        subsets = defaultdict(list)
+        for superset, subset in product(powerset,powerset):
+            if superset.issuperset(subset):
+                subsets[superset].append(models[subset])
+        subsets['everyone'] = [models[s] for s in powerset]
+        #for s in subsets:
+        #    print "set\n", s
+        #    print "subsets\n",subsets[s]
+            #subsets[s].sort(key=len)
+        #assert 0
+        self.subsets = subsets
+
+        #make each set point to their smallest superset
+        ##organize subsets in a dict keyed by their sizes
+        size_to_subset = defaultdict(list)
+        for s in powerset:
+            size_to_subset[len(s)].append(s)
+
+        ##for each set in a size category, if a set in the larger size category
+        ##is a superset, have the set's node's model point to the model corresponding to the superset
+        sizes = sorted(size_to_subset.keys())
+        for smaller, bigger in zip(sizes[:-1],sizes[1:]):
+            smaller_sets = size_to_subset[smaller]
+            bigger_sets = size_to_subset[bigger]
+            for small_set, big_set in product(smaller_sets,bigger_sets):
+                if small_set.issubset(big_set):
+                    [element] = list(big_set.difference(small_set))
+                    models[small_set].models[element] = models[big_set]
+
+        ##save a reference to the topmost node
+        self.top = models[my_id]
+
+    def observe(self, observations):
+        """TODO: 'everyone' node needs to be treated specially"""
+        observer_sets = set(HashableSet(o[2]) for o in observations)
+        #for o in observer_sets:
+        #    print o
+        #    print o in self.subsets
+        #    for m in self.subsets[o]:
+        #        print "\t",m.ids
+
+        print observer_sets
+        observer_models = sorted((set(sum([self.subsets[o_s] for o_s in observer_sets], []))), key=lambda m: len(m.ids))
+        for model in observer_models:
+            model.observe(observations)
+
+
+class WeAgent2(Agent):
+    def __init__(self, genome, world_id):
+        world_ids = genome['world_ids']
+        self.shared_model = lattice = SharedModel(genome,world_id,world_ids)
+        self.me = me = lattice.top
+        self.belief = me.belief
+        self.likelihood = me.likelihood
+        self.models = me.models
+
+        self._type_to_index = dict(map(reversed, enumerate(genome['agent_types'])))
+
+    def decide_likelihood(self,*args,**kwargs):
+        return self.me.decide_likelihood(*args,**kwargs)
+
+    def observe(self,observations):
+        self.shared_model.observe(observations)
+
+    def belief_that(self, a_id, a_type):
+        if a_type in self._type_to_index:
+            return self.belief[a_id][self._type_to_index[a_type]]
+        else:
+            return 0
 
 
 class Mimic(RationalAgent):
