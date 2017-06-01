@@ -10,6 +10,8 @@ from copy import deepcopy
 from copy import copy, deepcopy
 from utils import unpickled, pickled, HashableDict, issubclass
 from itertools import chain, product, combinations
+import networkx as nx
+
 
 PRETTY_KEYS = {"RA_prior": "prior",
                "RA_K": 'K'}
@@ -541,7 +543,7 @@ class wAgentDict(dict):
         return ret
 
 
-class WeAgent(Agent):
+class WeAgent0(Agent):
     def __init__(self, genome, world_id, world_ids = []):
         self.world_id = world_id
         self.genome = genome = copy(genome)
@@ -612,7 +614,7 @@ class WeAgent(Agent):
 def power_set(s):
     return chain.from_iterable(combinations(s,r) for r in range(len(s)+1))
 
-class SharedNode(object):
+class SharedModel(object):
     def __init__(self, genome, self_ids = 'everyone', default_node = None):
 
         self.ids = self_ids
@@ -648,6 +650,12 @@ class SharedNode(object):
         self.belief = ConstantDefaultDict(self.pop_prior)
         self.likelihood = ConstantDefaultDict(np.zeros_like(self.pop_prior))
 
+    def copy(self):
+        cpy = copy(self)
+        cpy.belief = copy(self.belief)
+        cpy.likelihood = copy(self.likelihood)
+        cpy.models = copy(self.models)
+        cpy.other_models = deepcopy(self.other_models)
     def belief_that(self, a_id, a_type):
         if a_type in self._type_to_index:
             return self.belief[a_id][self._type_to_index[a_type]]
@@ -704,16 +712,16 @@ class SharedNode(object):
             return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
 
 
-class SharedModel(object):
+class ModelLattice(object):
     def __init__(self, genome, modeler_id, world_ids):
         #make a powerset of the sets of ids that are not the modeler, add the modeler's id to each.
-        my_id = HashableSet(modeler_id)
+        my_id = frozenset(modeler_id)
         a = list(s for s in power_set(world_ids))
-        powerset = [HashableSet(my_id|set(s)) for s in power_set(set(world_ids).difference(my_id))]
+        powerset = [frozenset(my_id|set(s)) for s in power_set(set(world_ids).difference(my_id))]
 
         #make a dict to Models keyed by their corresponding subset
-        default_node = SharedNode(genome,'everyone')
-        models = {s:SharedNode(genome,s,default_node) for s in powerset}
+        default_node = SharedModel(genome,'everyone')
+        models = {s:SharedModel(genome,s,default_node) for s in powerset}
         models['everyone'] = default_node
 
         #make a list for which nodes observe for a given set of observers
@@ -751,13 +759,7 @@ class SharedModel(object):
 
     def observe(self, observations):
         """TODO: 'everyone' node needs to be treated specially"""
-        observer_sets = set(HashableSet(o[2]) for o in observations)
-        #for o in observer_sets:
-        #    print o
-        #    print o in self.subsets
-        #    for m in self.subsets[o]:
-        #        print "\t",m.ids
-
+        observer_sets = set(frozenset(o[2]) for o in observations)
         print observer_sets
         observer_models = sorted((set(sum([self.subsets[o_s] for o_s in observer_sets], []))), key=lambda m: len(m.ids))
         for model in observer_models:
@@ -801,4 +803,364 @@ class Mimic(RationalAgent):
 
     def utility(self, payoffs, agents):
         pass
+
+class UniverseSet(frozenset):
+    def __contains__(self,x):
+        return True
+    def __and__(self,s):
+        return s
+    def __rand__(self,s):
+        return s
+
+    def __or__(self,s):
+        return self
+    def __ror__(self,s):
+        return self
+
+    def __len__(self):
+        return 10000000
+    def __le__(self,other):
+        return False
+    def __lt__(self,other):
+        return False
+    def __ge__(self,other):
+        return True
+    def __gt__(self,other):
+        return True
+    def issuperset(self,other):
+        return True
+    def issubset(self,other):
+        return False
+    def __rsub__(self,other):
+        return other-other
+
+
+class ModelNode(object):
+    def __init__(self, genome, id_set):
+        self.ids = id_set
+        self.beliefs = None
+        self.likelihood = None
+
+        #route to the 'everyone' by default
+        self.models = defaultdict(lambda: self)
+
+        self.genome = genome = copy(genome)
+        self.genome['agent_types'] = tuple(t if t != 'self' else genome['type'] for t in genome['agent_types'])
+
+        self.beta = genome['beta']
+
+        self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
+
+        tmp_genome = deepcopy(genome)
+        tmp_genome['agent_types'] = tuple(a_type for a_type in tmp_genome['agent_types'] if a_type != genome['type'])
+        self.other_models = wAgentDict(tmp_genome)
+
+        #print genome['agent_types']
+        RA_prior = genome['RA_prior']
+        non_WA_prior = (1-RA_prior)/(len(genome['agent_types'])-1)
+        self.pop_prior = prior = np.array([RA_prior if t is genome['type'] else non_WA_prior for t in genome['agent_types']])
+
+        self.belief = ConstantDefaultDict(self.pop_prior)
+        self.likelihood = ConstantDefaultDict(np.zeros_like(self.pop_prior))
+
+    def copy(self,new_id_set):
+        cpy = copy(self)
+        cpy.belief = copy(self.belief)
+        cpy.likelihood = copy(self.likelihood)
+        cpy.models = models = copy(self.models)
+        cpy.other_models = deepcopy(self.other_models)
+        cpy.ids = new_id_set
+        for i in new_id_set:
+            models[i] = cpy
+
+        return cpy
+
+    def belief_that(self, a_id, a_type):
+        if a_type in self._type_to_index:
+            return self.belief[a_id][self._type_to_index[a_type]]
+        else:
+            return 0
+
+    def utility(self,payoffs,agent_ids):
+        t = self.genome['agent_types'].index(self.genome['type'])
+        weights = [1]+[self.models[agent_ids[0]].belief[a][t] for a in agent_ids[1:]]
+        #weights = [self.belief[a][t] for a in agent_ids]
+        return sum(p*w for p,w in zip(payoffs,weights))
+
+
+    def decide_likelihood(self, game, agents, tremble):
+        if len(game.actions) == 1:
+            return np.array([1])
+
+        Us = np.array([self.utility(game.payoffs[action], agents)
+                       for action in game.actions])
+        return self.add_tremble(softmax(Us, self.beta), tremble)
+
+    def observe(self, observations):
+        agent_types = self.genome['agent_types']
+        tremble = self.genome['tremble']
+        new_likelihoods = defaultdict(int)
+        for observation in observations:
+            if not self.ids <= set(observers): continue
+            game, participants, observers, action = observation
+            decider_id = participants[0]
+            action_index = game.action_lookup[action]
+
+            likelihood = []
+            for agent_type in agent_types:
+                if agent_type == self.genome['type']:
+                    model = self
+                else:
+                    model = self.other_models[decider_id][agent_type]
+                likelihood.append(model.decide_likelihood(game,participants,tremble)[action_index])
+
+            new_likelihoods[decider_id] += np.log(likelihood)
+
+        prior = np.log(self.pop_prior)
+        for decider_id, new_likelihood in new_likelihoods.iteritems():
+            self.likelihood[decider_id] += new_likelihood
+            likelihood = self.likelihood[decider_id]
+            self.belief[decider_id] = np.exp(prior+likelihood)
+            self.belief[decider_id] = normalized(self.belief[decider_id])
+        for a_id,model in self.other_models.iteritems():
+            model.observe_k(observations,0,tremble)
+
+    def add_tremble(self, p, tremble):
+        if tremble == 0:
+            return p
+        else:
+            return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
+
+class JoinLatticeModel(object):
+    def __init__(self,genome):
+        """
+        sets is the set of all known sets S
+        top is the set that is a subset of all other elements
+        bottom is the set that is the superset of all others, i.e. the universe
+        subsets maps from a A to all B in S such that B<=A
+        supersets maps from A to all C such that C>A
+        size_to_sets maps from n to all known sets of size n
+
+        """
+        #Top<s for all s in S
+        self.top = self.bottom = U = UniverseSet()
+        self.sets = set([U])
+        #if supersets[A] contains B, A<B
+        self.supersets = {U:set()}
+        #if subsets[A] contains B, A>=B
+        self.subsets = {U:set((U,))}
+        self.model = {U:ModelNode(genome,U)}
+        self.size_to_sets = defaultdict(set)
+        self.size_to_sets[len(U)].add(U)
+
+    def make_path_to(lattice, new_set):
+        """
+        insert a new set into the lattice
+        start with the largest potential subsets
+        if the new set is a known superset of one of your supersets
+        it is a superset of yours
+        """
+        size = len(new_set)
+
+        subsets = lattice.subsets
+        supersets = lattice.supersets
+        model = lattice.model
+        supersets = lattice.supersets
+        #we only need to check the smaller sets for potential subsets
+        smaller_set_sizes = sorted((i for i in lattice.size_to_sets.iterkeys() if i < size), reverse = True)
+        for n in smaller_set_sizes:
+            for small_set in lattice.size_to_sets[n]:
+                if (small_set < new_set) and (new_set not in supersets[small_set]):
+                    connection_needed = True
+                    for s in supersets[small_set]:
+                        if new_set in supersets[s]:
+                            connection_needed = False
+
+                    models = model[small_set].models
+                    new_model = model[new_set]
+                    if connection_needed:
+                        for i in new_set - small_set:
+                            models[i] = new_model
+                    else:
+                        for i in new_set-small_set:
+                            if new_set < models[i].ids:
+                                models[i] = new_model
+                    subsets[new_set].add(small_set)
+                    supersets[small_set].add(new_set)
+
+    def insert_new_set(self, new_set):
+        """
+        insert any intersections between this set and any known sets
+        every new intersection's associated node is a copy of
+        the node of the largest known set whose union with the new set produces the intersection
+
+        make a path to the new sets, starting with the smallest new sets
+
+        return True if any of the new sets is smaller than the smallest known set
+        """
+
+        model = self.model
+        size_to_sets = self.size_to_sets
+        new_set = frozenset(new_set)
+        new_sets = {}
+        subsets = self.subsets
+        supersets = self.supersets
+        #sets must be sorted from largest to smallest
+        #this way we make sure that new_sets[i] has the value of the smallest set that makes that intersection
+        sets = sorted(self.sets, key = len, reverse = True)
+
+        for s in sets:
+            i = new_set&s
+            if i not in sets:
+                new_sets[i] = s
+
+        #here the new sets are actually inserted
+        for subset, superset in new_sets.iteritems():
+            size_to_sets[len(subset)].add(subset)
+            self.sets.add(subset)
+            subsets[superset].add(subset)
+            subsets[subset] = copy(subsets[superset])
+            subsets[subset].remove(superset)
+
+            supersets[subset] = copy(supersets[superset])
+            supersets[subset].add(superset)
+
+            new_model = model[subset] = model[superset].copy(subset)
+
+        new_sets = sorted(new_sets.iterkeys(), key = len)
+        new_smallest = new_sets[0]
+
+        new_top = False
+        if len(new_smallest)<len(self.top):
+            self.top = new_smallest
+            new_top = True
+
+        for s in new_sets:
+            ###THIS CAN BE OPTIMIZED
+            self.make_path_to(s)
+
+        return new_top
+
+    def observe(self, observations):
+        """
+        check which observers need to be inserted into the lattice and do it
+        then have all subsets of observers observe
+        """
+        observer_sets = sorted(set().union(self.subsets[frozenset(o[2])] for o in observations), key = len)
+        sets = self.sets
+        insert = self.insert_new_set
+
+        observers = [frozenset(o[2]) for o in observations]
+        new_top = any(insert(s) for s in observers if s not in sets)
+
+        observer_subsets = sorted(set().union(self.subsets[o] for o in observers), key = len)
+        for s in observer_subsets:
+            self.model[s].observe(observations)
+        return new_top
+
+    def draw_hasse(self,my_id,ids):
+        nodes = self.sets
+        edges = []
+        U = self.bottom
+
+        def set_to_str(s):
+            return "".join(sorted(s))
+        for a in self.sets:
+            print "the set",a
+            for e,b in self.model[a].models.iteritems():
+                print "\tthe link",e
+                print "\tthe ids",b.ids
+                if b.ids != U:
+                    edges.append((set_to_str(a),set_to_str(b.ids)))
+            if len(self.supersets[a]) == 1:
+                print "set in question", a
+                print 'should be singleton', self.supersets[a]
+                edges.append((set_to_str(a),'U'))
+        nodes = [set_to_str(s) for s in self.sets if s != U]
+
+        pos = make_pos_dict(my_id,ids)
+        nodes+=["U"]
+        labels = {i:i for i in nodes}
+        G = nx.DiGraph()
+        G.add_nodes_from(nodes)
+        G.add_edges_from(edges)
+        f = plt.figure(figsize = (5,5))
+        plt.ylim((0,1))
+        plt.xlim((0,1))
+        nx.draw(G,pos,labels = labels)
+        plt.show()
+
+def make_pos_dict(my_id,all_ids):
+    """
+    Used by JoinLattice's draw_hasse method
+    requires a single id that will be the head, and 'all_ids' which is the list of ids of other players
+    """
+    my_id = frozenset(my_id)
+    ids = frozenset(all_ids)
+    #ids = frozenset().union(*all_ids)
+    powerset = ["".join(sorted(my_id|set(s))) for s in power_set(set(ids).difference(my_id))]
+    size_to_strs = defaultdict(set)
+    for s in powerset:
+        size_to_strs[len(s)].add(s)
+
+    for n in size_to_strs:
+        size_to_strs[n] = sorted(size_to_strs[n])
+
+    y_levels = max(size_to_strs.iterkeys())+1
+
+    pos = {}
+    for size, y in zip(sorted(size_to_strs.keys()+["inf"]),reversed(np.linspace(0,1,y_levels+2)[1:-1])):
+        if size != "inf":
+            strs = size_to_strs[size]
+        else:
+            strs = ["U"]
+        for s, x in zip(strs,np.linspace(0,1,len(strs)+2)[1:-1]):
+            if size == "inf":
+                print len(strs)
+                print np.linspace(0,1,len(strs)+2)[1:-1]
+                print s
+                print x
+                print y
+            pos[s] = (x,y)
+
+    return pos
+class WeAgent(Agent):
+    """The lord of all RAs. Bow before her. She rules over all."""
+    def __init__(self, genome, world_id):
+        self.world_id = world_id
+        self.shared_model = self.lattice = lattice = JoinLatticeModel(genome)
+        self.me = me = lattice.model[lattice.top]
+        self.belief = me.belief
+        self.likelihood = me.likelihood
+        self.models = me.models
+
+        self._type_to_index = dict(map(reversed, enumerate(genome['agent_types'])))
+
+    def decide_likelihood(self,*args,**kwargs):
+        return self.me.decide_likelihood(*args,**kwargs)
+
+    def observe(self,observations):
+        """
+        calls the lattice.observe function
+        if it returns true, meaning the top element has changed,
+        then point to the new top element
+        """
+        observations = list(o for o in observations if self.world_id in o[2])
+        lattice = self.shared_model
+        if lattice.observe(observations):
+            self.me = me = lattice.model[lattice.top]
+            self.belief = me.belief
+            self.likelihood = me.likelihood
+            self.models = me.models
+
+    def belief_that(self, a_id, a_type):
+        if a_type in self._type_to_index:
+            return self.belief[a_id][self._type_to_index[a_type]]
+        else:
+            return 0
+
+
+
+"""if you are a subset of a new node:
+ can reach it"""
 
