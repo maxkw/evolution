@@ -900,9 +900,10 @@ class ModelNode(object):
         agent_types = self.genome['agent_types']
         tremble = self.genome['tremble']
         new_likelihoods = defaultdict(int)
+
         for observation in observations:
-            if not self.ids <= set(observers): continue
             game, participants, observers, action = observation
+            if not self.ids <= set(observers): continue
             decider_id = participants[0]
             action_index = game.action_lookup[action]
 
@@ -1046,14 +1047,16 @@ class JoinLatticeModel(object):
         check which observers need to be inserted into the lattice and do it
         then have all subsets of observers observe
         """
-        observer_sets = sorted(set().union(self.subsets[frozenset(o[2])] for o in observations), key = len)
         sets = self.sets
         insert = self.insert_new_set
 
         observers = [frozenset(o[2]) for o in observations]
         new_top = any(insert(s) for s in observers if s not in sets)
 
-        observer_subsets = sorted(set().union(self.subsets[o] for o in observers), key = len)
+        #observer_sets = sorted(set().union(self.subsets[o] for o in observers), key = len)
+
+        
+        observer_subsets = sorted(set().union(*[self.subsets[o] for o in observers]), key = len)
         for s in observer_subsets:
             self.model[s].observe(observations)
         return new_top
