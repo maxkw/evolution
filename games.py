@@ -213,11 +213,12 @@ def BinaryDictatorDict(endowment = 0, cost = 1, benefit = 2):
         "give": (endowment-cost, benefit)
     }
 
-def BinaryDictator(endowment = 0, cost = 1, benefit = 2):
+def BinaryDictator(endowment = 0, cost = 1, benefit = 2, tremble = 0):
     """
     a 2-participant decision
     """
     decision = Decision(BinaryDictatorDict(endowment,cost,benefit))
+    decision.tremble = tremble
     decision.name = decision._name = "BinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))
     return decision
 
