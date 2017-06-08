@@ -1,3 +1,4 @@
+from __future__ import division
 from utils import flip, randomly_chosen
 from itertools import product, combinations, permutations
 from numpy import array
@@ -142,10 +143,10 @@ class PubliclyObserved(Playable):
 
     def play(self,participants,observers=[], tremble=0):
         payoffs, observations, notes = self.playable.play(participants,observers,tremble)
-        for observer in set(list(observers)+list(participants)):       
+        for observer in set(list(observers)+list(participants)):
             observer.observe(observations)
         return payoffs, observations, notes
-    
+
 class RandomlyObserved(Playable):
     """
     randomly selects a specified percent of the provided observers
@@ -163,9 +164,17 @@ class RandomlyObserved(Playable):
         observers = randomly_chosen(self.observability,observers)
         payoffs, observations, notes = self.playable.play(participants,observers,tremble)
         for observer in set(list(observers)+list(participants)):
-            observer.observe_k(observations,observer.genome['RA_K'], tremble)
+            observer.observe(observations)
         return payoffs, observations, notes
-    
+
+class PubliclyObservable(Playable):
+    def __init__(self, playable):
+        self.name = "PubliclyObservable(%s)" % playable.name
+        self.N_players = playable.N_players
+        self.playable=playable
+    def play(self,participants,observers=None, tremble=0):
+        observer_subset = randomly_chosen(self.observability,observers)
+        return self.playable.play(participants,observer_subset,tremble)
 class RandomlyObservable(Playable):
     def __init__(self,observability,playable):
         self.name = "RandomlyObservable(%s,%s)" % (observability, playable.name)
@@ -502,7 +511,10 @@ class AnnotatedDS(DecisionSeq):
     def annotate(self,participants,payoff,observations,record):
         raise NotImplementedError
 
-    def play(self,participants,observers=[],tremble=0,notes={}):
+    def play(self,participants,observers=None,tremble=0,notes={}):
+        if observers is None:
+            observers = participants
+
         #initialize accumulators
         observations = []
         record = []
@@ -513,7 +525,7 @@ class AnnotatedDS(DecisionSeq):
         extend_rec = record.append
         annotate = self.annotate
 
-        extend_rec(annotate(participants,payoffs,[],[],notes))
+        extend_rec(annotate(participants,payoffs,[],notes))
 
         for game,ordering in self.matchups(participants):
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
@@ -524,6 +536,14 @@ class AnnotatedDS(DecisionSeq):
         return payoffs,observations,record
 
     _play = play
+
+class IndirectReciprocity(AnnotatedDS):
+    def __init__(self, rounds, game):
+        self.name = self._name= "IndirectReciprocity("+str(rounds)+","+game.name+")"
+        self.game = game
+        self.rounds = rounds
+        self.N_players = game.N_players
+        self.current_round = 0
 
 
 class Repeated(AnnotatedDS):
@@ -563,8 +583,67 @@ class Repeated(AnnotatedDS):
         ordering = range(len(participants))
         for game_round in xrange(1,self.rounds+1):
             self.current_round = game_round
-            yield self.game,ordering
-    
+            yield self.game, ordering
+
+class Indirect(AnnotatedDS):
+    def __init__(self, rounds, game):
+
+        self.name = self._name= "Indirect("+str(rounds)+","+game.name+")"
+        self.game = game
+        self.rounds = rounds
+        self.N_players = game.N_players
+        self.current_round = 0
+
+    def annotate(self,current_round,participants,payoff,observations,record,notes):
+        note = {
+            'round':current_round,
+            'players':tuple(deepcopy(agent) for agent in participants),
+            'actions':tuple(observation[3] for observation in observations),
+            'actors':tuple(observation[1] for observation in observations),
+            'payoff': copy(payoff),
+            'games':tuple(observation[0] for observation in observations),
+            #'belief': tuple(copy(agent.belief) for agent in participants),
+            #'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
+            }
+    def play(self, participants, observers = None, tremble = 0,notes = {}):
+        if observers is None:
+            observers = participants
+
+        game = self.game
+        rounds = self.rounds
+        
+
+        player_count = len(participants)
+
+        #initialize accumulators
+        observations = []
+        record = []
+        payoffs = np.zeros(player_count)
+
+        #cache the dot references
+        extend_obs = observations.extend
+        extend_rec = record.append
+        annotate = self.annotate
+
+        extend_rec(annotate(0,participants,payoffs,[],[],notes))
+
+        matchups = list(permutations(range(player_count),2))
+        np.random.shuffle(matchups)
+        #observers = list(combinations(player_count, int(player_count*proportion)))
+        #np.shuffle(observers)
+
+        #rounds = int(len(matchups)*rounds)
+
+        
+        for r, ordering in zip(range(1,rounds+1), matchups):
+            ordering = np.array(ordering)
+            pay,obs,rec = game.play(participants[ordering],observers,tremble)
+            payoffs[ordering] += pay
+            extend_rec(annotate(r,participants,pay,obs,rec,notes))
+            extend_obs(obs)
+
+        return payoffs,observations,record
+
 class IndefiniteHorizonGame(DecisionSeq):
     def __init__(self,gamma,playable):
         self.name = self._name = "IndefiniteHorizon(%s,%s)" % (gamma,playable.name)
@@ -691,7 +770,7 @@ Exponential(PrisonersDilemma, cost = {'gamma':9,'scale':3}, benefit = {'gamma':3
 #@literal
 def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = 1, benefit = 3, gamma = 1):
     return Repeated(rounds,PrivatelyObserved(Exponential(PrisonersDilemma)))
-    #return Repeated(rounds,PrivatelyObserved(DynamicPD()))
+#return Repeated(rounds,PrivatelyObserved(DynamicPD()))
 
 def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = 1, benefit = 3)
@@ -708,6 +787,15 @@ def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3,**junk):
     if visibility == "public":
         return Repeated(rounds, PubliclyObserved(PD))
 
+@literal
+def IndirectReciprocity(rounds = 10, observability = .5, cost = 1, benefit = 3, tremble = 0, **junk):
+    bd = BinaryDictator(cost = cost, benefit = benefit)
+    bd.tremble = tremble
+    g = Indirect(rounds, RandomlyObserved(observability,bd)) 
+    return g
+
+
+
 if __name__ == "__main__":
     from agents import ReciprocalAgent, Puppet
     from params import default_genome
@@ -720,3 +808,4 @@ if __name__ == "__main__":
     payoff,history,records = game.play(agents)
     print "Final Payoff:",payoff
     print len(list(set(g for g,a,b,c in history)))
+  
