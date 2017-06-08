@@ -525,7 +525,7 @@ class AnnotatedDS(DecisionSeq):
         extend_rec = record.append
         annotate = self.annotate
 
-        extend_rec(annotate(participants,payoffs,[],notes))
+        extend_rec(annotate(participants,payoffs,[],[], notes))
 
         for game,ordering in self.matchups(participants):
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
@@ -573,7 +573,7 @@ class Repeated(AnnotatedDS):
             'actors':tuple(observation[1] for observation in observations),
             'payoff': copy(payoff),
             'games':tuple(observation[0] for observation in observations),
-            #'belief': tuple(copy(agent.belief) for agent in participants),
+            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
             #'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
             }
         note.update(notes)
@@ -594,17 +594,6 @@ class Indirect(AnnotatedDS):
         self.N_players = game.N_players
         self.current_round = 0
 
-    def annotate(self,current_round,participants,payoff,observations,record,notes):
-        note = {
-            'round':current_round,
-            'players':tuple(deepcopy(agent) for agent in participants),
-            'actions':tuple(observation[3] for observation in observations),
-            'actors':tuple(observation[1] for observation in observations),
-            'payoff': copy(payoff),
-            'games':tuple(observation[0] for observation in observations),
-            #'belief': tuple(copy(agent.belief) for agent in participants),
-            #'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
-            }
     def play(self, participants, observers = None, tremble = 0,notes = {}):
         if observers is None:
             observers = participants
@@ -625,7 +614,7 @@ class Indirect(AnnotatedDS):
         extend_rec = record.append
         annotate = self.annotate
 
-        extend_rec(annotate(0,participants,payoffs,[],[],notes))
+        # extend_rec(annotate(0,participants,payoffs,[],[],notes))
 
         matchups = list(permutations(range(player_count),2))
         np.random.shuffle(matchups)
@@ -639,7 +628,7 @@ class Indirect(AnnotatedDS):
             ordering = np.array(ordering)
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
-            extend_rec(annotate(r,participants,pay,obs,rec,notes))
+            # extend_rec(annotate(r,participants,pay,obs,rec,notes))
             extend_obs(obs)
 
         return payoffs,observations,record

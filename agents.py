@@ -6,7 +6,6 @@ import itertools
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from utils import softmax, sample_softmax, softmax_utility, flip, normalized, excluding_keys
-from copy import deepcopy
 from copy import copy, deepcopy
 from utils import unpickled, pickled, HashableDict, issubclass
 from itertools import chain, product, combinations
@@ -15,6 +14,13 @@ import networkx as nx
 
 PRETTY_KEYS = {"RA_prior": "prior",
                "RA_K": 'K'}
+
+def add_tremble(p, tremble):
+    if tremble == 0:
+        return p
+    else:
+        return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
+
 
 class HashableSet(set):
     def __hash__(self):
@@ -56,7 +62,7 @@ class Agent(object):
             return object.__new__(cls)
 
     def __init__(self, genome, world_id=None):
-        self.genome = deepcopy(genome)
+        self.genome = genome
         self.beta = self.genome['beta']
         self.world_id = world_id
         self.belief = dict()
@@ -78,13 +84,7 @@ class Agent(object):
         Us = np.array([self.utility(game.payoffs[action], agents)
                        for action in game.actions])
 
-        return self.add_tremble(softmax(Us, self.beta), tremble)
-
-    def add_tremble(self, p, tremble):
-        if tremble == 0:
-            return p
-        else:
-            return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
+        return add_tremble(softmax(Us, self.beta), tremble)
 
     def decide(self, game, agent_ids):
         # Tremble is always 0 for decisions since tremble happens in
@@ -435,7 +435,7 @@ class ClassicAgent(Agent):
     
 class Pavlov(ClassicAgent):
     def __init__(self, genome, world_id=None):
-        self.genome = deepcopy(genome)
+        self.genome = genome
         self.world_id = world_id
         self.strats = strats = [
             {'give': 1, 'keep': 0},
@@ -456,7 +456,7 @@ class Pavlov(ClassicAgent):
                 self.strat_index = (self.strat_index + 1) % 2
 
     def decide_likelihood(self, game, agents=None, tremble=None):
-        return self.add_tremble(np.array([self.strats[self.strat_index][action] for action in game.actions]), tremble)
+        return add_tremble(np.array([self.strats[self.strat_index][action] for action in game.actions]), tremble)
 
 
 class gTFT(ClassicAgent):
@@ -478,7 +478,7 @@ class gTFT(ClassicAgent):
     def decide_likelihood(self, game, agents=None, tremble=None):
         rules = self.rules
         last_action = self.cooperated
-        return self.add_tremble(np.array([rules[last_action][action] for action in game.actions]), tremble)
+        return add_tremble(np.array([rules[last_action][action] for action in game.actions]), tremble)
 
     def observe_k(self, observations, *args, **kwargs):
         self.observe(observations)
@@ -502,14 +502,14 @@ class AllC(ClassicAgent):
     def decide_likelihood(self, game, agents=None, tremble=None):
         odds = {'give': 1,
                 'keep': 0}
-        return self.add_tremble(np.array([odds[action] for action in game.actions]), tremble)
+        return add_tremble(np.array([odds[action] for action in game.actions]), tremble)
 
 
 class AllD(ClassicAgent):
     def decide_likelihood(self, game, agents=None, tremble=None):
         odds = {'give': 0,
                 'keep': 1}
-        return self.add_tremble(np.array([odds[action] for action in game.actions]), tremble)
+        return add_tremble(np.array([odds[action] for action in game.actions]), tremble)
 
 
 class RandomAgent(ClassicAgent):
@@ -596,18 +596,19 @@ class ModelNode(object):
         self.ids = id_set
         self.beliefs = None
         self.likelihood = None
-
+        
         #route to the 'everyone' by default
         self.models = defaultdict(lambda: self)
 
-        self.genome = genome = copy(genome)
-        self.genome['agent_types'] = tuple(t if t != 'self' else genome['type'] for t in genome['agent_types'])
+        self.genome = genome = genome
+        self.need_to_observe = gTFT in genome['agent_types'] or Pavlov in genome['agent_types']
 
         self.beta = genome['beta']
 
         self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
-
-        tmp_genome = deepcopy(genome)
+        self._my_type_index = self._type_to_index[genome['type']]
+        
+        tmp_genome = dict(genome)
         tmp_genome['agent_types'] = tuple(a_type for a_type in tmp_genome['agent_types'] if a_type != genome['type'])
         self.other_models = wAgentDict(tmp_genome)
 
@@ -618,7 +619,7 @@ class ModelNode(object):
 
         self.belief = ConstantDefaultDict(self.pop_prior)
         self.likelihood = ConstantDefaultDict(np.zeros_like(self.pop_prior))
-
+        
     def copy(self,new_id_set):
         cpy = copy(self)
         cpy.belief = copy(self.belief)
@@ -637,13 +638,11 @@ class ModelNode(object):
         else:
             return 0
 
-    def utility(self,payoffs,agent_ids):
-        t = self.genome['agent_types'].index(self.genome['type'])
+    def utility(self,payoffs, agent_ids):
+        t = self._my_type_index
         weights = [1]+[self.models[agent_ids[0]].belief[a][t] for a in agent_ids[1:]]
-        #weights = [self.belief[a][t] for a in agent_ids]
-        return sum(p*w for p,w in zip(payoffs,weights))
-
-
+        return np.dot(payoffs, weights)
+    
     def decide_likelihood(self, game, agents, tremble):
         if len(game.actions) == 1:
             return np.array([1])
@@ -651,7 +650,7 @@ class ModelNode(object):
         Us = np.array([self.utility(game.payoffs[action], agents)
                        for action in game.actions])
         #print tremble
-        return self.add_tremble(softmax(Us, self.beta), tremble)
+        return add_tremble(softmax(Us, self.beta), tremble)
 
     def observe(self, observations):
         agent_types = self.genome['agent_types']
@@ -680,14 +679,11 @@ class ModelNode(object):
             likelihood = self.likelihood[decider_id]
             self.belief[decider_id] = np.exp(prior+likelihood)
             self.belief[decider_id] = normalized(self.belief[decider_id])
-        for a_id,model in self.other_models.iteritems():
-            model.observe_k(observations,0,tremble)
 
-    def add_tremble(self, p, tremble):
-        if tremble == 0:
-            return p
-        else:
-            return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
+        if self.need_to_observe:
+            for model in self.other_models.itervalues():
+                model.observe_k(observations, 0, tremble)
+
 
 class JoinLatticeModel(object):
     def __init__(self,genome):

@@ -167,7 +167,8 @@ def unpickled(path,mode = "r"):
         return load(file)
 
 def normalized(array):
-    return array/np.sum(array)
+    return array / np.sum(array)
+
 assert np.sum(normalized(np.array([.2,.3]))) ==1
 
 def constraint_min(f,x):

@@ -4,6 +4,7 @@ from games import RepeatedPrisonersTournament
 import math
 from utils import issubclass
 import seaborn as sns
+from frozendict import frozendict
 
 sns.set_style('white')
 sns.set_context('paper', font_scale=1.5)
@@ -147,7 +148,7 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         'prior_precision': 0,
         'beta': 3,
         'prior': prior_generator(agent_type, agent_types, RA_prior),
-        "agent_types":agent_types,
+        "agent_types": tuple(t if t != 'self' else agent_type for t in agent_types),
         'RA_K':0,
         'tremble':0,
         'y':1,
@@ -159,7 +160,7 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         if key in genome and key is not 'prior':
             genome[key] = extra_args[key]
 
-    return genome
+    return frozendict(genome)
 
 def generate_random_genomes(N_agents, agent_types_world, **kwargs):
     return [default_genome(agent_type = np.random.choice(agent_types_world),**kwargs) for _ in range(N_agents)]

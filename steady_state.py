@@ -268,10 +268,12 @@ def complete_analysis(payoff, pop_size, s, **kwargs):
 
 def test_complete_limit():
     matrix = np.array([[0, .1], [-.1, 2]])
+    s = .1
+    N = 100
     np.testing.assert_allclose(
-        complete_analysis(matrix, 100, 1, mu=.0001),
-        limit_analysis(matrix, 100, 1),
-        rtol = 0.00001, atol=0.0001)
+        complete_analysis(matrix, N, s, mu=0.001),
+        limit_analysis(matrix, N, s),
+        rtol = 0.01, atol=0.01)
 
 if __name__ == "__main__":
     test_complete_limit()

@@ -37,9 +37,6 @@ def lcm(*numbers):
         return (a * b) / gcd(a, b)
     return reduce(lcm, numbers, 1)
 
-print [(n,lcm(*range(1,n))) for n in range(2,20)]
-assert 0
-
 def justcaps(t):
     return filter(str.isupper,t.__name__)
 
@@ -59,9 +56,6 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
 @experiment(unpack = 'record', trials = 100, verbose = 3)
 def matchup(player_types, **kwargs):
-    #print "HIIIIIIIIIIIIIIIIIII\n\n\n"
-    #assert False
-    #assert len(player_types)==2
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
@@ -75,27 +69,28 @@ def matchup(player_types, **kwargs):
         except:
             beliefs.append(None)
 
+
     record = []
     if not kwargs.get('per_round',False):
         for t,f,b in zip(player_types,fitness,beliefs):
             record.append({"type":t,"fitness":f,'belief':b})
     else:
+        ids = [a.world_id for a in world.agents]
         for event in history:
-            payoffs = event['payoff']
-            ids = [agent.world_id for agent in event['players']]
             r = event['round']
-            for t, a_id, p, a in zip(player_types, ids, payoffs, event['players']):
-                if kwargs.get('unpack_beliefs',False):
+            for t, a_id, p, a, b in zip(player_types, ids, event['payoff'], event['players'], event['beliefs']):
+                if kwargs.get('unpack_beliefs', False):
+                    atypes = genomes[a_id]['agent_types']
                     for believed_type in kwargs['believed_types']:
-                        try:
+                        # assert a.belief_that((a_id+1)%2, believed_type) == b[(a_id+1)%2][atypes.index(believed_type)]
+                        if b:
                             record.append({'type' : t.short_name('agent_types'),
                                            'id' : a_id,
                                            'round' : r,
-                                           'belief' : a.belief_that((a_id+1)%2, believed_type),
+                                           'belief' : b[(a_id+1)%2][atypes.index(believed_type)],
                                            'believed_type':believed_type.short_name('agent_types'),
                                            'fitness' : p})
-                        except:
-                            pass
+                            
                 else:
                     record.append({'type' : t,
                                    'id' : a_id,
@@ -328,6 +323,7 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
         
         dfs.append(data[data['type'] == b_name])
     return pd.concat(dfs, ignore_index = True)
+
 @plotter(beliefs)
 def plot_beliefs(believer, opponent_types, believed_types, data = [],**kwargs):
     print data
@@ -338,6 +334,7 @@ def plot_beliefs(believer, opponent_types, believed_types, data = [],**kwargs):
     # .set_xlabels("P(t = Type)")
      #.set_titles("")
      #.set_ylabels5)
+
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,Ks,data = []):
     agents = []
