@@ -400,7 +400,7 @@ class PrefabAgent(Agent):
         return self.__name__
 
     def __repr__(self):
-        return str(self)
+        return self.short_name('agent_types')#str(self)
 
     def __hash__(self):
         return hash(str(self))
@@ -894,15 +894,16 @@ class ModelNode(object):
 
         Us = np.array([self.utility(game.payoffs[action], agents)
                        for action in game.actions])
+        #print tremble
         return self.add_tremble(softmax(Us, self.beta), tremble)
 
     def observe(self, observations):
         agent_types = self.genome['agent_types']
-        tremble = self.genome['tremble']
         new_likelihoods = defaultdict(int)
 
         for observation in observations:
             game, participants, observers, action = observation
+            tremble = game.tremble
             if not self.ids <= set(observers): continue
             decider_id = participants[0]
             action_index = game.action_lookup[action]
