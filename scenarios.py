@@ -132,6 +132,7 @@ def false_belief_scenarios():
 def first_impressions(agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
     genome = default_genome(agent_type=RationalAgent, **condition)
+    genome['RA_K'] = 10
     game = BinaryDictator()
 
     record = []
@@ -142,17 +143,24 @@ def first_impressions(agent_types, **kwargs):
         observer = RationalAgent(genome=genome, world_id='B')
         h = Counter(trial)
 
-        observations = [
-            [(game, 'AB', 'ABO', 'give'),
-             (game, 'BA', 'ABO', 'give')
-             ] * h['C']]
+        # observations = [
+        #     [(game, 'AB', 'ABO', 'give'),
+        #      (game, 'BA', 'ABO', 'give')
+        #     ]] * h['C']
 
-        for observation in observations:
-            observer.observe(observation)
+        # for observation in observations:
+        #     observer.observe(observation)
 
+        for _ in xrange(h['C']):
+            observer.observe([(game, 'AB', 'ABO', 'give'),
+                              (game, 'BA', 'ABO', 'give')])
+
+            
         before = observer.belief_that('A', ReciprocalAgent)
-
-        observer.observe([(game, 'AB', 'ABO', 'keep')] * h['D'])
+        
+        for _ in xrange(h['D']):
+            observer.observe([(game, 'AB', 'ABO', 'keep')])
+            
         after = observer.belief_that('A', ReciprocalAgent)
 
         for t, b in zip(['Before', 'After'], [before, after]):
