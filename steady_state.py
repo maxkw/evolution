@@ -66,6 +66,8 @@ def all_partitions(n,L=None):
                 for perm in permutations(part+[0]*(L-l)):
                     yield perm
 
+print len(list(all_partitions(50, 3)))
+
 def binomial(n,k):
     return factorial(n)/(factorial(k)*factorial(n-k))
 
@@ -230,18 +232,15 @@ def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
     #print transition
     
     for i,pop in enumerate(all_partitions(pop_size,type_count)):
-        fitnesses = [np.exp(s*np.dot(pop-I[t],payoff[t])) for t in range(type_count)]
-        total_fitness = sum(fitnesses)
+        fitnesses = softmax([np.dot(pop-I[t],payoff[t]) for t in range(type_count)], s)
         node = np.array(pop)
         for b,d in permutations(xrange(type_count),2):
-            if pop[d]==0:
-                pass
-            else:
+            if pop[d] != 0:
                 neighbor = pop+I[b] - I[d]
                 #print i,part_to_id[tuple(neighbor)]
                 death_odds = pop[d] / pop_size
                 #birth_odds = np.fitnesses[b]/np.exp(s*(total_fitness)))#*(1-mu)+mu*(1/type_count)
-                birth_odds = fitnesses[b] / total_fitness * (1-mu) + mu * (1 / type_count)
+                birth_odds = fitnesses[b] * (1-mu) + mu * (1 / type_count)
                 transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
                 
 
@@ -250,7 +249,7 @@ def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
 
     return transition
 
-def complete_analysis(payoff, pop_size = 100 ,s=1,**kwargs):
+def complete_analysis(payoff, pop_size, s, **kwargs):
     """
     calculates the steady state distribution over population compositions
     """
@@ -258,7 +257,7 @@ def complete_analysis(payoff, pop_size = 100 ,s=1,**kwargs):
     #partition_count = partitions(pop_size,type_count)
     part_to_id = dict(enumerate(all_partitions(pop_size,type_count)))
     partition_count = max(part_to_id.keys())
-    transition = pop_transition_matrix(payoff,pop_size,s,**kwargs)
+    transition = pop_transition_matrix(payoff, pop_size, s, **kwargs)
     ssd = steady_state(transition)
 
     pop_sum = np.zeros(type_count)
@@ -267,5 +266,13 @@ def complete_analysis(payoff, pop_size = 100 ,s=1,**kwargs):
     #print part_to_id[10]
     return pop_sum/pop_size
 
+def test_complete_limit():
+    matrix = np.array([[0, .1], [-.1, 2]])
+    np.testing.assert_allclose(
+        complete_analysis(matrix, 100, 1, mu=.0001),
+        limit_analysis(matrix, 100, 1),
+        rtol = 0.00001, atol=0.0001)
+
 if __name__ == "__main__":
-    pass
+    test_complete_limit()
+    
