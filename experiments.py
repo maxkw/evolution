@@ -37,6 +37,9 @@ def lcm(*numbers):
         return (a * b) / gcd(a, b)
     return reduce(lcm, numbers, 1)
 
+print [(n,lcm(*range(1,n))) for n in range(2,20)]
+assert 0
+
 def justcaps(t):
     return filter(str.isupper,t.__name__)
 
@@ -63,7 +66,7 @@ def matchup(player_types, **kwargs):
     params = default_params(**condition)
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
     world = World(params,genomes)
-    fitness,history = world.run()
+    fitness, history = world.run()
 
     beliefs = []
     for agent in world.agents:
@@ -299,13 +302,13 @@ def coop_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
                         it = believer.belief_that((a_id+1)%2,ReciprocalAgent)
                     else:
                         it = believer.decide_likelihood(game,players,kwargs.get('tremble',0))[game.actions.index('give')]
-                    
+                    print t,'\n'*11
                     record.append({
                         'believer':a_id,
                         'k':0,
                         'value': it,
                         'round':event['round'],
-                        'type':t,
+                        'type':t.short_name(),
                     })
     bdata = pd.DataFrame(record)
     #import pdb; pdb.set_trace()
@@ -328,8 +331,13 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
 @plotter(beliefs)
 def plot_beliefs(believer, opponent_types, believed_types, data = [],**kwargs):
     print data
-    sns.factorplot(data = data, x = 'round', y = 'belief', row = 'actual_type', col = 'type', kind = 'point', hue = "believed_type")
+    #import pdb; pdb.set_trace()
+    fgrid = sns.factorplot(data = data, x = 'round', y = 'belief', row = 'actual_type', col = 'type', kind = 'point', hue = "believed_type",margin_titles = True)
 
+    #(fgrid
+    # .set_xlabels("P(t = Type)")
+     #.set_titles("")
+     #.set_ylabels5)
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,Ks,data = []):
     agents = []
@@ -733,7 +741,7 @@ def belief_experiments():
         everyone = (AC, AD, TFT, GTFT, Pavlov)
         for t in trembles:
             plot_beliefs(agent,
-                         everyone,
+                         (agent,)+everyone,
                          (agent,)+everyone,
                          tremble = tremble,
                          plot_dir = plot_dir,
