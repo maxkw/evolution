@@ -568,7 +568,6 @@ class Repeated(AnnotatedDS):
     def annotate(self,participants,payoff,observations,record,notes):
         note = {
             'round':self.current_round,
-            'players':tuple(deepcopy(agent) for agent in participants),
             'actions':tuple(observation[3] for observation in observations),
             'actors':tuple(observation[1] for observation in observations),
             'payoff': copy(payoff),
@@ -592,7 +591,7 @@ class Indirect(AnnotatedDS):
         self.game = game
         self.rounds = rounds
         self.N_players = game.N_players
-        self.current_round = 0
+        self.current_round = 05
 
     def play(self, participants, observers = None, tremble = 0,notes = {}):
         if observers is None:
