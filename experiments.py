@@ -78,11 +78,10 @@ def matchup(player_types, **kwargs):
         ids = [a.world_id for a in world.agents]
         for event in history:
             r = event['round']
-            for t, a_id, p, a, b in zip(player_types, ids, event['payoff'], event['players'], event['beliefs']):
+            for t, a_id, p, b in zip(player_types, ids, event['payoff'], event['beliefs']):
                 if kwargs.get('unpack_beliefs', False):
                     atypes = genomes[a_id]['agent_types']
                     for believed_type in kwargs['believed_types']:
-                        # assert a.belief_that((a_id+1)%2, believed_type) == b[(a_id+1)%2][atypes.index(believed_type)]
                         if b:
                             record.append({'type' : t.short_name('agent_types'),
                                            'id' : a_id,
@@ -752,7 +751,9 @@ if __name__ == "__main__":
     Ks = tuple(RA(RA_K = k) for k in [0,1,2])
     As = tuple(WeAgent(beta = b) for b in [1,3,5,10])
 
+    matchup_plot(player_types = (WeAgent, AllD), agent_types = ('self', AllD))
     belief_experiments()
+    
     assert 0
     for t in [t*10 for t in range(1,11)]:
         self_pay_plot(200, player_types = As, agent_types = ('self', AllD, AllC, TFT, GTFT, Pavlov), RA_prior = .5,  e_trials = t, extension = '.png', tremble = .05)
