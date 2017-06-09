@@ -5,6 +5,7 @@ from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
 from experiment_utils import multi_call, experiment, plotter, MultiArg
+from observability_experiments import indirect_simulator
 
 def fixed_length_partitions(n,L):
     """
@@ -66,7 +67,7 @@ def all_partitions(n,L=None):
                 for perm in permutations(part+[0]*(L-l)):
                     yield perm
 
-# print len(list(all_partitions(50, 3)))
+print len(list(all_partitions(50, 3)))
 
 def binomial(n,k):
     return factorial(n)/(factorial(k)*factorial(n-k))
@@ -220,76 +221,123 @@ def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
     the index of a population is it's position as given by the 'all_partitions()' function
     """
     type_count = len(payoff)
-    # partition_count = int(partitions(pop_size,type_count))
-    # print partition_count
+    partition_count = int(partitions(pop_size,type_count))
+    print partition_count
     I = np.identity(type_count)
 
-    part_to_id = dict(map(reversed,enumerate(sorted(set(all_partitions(pop_size,type_count))))))
-    partition_count = len(part_to_id)
-    transition = np.zeros((partition_count, ) * 2)
-
+    part_to_id = dict(map(reversed,enumerate(all_partitions(pop_size,type_count))))
+    partition_count = max(part_to_id.values())+1
+    transition = np.zeros((partition_count,)*2)
     #print part_to_id
     #print partition_count
     #print transition
     
-    for pop, i in part_to_id.iteritems():
-        fitnesses = np.zeros(type_count)
-        for t in range(type_count):
-            if pop[t] != 0:
-                fitnesses[t] = np.dot(pop - I[t], payoff[t])
-
-        fitnesses = softmax(fitnesses, s)
-        
-        for t in range(type_count):
-            if pop[t] == 0:
-                fitnesses[t] = 0
-        fitnesses = normalized(fitnesses)
-
-        for b, d in permutations(xrange(type_count), 2):
+    for i,pop in enumerate(all_partitions(pop_size,type_count)):
+        fitnesses = softmax([np.dot(pop-I[t],payoff[t]) for t in range(type_count)], s)
+        node = np.array(pop)
+        for b,d in permutations(xrange(type_count),2):
             if pop[d] != 0:
-                neighbor = pop + I[b] - I[d]
-
+                neighbor = pop+I[b] - I[d]
+                #print i,part_to_id[tuple(neighbor)]
                 death_odds = pop[d] / pop_size
+                #birth_odds = np.fitnesses[b]/np.exp(s*(total_fitness)))#*(1-mu)+mu*(1/type_count)
                 birth_odds = fitnesses[b] * (1-mu) + mu * (1 / type_count)
-                transition[part_to_id[tuple(neighbor)], i] = death_odds * birth_odds
+                transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
+                
 
     for i in xrange(partition_count):
-        transition[i,i] = 1 - sum(transition[:,i])
+        transition[i,i] = 1-sum(transition[:,i])
 
     return transition
+
+
 
 def complete_analysis(payoff, pop_size, s, **kwargs):
     """
     calculates the steady state distribution over population compositions
     """
     type_count = len(payoff)
-    
+    #partition_count = partitions(pop_size,type_count)
+    part_to_id = dict(enumerate(all_partitions(pop_size,type_count)))
+    partition_count = max(part_to_id.keys())
     transition = pop_transition_matrix(payoff, pop_size, s, **kwargs)
     ssd = steady_state(transition)
 
     pop_sum = np.zeros(type_count)
-    for p, partition in zip(ssd, sorted(set(all_partitions(pop_size,type_count)))):
-        pop_sum += np.array(partition) * p
+    for p,partition in zip(ssd,all_partitions(pop_size,type_count)):
+        pop_sum += np.array(partition)*p
+    #print part_to_id[10]
+    return pop_sum/pop_size
 
-    return pop_sum / pop_size
+def sim_complete_analysis(simulator, types,  pop_size, s, **kwargs):
+    """
+    calculates the steady state distribution over population compositions
+    """
+    type_count = len(types)
+    #partition_count = partitions(pop_size,type_count)
+    part_to_id = dict(enumerate(all_partitions(pop_size,type_count)))
+    partition_count = max(part_to_id.keys())
+    transition = sim_pop_transition_matrix(simulator, types, pop_size, s, **kwargs)
+    ssd = steady_state(transition)
+
+    pop_sum = np.zeros(type_count)
+    for p,partition in zip(ssd,all_partitions(pop_size,type_count)):
+        pop_sum += np.array(partition)*p
+    #print part_to_id[10]
+    return pop_sum/pop_size
+
+def sim_pop_transition_matrix(simulator, types, pop_size, s, mu = .001, **kwargs):
+    """
+    returns a matrix that returns the probability of transitioning from one population composition
+    to another
+
+    the index of a population is it's position as given by the 'all_partitions()' function
+    """
+    type_count = len(types)
+    partition_count = int(partitions(pop_size,type_count))
+    #print partition_count
+    I = np.identity(type_count)
+
+    part_to_id = dict(map(reversed,enumerate(all_partitions(pop_size,type_count))))
+    partition_count = max(part_to_id.values())+1
+    transition = np.zeros((partition_count,)*2)
+    #print part_to_id
+    #print partition_count
+    #print transition
+    
+    for i,pop in enumerate(all_partitions(pop_size,type_count)):
+        fitnesses = softmax(simulator(type_count_pairs = tuple(zip(types,pop))), s)
+        node = np.array(pop)
+        for b,d in permutations(xrange(type_count),2):
+            if pop[d] != 0:
+                neighbor = pop+I[b] - I[d]
+                #print i,part_to_id[tuple(neighbor)]
+                death_odds = pop[d] / pop_size
+                #birth_odds = np.fitnesses[b]/np.exp(s*(total_fitness)))#*(1-mu)+mu*(1/type_count)
+                birth_odds = fitnesses[b] * (1-mu) + mu * (1 / type_count)
+                transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
+                
+
+    for i in xrange(partition_count):
+        transition[i,i] = 1-sum(transition[:,i])
+
+    return transition
 
 def test_complete_limit():
-    matrix = np.array([
-        [0, .3],
-        [-.1, 2]])
-    
-    s = 1
-    N = 100
-    mu = 0.0001
-
-    # print complete_analysis(matrix, N, s, mu=mu)
-    # print limit_analysis(matrix, N, s)
-
+    matrix = np.array([[0, .1], [-.1, 2]])
     np.testing.assert_allclose(
-        complete_analysis(matrix, N, s, mu=mu),
-        limit_analysis(matrix, N, s),
-        rtol = 0.001, atol=0.001)
+        complete_analysis(matrix, 100, 1, mu=.0001),
+        limit_analysis(matrix, 100, 1),
+        rtol = 0.00001, atol=0.0001)
+
+def indirect_analysis():
+    from agents import WeAgent,AllD,AllC
+    from functools import partial
+    types = (WeAgent,AllD,AllC)
+    sim_conditions = dict(types = types, observability = 1, rounds = 125, tremble = 0, RA_prior = .5, benefit = 10, trials = 10, beta = 5, agent_types = types)
+    simulator = partial(indirect_simulator,**sim_conditions)
+    return sim_complete_analysis(simulator, types, 100, 1)
 
 if __name__ == "__main__":
-    test_complete_limit()
-    
+    #test_complete_limit()
+    print indirect_analysis()
