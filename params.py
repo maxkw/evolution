@@ -2,15 +2,14 @@ import numpy as np
 from agents import SelfishAgent,ReciprocalAgent,AltruisticAgent,RationalAgent,IngroupAgent,PrefabAgent, is_agent_type
 from games import RepeatedPrisonersTournament
 import math
-from utils import issubclass
+from utils import _issubclass
 import seaborn as sns
 #from frozendict import frozendict
 
 sns.set_style('white')
 sns.set_context('paper', font_scale=1.5)
 
-def default_params(agent_types = (SelfishAgent, ReciprocalAgent, AltruisticAgent), games = None,
-                   RA_prior = .75, N_agents= 10, tremble = 0, rounds = 10, **kwargs):
+def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 10, tremble = 0, rounds = 10, **kwargs):
     """
     generates clean dict containing rules that determine agent qualities
     this dict provides a simple way to change conditions of experiments
@@ -76,11 +75,15 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
     if RA_prior is a number it divides that number uniformly among all rational types
     """
 
+    if (not RA_prior) or (not agent_types):
+        Warning("Either 'agent_types' or 'RA_prior' was false when supplied to prior_generator. Returning None.")
+        return None
+    
     size = len(agent_types)
-    if issubclass(agent_type,IngroupAgent):
+    if _issubclass(agent_type,IngroupAgent):
         agent_types = tuple(agent_types)
         type2index = dict(map(reversed,enumerate(agent_types)))
-        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+        rational_types = filter(lambda t: _issubclass(t,RationalAgent),agent_types)
         a_ingroup = agent_type.ingroup()
         ingroup = [t for t in agent_types if t in a_ingroup]
         if not (RA_prior or ingroup):
@@ -99,8 +102,8 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
                          else outgroup_prior
                          for agent_type in agent_types]
 
-    elif issubclass(agent_type,RationalAgent):
-        rational_types = filter(lambda t: issubclass(t,RationalAgent),agent_types)
+    elif _issubclass(agent_type,RationalAgent):
+        rational_types = filter(lambda t: _issubclass(t,RationalAgent),agent_types)
         if not (RA_prior or rational_types):
             return np.array(np.ones(size)/size)
         try:
@@ -140,15 +143,15 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .75, **ext
         agent_types = agent_type.genome['agent_types']
     except:
         pass
-
-    agent_types = tuple(t if t is not 'self' else agent_type for t in agent_types)
+    if agent_types:
+        agent_types = tuple(t if t != 'self' else agent_type for t in agent_types)
     genome = {
         'type': agent_type,
         'RA_prior': RA_prior,
         'prior_precision': 0,
         'beta': 3,
         'prior': prior_generator(agent_type, agent_types, RA_prior),
-        "agent_types": tuple(t if t != 'self' else agent_type for t in agent_types),
+        "agent_types": agent_types,
         'RA_K':0,
         'tremble':0,
         'y':1,
