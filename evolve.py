@@ -1,7 +1,7 @@
 from __future__ import division
 from collections import Counter, defaultdict
 from itertools import product, permutations, izip
-from utils import normalized, softmax, excluding_keys
+from utils import normalized, softmax, excluding_keys, logspace, int_logspace
 from math import factorial
 import numpy as np
 from copy import copy
@@ -15,14 +15,6 @@ from steady_state import limit_analysis, complete_analysis
 import pandas as pd
 from datetime import date
 from agents import leading_8_dict,shorthand_to_standing
-
-def logspace(start = .001,stop = 1, samples=10):
-    mult = (np.log(stop)-np.log(start))/np.log(10)
-    plus = np.log(start)/np.log(10)
-    return np.array([0]+list(np.power(10,np.linspace(0,1,samples)*mult+plus)))
-
-def int_logspace(start, stop, samples, base=2):
-    return sorted(list(set(np.logspace(start, stop, samples, base=base).astype(int))))
 
 def agent_sim(payoff, pop, s, mu):
     pop_size = sum(pop)

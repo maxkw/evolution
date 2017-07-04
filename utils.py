@@ -15,6 +15,15 @@ import os
 from functools import wraps
 
 pd.set_option('precision',5)
+
+def logspace(start = .001,stop = 1, samples=10):
+    mult = (np.log(stop)-np.log(start))/np.log(10)
+    plus = np.log(start)/np.log(10)
+    return np.array([0]+list(np.power(10,np.linspace(0,1,samples)*mult+plus)))
+
+def int_logspace(start, stop, samples, base=2):
+    return sorted(list(set(np.logspace(start, stop, samples, base=base).astype(int))))
+
 def softmax(vector, beta):
     ''' returns the softmax of the vector,'''
     e_x = np.exp(beta * (np.array(vector)-max(vector)))
