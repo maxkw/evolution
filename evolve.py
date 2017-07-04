@@ -14,6 +14,7 @@ from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent,
 from steady_state import limit_analysis, complete_analysis
 import pandas as pd
 from datetime import date
+from agents import leading_8_dict,shorthand_to_standing
 
 def logspace(start = .001,stop = 1, samples=10):
     mult = (np.log(stop)-np.log(start))/np.log(10)
@@ -122,6 +123,9 @@ def limit_v_sim_param(param, player_types, **kwargs):
                 "proportion":p
             })
     return record
+
+
+
 @experiment(unpack = 'record', memoize = False, verbose = 3)
 def limit_v_rounds(player_types, max_rounds = 100,  **kwargs):
     matrices = matchup_matrix_per_round(player_types, max_rounds = max_rounds, **kwargs)
@@ -148,7 +152,7 @@ def limit_v_param(param,player_types,**kwargs):
     elif param == 'rounds':
         return limit_v_rounds(player_types,**kwargs)
     else:
-        raise
+        raise Exception("Unknown param produced")
 
 @plotter(limit_v_param, plot_exclusive_args = ['experiment','data'])
 def limit_param_plot(param, player_types, data = [], **kwargs):
@@ -158,8 +162,10 @@ def limit_param_plot(param, player_types, data = [], **kwargs):
         p = plt.plot(d[param], d['proportion'], label=hue)
     if param in ["beta"]:
         plt.axes().set_xscale('log',basex=10)
-    if param in ['pop_size', 'rounds']:
+    if param in ['pop_size']:
         plt.axes().set_xscale('log',basex=2)
+    if param in ['rounds']:
+        pass
     elif param == 's':
         plt.axes().set_xscale('log')
 
@@ -252,9 +258,9 @@ def AllC_AllD_race():
     MRA = ReciprocalAgent
     ToM = ('self', AllC, AllD)
     opponents = (AllC, AllD)
-    pop = (MRA(RA_K=0, agent_types = ToM, RA_prior=prior),
-           MRA(RA_K=1, agent_types = ToM, RA_prior=prior),
-           gTFT(y=1,p=1,q=0))
+   # pop = (WeAgent(RA_prior = prior, agent_types = ('self',AllD))
+           
+           #gTFT(y=1,p=1,q=0))
     
     for t in [0, 0.05]:
         limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 10, tremble = t, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, plot_dir = today)
@@ -337,6 +343,8 @@ def bc_rounds_contest():
             opponent_types = (AllC, AllD),
             tremble = t
         )
+
+
 
 def bc_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
@@ -431,10 +439,12 @@ def limit_rounds_race():
                              extension = '.png'
             )
 
-if __name__ == "__main__":
 
+
+if __name__ == "__main__":
+    image_contest()
     #AllC_AllD_race()
-    Pavlov_gTFT_race()
+    #Pavlov_gTFT_race()
     #bc_rounds_race()
     #limit_rounds_race()
     assert 0
@@ -464,6 +474,8 @@ if __name__ == "__main__":
     #        file_name = 'heat_tremble=%0.2f' % t)
 
     # assert 0
+
+    
     
     everyone_ToM = ('self', AC, AD, TFT, GTFT, Pavlov, RandomAgent)
     RA = WeAgent(RA_prior = prior, agent_types = everyone_ToM, beta = beta)
