@@ -179,7 +179,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
     def wrapper(function):
         @copy_function_identity(function)
         def experiment_call(*args,**kwargs):
-            memoized = kwargs.get('memoized',True)
+            memoized = kwargs.get('memoized', memoize)
 
             for k in ['memoized']:
                 if k in kwargs:
@@ -225,18 +225,18 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                 os.makedirs(data_dir)
 
             cache_file =data_dir+str(arg_hash)+".pkl"
-            #print "Loading cache..."
+            #
             try:
-                assert memoize and memoized and not overwrite 
+                assert memoized and not overwrite
+                print "Loading cache..."
                 cache = pd.read_pickle(cache_file)
                 cached_trials = list(cache['trial'])
                 uncached_trials = [trial for trial in trials if trial not in cached_trials]
-
                 #print "...cache loaded! Entries:%s, New Entries:%s" % (len(cache),len(uncached_trials))
 
             except Exception as e:
-                #print str(e)
-                #print "...new cache created."
+            
+                print "No cache loaded."
                 if 'trial' in args.keys():
                     cols = args.keys()
                 else:
@@ -284,7 +284,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                     print ""
             #consolidate new and old results and save
             cache = pd.concat([cache,pd.DataFrame(results)])
-            if memoize and memoized:
+            if memoized:
                 cache.to_pickle(cache_file)
 
             #return only those trials that were asked for
