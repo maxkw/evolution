@@ -7,7 +7,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 from utils import softmax, sample_softmax, softmax_utility, flip, normalized, excluding_keys
 from copy import copy, deepcopy
-from utils import unpickled, pickled, HashableDict, issubclass
+from utils import unpickled, pickled, HashableDict,_issubclass
 from itertools import chain, product, combinations
 import networkx as nx
 
@@ -28,9 +28,9 @@ class HashableSet(set):
 
 def is_agent_type(instance, base):
     try:
-        return issubclass(instance, base)
+        return _issubclass(instance, base)
     except TypeError:
-        return issubclass(instance.type, base)
+        return _issubclass(instance.type, base)
 
 class AgentType(type):
     def __str__(cls):
@@ -147,7 +147,7 @@ class ConstantDefaultDict(dict):
 class TypeDict(dict):
     def __init__(self, genome, agent_id=None):
         agent_types = genome['agent_types']
-        rational_types = filter(lambda t: issubclass(
+        rational_types = filter(lambda t: _issubclass(
             t, RationalAgent), agent_types)
         model = self.agent = RationalAgent(genome, agent_id)
         belief = self.belief = model.belief
@@ -263,7 +263,7 @@ class RationalAgent(Agent):
         # if K < 0: return
         genome = self.genome
         agent_types = genome['agent_types']
-        rational_types = filter(lambda t: issubclass(
+        rational_types = filter(lambda t: _issubclass(
             t, RationalAgent), agent_types)
 
         my_id = self.world_id
@@ -366,7 +366,7 @@ class IngroupAgent(RationalAgent):
                 return True
 
             # Or if its a subclass of the ingroup
-            if issubclass(a_type, i):
+            if _issubclass(a_type, i):
                 return True
             
         return False
@@ -379,25 +379,37 @@ class ReciprocalAgent(IngroupAgent):
 class PrefabAgent(Agent):
     def __init__(self, a_type, **genome_kwargs):
         self.type = a_type
-        self.__name__ = str(a_type) + "(%s)" % ",".join(
-            ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.iteritems())])
         try:
-            tom = genome_kwargs['agent_types']
-            genome_kwargs['agent_types'] = tuple(
-                t if t is not 'self' else self for t in tom)
+            self._nickname = genome_kwargs['subtype_name']
         except:
             pass
+
+        self.__name__ = self.indentity = str(a_type) + "(%s)" % ",".join(
+            ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.iteritems())])
+        
+        try:
+            tom = genome_kwargs['agent_types']
+            genome_kwargs['agent_types'] = tuple(t if t != 'self' else self for t in tom)
+        except:
+            pass
+        
         self.genome = HashableDict(genome_kwargs)
 
     def __call__(self, genome, world_id=None):
         return self.type(dict(genome, **self.genome), world_id=world_id)
 
     def short_name(self, *without):
-        genome = excluding_keys(self.genome, *without)
-        return str(self.type) + "(%s)" % ",".join(["%s=%s" % (PRETTY_KEYS.get(key, key), val) for key, val in sorted(genome.iteritems())])
+        try:
+            return self._nickname
+        except:
+            genome = excluding_keys(self.genome, *without)
+            return str(self.type) + "(%s)" % ",".join(["%s=%s" % (PRETTY_KEYS.get(key, key), val) for key, val in sorted(genome.iteritems())])
 
     def __str__(self):
-        return self.__name__
+        try:
+            return self._nickname
+        except:
+            return self.__name__
 
     def __repr__(self):
         return self.short_name('agent_types')#str(self)
@@ -432,7 +444,78 @@ class ClassicAgent(Agent):
     def k_belief(self, *args, **kwargs):
         return 0
 
+class Standing(Agent):
+    def __init__(self, genome, world_id = None):
+        self.genome = genome
+        self.world_id = world_id
+        self.image = defaultdict(lambda: True)
+        self.action_dict = genome['action_dict']
+        self.assesment_dict = genome['assesment_dict']
+
+    def observe(self,observations):
+        #print observations
+        [obs] = observations
+        decider, recipient = obs[1]
+        action = obs[3]
+        image = self.image
+        assesment = self.assesment_dict
+        image[decider] = assesment[(action,image[decider],image[recipient])]
+
+    def decide_likelihood(self, game, agents = None, tremble = 0):
+        action_dict = self.action_dict
+        image = self.image
+        [decider,recipient] = agents
+        action = action_dict[(image[decider], image[recipient])]
+        return add_tremble(np.array([1 if a == action else 0 for a in game.actions]),tremble)
+
+def make_assesment_dict(assesment_list):
+    """refer to order of situations in table p98 calculus of selfishness"""
+    situation = product(['give','keep'],[True,False],[True,False])
+    return dict(zip(situation,assesment_list))
+
+def make_action_dict(action_list):
+    """refer to order of situations in table p98 calculus of selfishness"""
+    strategies = product([True,False],repeat = 2)
+    return dict(zip(strategies,action_list))
+
+STANDING_SHORTHAND_TRANSLATOR = {
+    'g': True,
+    'b': False,
+    'y': 'give',
+    'n': 'keep'
+}
+def shorthand_to_standing(shorthand):
+    translated = [STANDING_SHORTHAND_TRANSLATOR[s] for s in shorthand]
+    assesments,actions = translated[:8],translated[8:12]
+    print assesments
+    assert all([a in [True,False] for a in assesments])
+    assert len(assesments) == 8
     
+    assert all([a in ['keep','give'] for a in actions])
+    assert len(actions) == 4
+    standing_type = Standing(assesment_dict = make_assesment_dict(assesments),
+                             action_dict = make_action_dict(actions))
+    standing_type._nickname = "Standing("+shorthand+")"
+    return standing_type
+
+def leading_8_dict():
+    #this is the transpose of the table in p 98 of TCoS
+    shorthands = [
+        'ggggbgbbynyy',
+        'gbggbgbbynyy',
+        'ggggbgbgynyn',
+        'gggbbgbgynyn',
+        'gbggbgbgynyn',
+        'gbgbbgbgynyn',
+        'gggbbgbbynyn',
+        'gbgbbgbbynyn'
+    ]
+    types = map(shorthand_to_standing,shorthands)
+    names = ["L"+str(n) for n in range(1,9)]
+    for t,n in zip(types,names):
+        t._nickname = n
+    return dict(zip(names,types))
+
 class Pavlov(ClassicAgent):
     def __init__(self, genome, world_id=None):
         self.genome = genome
@@ -497,6 +580,9 @@ class gTFT(ClassicAgent):
 
             self.cooperated = action is "give"
 
+TFT = gTFT(y=1,p=1,q=0,subtype_name = "TFT")
+GTFT = gTFT(y=1,p=.99,q=.33, subtype_name = "GTFT")
+
 
 class AllC(ClassicAgent):
     def decide_likelihood(self, game, agents=None, tremble=None):
@@ -519,18 +605,24 @@ class RandomAgent(ClassicAgent):
 
 
 class wTypeDict(dict):
+    """test that modeled types are captured correctly"""
     def __init__(self, genome, agent_id=None):
         agent_types = tuple(a_type for a_type in genome['agent_types'] if a_type != WeAgent)
-        self.observers = list()  # [model]
+        self.observers = {}#list()  # [model]
         for agent_type in agent_types:
             m = agent_type(genome, agent_id)
-            if agent_type in [gTFT, Pavlov]:
-                self.observers.append(m)
-                
+            must_observe = False
+            for modeled_supertype in [gTFT, Pavlov, Standing]:
+                if _issubclass(agent_type, modeled_supertype):
+                    must_observe = True
+
+            if must_observe:
+                self.observers[agent_type] = m
             self[agent_type] = m
+        
 
     def observe_k(self, observations, k, tremble):
-        for observer in self.observers:
+        for observer in self.observers.values():
             observer.observe_k(observations, k, tremble)
 
 
@@ -597,11 +689,12 @@ class ModelNode(object):
         self.beliefs = None
         self.likelihood = None
         
+        
         #route to the 'everyone' by default
         self.models = defaultdict(lambda: self)
 
         self.genome = genome = genome
-        self.need_to_observe = gTFT in genome['agent_types'] or Pavlov in genome['agent_types']
+        self.need_to_observe = True#gTFT in genome['agent_types'] or Pavlov in genome['agent_types']
 
         self.beta = genome['beta']
 
@@ -617,13 +710,15 @@ class ModelNode(object):
         non_WA_prior = (1-RA_prior)/(len(genome['agent_types'])-1)
         self.pop_prior = prior = np.array([RA_prior if t is genome['type'] else non_WA_prior for t in genome['agent_types']])
 
-        self.belief = ConstantDefaultDict(self.pop_prior)
-        self.likelihood = ConstantDefaultDict(np.zeros_like(self.pop_prior))
+        self.belief = defaultdict(lambda:prior)
+        self.likelihood = defaultdict(lambda:np.zeros_like(prior))
+        self.new_likelihoods = defaultdict(lambda:np.zeros_like(prior))
+        #self.new_likelihoods = defaultdict(int)
         
     def copy(self,new_id_set):
         cpy = copy(self)
-        cpy.belief = copy(self.belief)
-        cpy.likelihood = copy(self.likelihood)
+        cpy.belief = deepcopy(self.belief)
+        cpy.likelihood = deepcopy(self.likelihood)
         cpy.models = models = copy(self.models)
         cpy.other_models = deepcopy(self.other_models)
         cpy.ids = new_id_set
@@ -643,7 +738,7 @@ class ModelNode(object):
         weights = [1]+[self.models[agent_ids[0]].belief[a][t] for a in agent_ids[1:]]
         return np.dot(payoffs, weights)
     
-    def decide_likelihood(self, game, agents, tremble):
+    def decide_likelihood(self, game, agents, tremble = 0):
         if len(game.actions) == 1:
             return np.array([1])
 
@@ -654,7 +749,7 @@ class ModelNode(object):
 
     def observe(self, observations):
         agent_types = self.genome['agent_types']
-        new_likelihoods = defaultdict(int)
+        self.new_likelihoods = new_likelihoods = defaultdict(lambda:np.zeros_like(self.pop_prior))
 
         for observation in observations:
             game, participants, observers, action = observation
@@ -672,6 +767,7 @@ class ModelNode(object):
                 likelihood.append(model.decide_likelihood(game,participants,tremble)[action_index])
 
             new_likelihoods[decider_id] += np.log(likelihood)
+        #self.nl_cache = copy(new_likelihoods)
 
         prior = np.log(self.pop_prior)
         for decider_id, new_likelihood in new_likelihoods.iteritems():
@@ -679,6 +775,7 @@ class ModelNode(object):
             likelihood = self.likelihood[decider_id]
             self.belief[decider_id] = np.exp(prior+likelihood)
             self.belief[decider_id] = normalized(self.belief[decider_id])
+        #self.l_cache = deepcopy(self.likelihood)
 
         if self.need_to_observe:
             for model in self.other_models.itervalues():
@@ -890,6 +987,7 @@ class WeAgent(Agent):
         self.belief = me.belief
         self.likelihood = me.likelihood
         self.models = me.models
+        self.new_likelihoods = me.new_likelihoods
 
         self._type_to_index = dict(map(reversed, enumerate(genome['agent_types'])))
 
@@ -909,6 +1007,9 @@ class WeAgent(Agent):
             self.belief = me.belief
             self.likelihood = me.likelihood
             self.models = me.models
+            self.new_likelihoods = me.new_likelihoods
+            #self.l_cache = me.l_cache
+            #self.nl_cache = me.nl_cache
 
     def belief_that(self, a_id, a_type):
         if a_type in self._type_to_index:
