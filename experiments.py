@@ -6,7 +6,7 @@ import numpy as np
 from params import default_params,generate_proportional_genomes,default_genome
 from world import World
 from agents import ReciprocalAgent, SelfishAgent, AltruisticAgent, RationalAgent, WeAgent
-from agents import gTFT, AllC, AllD, Pavlov, RandomAgent
+from agents import gTFT, GTFT, TFT, AllC, AllD, Pavlov, RandomAgent, leading_8_dict, shorthand_to_standing
 from games import RepeatedPrisonersTournament,BinaryDictator,Repeated,PrivatelyObserved,Symmetric
 from collections import defaultdict
 from itertools import combinations_with_replacement, combinations
@@ -15,7 +15,7 @@ from itertools import product,islice,cycle
 import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy,deepcopy
-from utils import softmax_utility,issubclass
+from utils import softmax_utility, _issubclass, normalized
 import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
@@ -49,6 +49,7 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
     genomes = [default_genome(agent_type = t, RA_prior=p, RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
     world = World(params,genomes)
     fitness,history = world.run()
+   
     return {'fitness':fitness,
             'history':history,
             'p1_fitness':fitness[0]}
@@ -78,24 +79,67 @@ def matchup(player_types, **kwargs):
         ids = [a.world_id for a in world.agents]
         for event in history:
             r = event['round']
-            for t, a_id, p, b in zip(player_types, ids, event['payoff'], event['beliefs']):
+            for t, a_id, p, b, l, n_l in zip(player_types, ids, event['payoff'], event['beliefs'], event['likelihoods'], event['new_likelihoods']):
                 if kwargs.get('unpack_beliefs', False):
                     atypes = genomes[a_id]['agent_types']
-                    for believed_type in kwargs['believed_types']:
-                        if b:
-                            record.append({'type' : t.short_name('agent_types'),
-                                           'id' : a_id,
-                                           'round' : r,
-                                           'belief' : b[(a_id+1)%2][atypes.index(believed_type)],
-                                           'believed_type':believed_type.short_name('agent_types'),
-                                           'fitness' : p})
-                            
+                    if b:
+                        o_id = (a_id+1)%2
+                        l = np.exp(l[o_id])
+                        n_l = np.exp(n_l[o_id])
+                        b = b[o_id]
+                        for believed_type in kwargs['believed_types']:
+                            bt_index = atypes.index(believed_type)
+                            try:
+                                attr_to_val = {
+                                    'belief' : b[bt_index],
+                                    'likelihood': normalized(l[bt_index]),
+                                    'new_likelihood': n_l[bt_index]
+                                }
+                            except:
+                                print n_l
+                                raise
+                            for attr,val in attr_to_val.iteritems():
+                                record.append({'type' : repr(t),
+                                               'id' : a_id,
+                                               'round' : r,
+                                               'attribute' : attr,
+                                               'value' : val,
+                                               'believed_type':repr(believed_type),
+                                               'fitness' : p})
                 else:
                     record.append({'type' : t,
                                    'id' : a_id,
                                    'round' : r,
                                    'fitness' : p})
     return record
+
+def beliefs(believer, opponent_types, believed_types, **kwargs):
+    dfs = []
+    b_name = repr(believer)#.short_name('agent_types')
+    for opponent in opponent_types:
+        data = matchup(player_types = (believer,opponent),
+                       actual_type = repr(opponent),
+                       believed_types = believed_types,
+                       per_round = True, unpack_beliefs = True, **kwargs)
+                       
+        if believer == opponent:
+            dfs.append(data[data['id'] == 0])
+        else:
+            dfs.append(data[data['type'] == b_name])
+    return pd.concat(dfs, ignore_index = True)
+
+@plotter(beliefs)
+def plot_beliefs(believer, opponent_types, believed_types, data = [],**kwargs):
+    print data
+    #import pdb; pdb.set_trace()
+    fgrid = sns.factorplot(data = data, x = 'round', y = 'value', col = 'actual_type', row = 'attribute', kind = 'point', hue = "believed_type", row_order = ('belief','new_likelihood','likelihood'), margin_titles = True,
+                           facet_kws = {'ylim':(-.05,1.05)}
+    )
+
+    #(fgrid
+    # .set_xlabels("P(t = Type)")
+     #.set_titles("")
+     #.set_ylabels5
                 
 def matchup_grid(player_types,**kwargs):
     player_types = MultiArg(combinations_with_replacement(player_types,2))
@@ -253,7 +297,7 @@ def belief_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
             title = ''.join([id_to_letter[l] for l in [a_id]+ids]))
     agents = []
     for n,(t,p) in enumerate(zip(player_types,priors)):
-        if issubclass(t,RationalAgent):
+        if _issubclass(t,RationalAgent):
             if player_types[0]==player_types[1] and priors[0]==priors[1]:
                 agents.append("%s(prior=%s)"%(str(t),p))
             else:
@@ -310,35 +354,13 @@ def coop_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
     f_grid = sns.factorplot(data = bdata, x = 'round', y = 'value', row = '', col = 'believer', kind = 'point', hue = 'type', legend = False, facet_kws = {'ylim':(0,1)}, ci = None)
     #f_grid.set(yscale = "logit")
     
-def beliefs(believer, opponent_types, believed_types, **kwargs):
-    dfs = []
-    b_name = believer.short_name('agent_types')
-    for opponent in opponent_types:
-        data = matchup(player_types = (believer,opponent),
-                       actual_type = opponent,
-                       believed_types = believed_types,
-                       per_round = True, unpack_beliefs = True, **kwargs)
-                       
-        
-        dfs.append(data[data['type'] == b_name])
-    return pd.concat(dfs, ignore_index = True)
 
-@plotter(beliefs)
-def plot_beliefs(believer, opponent_types, believed_types, data = [],**kwargs):
-    print data
-    #import pdb; pdb.set_trace()
-    fgrid = sns.factorplot(data = data, x = 'round', y = 'belief', row = 'actual_type', col = 'type', kind = 'point', hue = "believed_type",margin_titles = True)
-
-    #(fgrid
-    # .set_xlabels("P(t = Type)")
-     #.set_titles("")
-     #.set_ylabels5)
 
 @plotter(binary_matchup)
 def joint_fitness_plot(player_types,priors,Ks,data = []):
     agents = []
     for n,(t,p) in enumerate(zip(player_types,priors)):
-        if issubclass(t,RationalAgent):
+        if _issubclass(t,RationalAgent):
             if player_types[0]==player_types[1] and priors[0]==priors[1]:
                 agents.append("%s(prior=%s) #%s"%(str(t),p,n))
             else:
@@ -469,79 +491,11 @@ memo_bin_matchup = memoize(binary_matchup)
 
 def mean(*numbers):
     return sum(numbers)/len(numbers)
-@multi_call(verbose = 3)
-@experiment(unpack = 'dict', trials = 100,verbose = 3)
-def pop_matchup_simulator(player_types=(ReciprocalAgent,SelfishAgent), min_pop_size=50, moran = .01, proportion=.5, **kwargs):
-    for item in ['type_to_population','matchup_function','trials','trial']:
-        try:
-            del kwargs[item]
-        except:
-            pass
-    condition = kwargs
-
-    proportions = minimal_ratios(dict(zip(player_types,(proportion,1-proportion))))
-
-    try:
-        #assert not proportion ==.9
-        assert proportion in [0,1] or not (0 in proportions.values() and 1 in proportions.values())
-    except Exception as e:
-        print Fraction(1-proportion).limit_denominator(1000)
-        print proportion
-        print proportions
-        raise e
-    min_legal_pop_size = sum(proportions.values())
-    if min_legal_pop_size < min_pop_size:
-        pop_scale = int(np.ceil(min_pop_size/min_legal_pop_size))
-        proportions = {k:v*pop_scale for k,v in proportions.iteritems()}
-
-    type_to_population = proportions
-    agent_types = sorted(type_to_population.keys())
-    try:
-        type_list = sum(([agent_type]*type_to_population[agent_type] for agent_type in agent_types),[])
-    except MemoryError as ME:
-        print proportion
-        print proportions
-        raise ME
-    agent_list = list(enumerate(type_list))
-    pop_size = len(agent_list)
-    agent_matchups = [map(tuple,zip(*sorted(item,key = operator.itemgetter(1)))) for item in combinations(agent_list,2)]
-    fitness = np.zeros(pop_size)
-    type_matchups = [tuple(sorted(item)) for item in set(combinations(map(operator.itemgetter(1),agent_list),2))]
-    matchup_to_fitnesses = {matchup : map(tuple, memo_bin_matchup(return_keys = 'fitness', trials = 500, player_types = matchup, **condition)['fitness'])
-                            for matchup in type_matchups}
-    trials = len(matchup_to_fitnesses.values()[0])
-
-    for ids,types in agent_matchups:
-        i = np.random.random_integers(0,high = trials-1)
-        fitness[np.array(ids)] += array(matchup_to_fitnesses[types][i])
-
-    fitness = zip(type_list,fitness)
-    avg_fitnesses = defaultdict(int)
-    for t,f in fitness:
-        avg_fitnesses[t] += f
-
-    for t in avg_fitnesses:
-        avg_fitnesses[t] = avg_fitnesses[t]/type_list.count(t)
-
-    fitnesses = softmax_utility(avg_fitnesses,moran)
-    return {'fitness ratio':fitnesses[player_types[0]],
-            'mean_fitness':[avg_fitnesses[t] for t in player_types],
-            'p1_fitness':avg_fitnesses[player_types[0]],
-            'type_fitness_pairs':fitness}
 
 
 
-@plotter(pop_matchup_simulator, plot_exclusive_args = ['data'])
-def pop_fitness_plot(player_types = (ReciprocalAgent,SelfishAgent), proportion = MultiArg([.25,.5,.75]), Ks = MultiArg([0,1]), data = None):
-    #print data
-    #ndata = data.groupby(['RA_K','proportion']).mean().unstack()
-    #print ndata
-    
-    sns.pointplot(data = data, x = "proportion", y = "fitness ratio", hue = "Ks")
-    #print locals()
-    #fplot.set(yticklabels = np.linspace(0,1,5))
 
-#from evolve import limit_analysis
+
 
 def test_matchup_matrix(RA):
     
@@ -686,7 +640,7 @@ def belief_experiments2():
         #            plot_dir = plot_dir,
         #            #file_name = "k1 v k2, t = %s" % t
         #)
-        
+
 @plotter(self_pay_v_rounds, plot_exclusive_args = ['data'])
 def self_pay_plot(max_rounds, player_types, data=[], **kwargs):
     fig = plt.figure()
@@ -701,13 +655,14 @@ def belief_experiments():
 
     plot_dir = "./plots/belief_experiments/"
     WA = WeAgent
+    #WA._nickname = "WeAgent"
     MRA = ReciprocalAgent
     SA = SelfishAgent
     AA = AltruisticAgent
     AC = AllC
     AD = AllD
-    TFT= gTFT(y=1,p=1,q=0)
-    GTFT = gTFT(y=1,p=.99,q=.33)
+    #TFT= gTFT(y=1,p=1,q=0)
+    #GTFT = gTFT(y=1,p=.99,q=.33)
     RA = WeAgent
 
     priors = [
@@ -728,23 +683,80 @@ def belief_experiments():
     ]
 
     trembles = [
-        0,
-        #0.05
+        #0,
+        0.05
     ]
 
     for prior, ToM, beta,tremble in product(priors,ToMs,betas,trembles):
         agent = RA(RA_prior = prior, agent_types = ToM, beta = beta)
         everyone = (AC, AD, TFT, GTFT, Pavlov)
+        
         for t in trembles:
-            plot_beliefs(agent,
-                         (agent,)+everyone,
-                         (agent,)+everyone,
-                         tremble = tremble,
-                         plot_dir = plot_dir,
-                         file_name = "belief")
-                         
+            for trial in range(1,11):
+                plot_beliefs(agent,
+                             (agent,)+everyone,
+                             (agent,)+everyone,
+                             tremble = tremble,
+                             plot_dir = plot_dir,
+                             #games = game,
+                             file_name = "belief - trial "+str(trial),
+                             trials = [trial])
+@experiment(unpack = 'record')
+def coop_prob(cost=1, benefit=3, **kwargs):
+    bd = BinaryDictator(cost = cost, benefit = benefit)
+    actions = bd.actions
+    #W = WeAgent(default_genome(agent_type = WeAgent, agent_types = ('self', AllD)), world_id = "A")
+    record = []
+    for beta, belief in product(np.linspace(0,6,13), np.linspace(0,1,20)):
+        W = WeAgent(default_genome(agent_type = WeAgent, agent_types = ('self', AllD), RA_prior = belief, beta = beta), world_id = "A")
+        for a,p in zip(actions, W.decide_likelihood(bd,"AB",0)):
+            record.append({
+                "beta": beta,
+                "action": a,
+                "prob": p,
+                "belief": belief,
+            })
+    return record
+
+@plotter(coop_prob, plot_exclusive_args = ['data'])
+def plot_coop_prob(data = []):
+    data = data[data['action'] == 'give']
+    sns.factorplot(data = data, x = "belief", y = 'prob', hue = 'beta')
+
+def test_standing(**kwargs):
+    from games import Symmetric
+    standing_types = tuple(s_type for name,s_type in sorted(leading_8_dict().iteritems(),key = lambda x:x[0]))
+    #standing_types = (shorthand_to_standing('ggggbgbbnnnn'),)
+    standing_types = (standing_types[0],)
+    W = WeAgent(agent_types = ('self',)+standing_types, RA_prior = .49, beta = 5)
+    tremble = 0
+    decision = BinaryDictator(cost = 1, benefit = 3,tremble = tremble)
+    game = Repeated(10, Symmetric(PrivatelyObserved(decision)))
+    #game = Repeated(10,PrivatelyObserved(Symmetric(decision)))
+    p_types = (W,)+standing_types
+    #matchup_plot(player_types = (W,)+standing_types, games = game,tremble = .05)
+    # for t in range(1,10):
+    plot_beliefs(W,p_types,p_types,file_name = 'WA_beliefs_Leading8', games = game)
+    for t in range(1,10):
+        plot_beliefs(W,p_types,p_types,file_name = 'WA_beliefs_Leading8 - trial '+str(t), games = game, trials = [t])
+    #    plot_beliefs(W,(W,),(W,),file_name = 'self_belief'+str(t), games = game, trials = [t])
+
+
+    L1 = leading_8_dict()['L1']
+    L1 = shorthand_to_standing('ggggbgbbnnnn')
+    a = L1(default_genome(agent_type = L1),"A")
+    print a.image['B']
+    print a.decide_likelihood(decision,"AB")
+    a.observe([(decision,"BC","ABC",'keep')])
+    print a.image['B']
+    print a.decide_likelihood(decision,"AB")
+    
 
 if __name__ == "__main__":
+    #belief_experiments()
+    test_standing()
+    #plot_coop_prob(extension = ".png")
+    assert 0
     RA = ReciprocalAgent
     TFT = gTFT(y=1,p=1,q=0)
     GTFT = gTFT(y=1,p=.99,q=.33)
@@ -753,6 +765,7 @@ if __name__ == "__main__":
 
     matchup_plot(player_types = (WeAgent, AllD), agent_types = ('self', AllD))
     belief_experiments()
+
     
     assert 0
     for t in [t*10 for t in range(1,11)]:
