@@ -21,7 +21,7 @@ def indirect_game_ratios(WA_ratio = .5, pop_size = 30, *args, **kwargs):
     type_count= dict([(WeAgent,c), (AllD,n-c)])
     return indirect_game(type_count,*args,**kwargs)
 
-@multi_call(unordered = ['agent_types'], verbose = 3)
+@multi_call(unordered = ['agent_types'], verbose = 0)
 @experiment(unpack = 'record', trials = 100,verbose =3)
 def indirect_game(type_count_pairs, observability = 1, rounds = 50, tremble= 0, **kwargs):
     types = []
@@ -39,29 +39,64 @@ def indirect_game(type_count_pairs, observability = 1, rounds = 50, tremble= 0, 
     fitness, history = world.run()
 
     fitness_per_type = defaultdict(int)
-    for t,f in zip(types,fitness):
-        fitness_per_type[t]+=f
-
-    for t in type_to_count:
-        try:
-            fitness_per_type[t] /= type_to_count[t]
-        except ZeroDivisionError:
-            assert fitness_per_type[t] == 0
+    
     records =[]
-    for t,f in fitness_per_type.iteritems():
-        records.append({"type":t,
-                        "fitness":f})
+    fitness_per_type = defaultdict(int)
+    if not kwargs.get('per_round', False):
+        for t,f in zip(types,fitness):
+            fitness_per_type[t]+=f
+
+        for t in type_to_count:
+            try:
+                fitness_per_type[t] /= type_to_count[t]
+            except ZeroDivisionError:
+                assert fitness_per_type[t] == 0
+    
+        for t,f in fitness_per_type.iteritems():
+            records.append({"type":t,
+                            "fitness":f})
+    else:
+        avg_fitness_per_type = defaultdict(int)
+        for event in history:
+            fitness = event['payoff']
+            r = event['round']
+            
+            for t,f in zip(types,fitness):
+                fitness_per_type[t]+=f
+            
+            for t in type_to_count:
+                try:
+                    avg_fitness_per_type[t] = fitness_per_type[t] / type_to_count[t]
+                except ZeroDivisionError:
+                    assert fitness_per_type[t] == 0
+                    
+            for t,f in avg_fitness_per_type.iteritems():
+                records.append({
+                    "round":r,
+                    "type":t,
+                    "fitness":f})
+
     #fitness_ratio = fitness_per_type[WeAgent]/fitness_per_type[AllD]
     #return [{"fitness_ratio":fitness_ratio}]
     return records
 
 def indirect_simulator(types, *args,**kwargs):
     data = indirect_game(*args,**kwargs)
-    fitness = {}
-    for t,d in data.groupby('type'):
-        fitness[t] = d.mean()['fitness']
-    return [fitness[t] for t in types]
-
+    if not kwargs.get('per_round',False):
+        fitness = {}
+        for t,d in data.groupby('type'):
+            fitness[t] = d.mean()['fitness']
+        return [fitness[t] for t in types]
+    else:
+        fitness_per_round = {}
+        fitness = defaultdict(int)
+        #print  types
+        for r,r_d in data.groupby('round'):
+            for t,d in r_d.groupby('type'):
+                fitness[t] = d.mean()['fitness']
+            #print fitness
+            fitness_per_round[r] = [fitness[t] for t in types]
+        return fitness_per_round
 
 @plotter(indirect_game_ratios, plot_exclusive_args = ['data'])
 def relative_fitness_vs_proportion(data = [], *args, **kwargs):
