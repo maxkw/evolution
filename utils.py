@@ -12,7 +12,7 @@ import math
 from inspect import getargspec
 from collections import OrderedDict
 import os
-
+from functools import wraps
 
 pd.set_option('precision',5)
 def softmax(vector, beta):
@@ -67,6 +67,17 @@ def memoized(f):
             return ret
             
     return memodict().__getitem__
+
+def memoized(obj):
+    cache = obj.cache = {}
+
+    @wraps(obj)
+    def memoizer(*args, **kwargs):
+        key = str(args) + str(kwargs)
+        if key not in cache:
+            cache[key] = obj(*args, **kwargs)
+        return cache[key]
+    return memoizer
 
 @memoized
 def namedArrayConstructor(fields, className = "NamedArray"):
@@ -201,9 +212,9 @@ def dict_to_kwarg_str(d):
     return "(%s)" % ",".join(["%s=%s" % (key,val) for key,val in d.iteritems()])
 
 _issubclass = issubclass
-def issubclass(C,B):
+def _issubclass(C,B):
     try:
-        return _issubclass(C,B)
+        return issubclass(C,B)
     except TypeError as e:
         try:
             return _issubclass(C.type,B)
