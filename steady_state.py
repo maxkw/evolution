@@ -6,7 +6,7 @@ from math import factorial
 import numpy as np
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 from observability_experiments import indirect_simulator
-
+from functools import partial
 def fixed_length_partitions(n,L):
     """
     Integer partitions of n into L parts, in colex order.
@@ -112,7 +112,12 @@ def partitions(n,L):
 def steady_state(matrix):
     for i,c in enumerate(matrix.T):
         np.testing.assert_approx_equal(np.sum(c),1)
-        assert all(c>=0)
+        try:
+            assert all(c>=0)
+        except:
+            print c
+            print matrix
+            raise
     vals,vecs = np.linalg.eig(matrix)
     #print 'values', vals
     #print 'vectors', vecs
@@ -140,9 +145,10 @@ def steady_state(matrix):
         [steady_states] = steady_states
         steady_states = steady_states[1]
     except Exception as e:
-        print matrix
-        for l,v in zip(vals,vecs.T):
-            print l,v
+        print Warning("Multiple Steady States")
+        #print matrix
+        #for l,v in zip(vals,vecs.T):
+        #    print l,v
         return steady_states[0][1]
         #print len(steady_states)
         #print steady_states
@@ -260,55 +266,7 @@ def complete_analysis(payoff, pop_size, s, **kwargs):
 
     return pop_sum / pop_size
 
-def sim_complete_analysis(simulator, types,  pop_size, s, **kwargs):
-    """
-    calculates the steady state distribution over population compositions
-    """
-    type_count = len(types)
-    transition = sim_pop_transition_matrix(simulator, types, pop_size, s, **kwargs)
-    ssd = steady_state(transition)
 
-    pop_sum = np.zeros(type_count)
-    for p, partition in zip(ssd, sorted(set(all_partitions(pop_size, type_count)))):
-        pop_sum += np.array(partition) * p
-
-    return pop_sum / pop_size
-
-def sim_pop_transition_matrix(simulator, types, pop_size, s, mu = .001, **kwargs):
-    """
-    returns a matrix that returns the probability of transitioning from one population composition
-    to another
-
-    the index of a population is it's position as given by the 'all_partitions()' function
-    """
-    type_count = len(types)
-    I = np.identity(type_count)
-    part_to_id = dict(map(reversed,enumerate(sorted(set(all_partitions(pop_size,type_count))))))
-    partition_count = len(part_to_id)
-    transition = np.zeros((partition_count,)*2)
-    
-    for pop, i in part_to_id.iteritems():
-        fitnesses = softmax(simulator(type_count_pairs = tuple(zip(types, pop))), s)
-        
-        for t in range(type_count):
-            if pop[t] == 0:
-                fitnesses[t] = 0
-                
-        fitnesses = normalized(fitnesses)
-        
-        for b, d in permutations(xrange(type_count), 2):
-            if pop[d] != 0:
-                neighbor = pop+I[b] - I[d]
-                death_odds = pop[d] / pop_size
-                birth_odds = fitnesses[b] * (1-mu) + mu * (1 / type_count)
-
-                transition[part_to_id[tuple(neighbor)], i] = death_odds * birth_odds
-                
-
-    for i in xrange(partition_count):
-        transition[i,i] = 1 - sum(transition[:,i])
-
-    return transition
 
 def test_complete_limit():
     matrix = np.array([[0, .1], [-.1, 2]])
@@ -318,14 +276,10 @@ def test_complete_limit():
         limit_analysis(matrix, N, s),
         rtol = 0.001, atol=0.001)
 
-def indirect_analysis():
-    from agents import WeAgent,AllD,AllC
-    from functools import partial
-    types = (WeAgent,AllD)
-    sim_conditions = dict(types = types, observability = 1, rounds = 125, tremble = 0, RA_prior = .5, benefit = 10, trials = 10, beta = 5, agent_types = types)
-    simulator = partial(indirect_simulator,**sim_conditions)
-    return sim_complete_analysis(simulator, types, 20, 1)
+
 
 if __name__ == "__main__":
     #test_complete_limit()
-    print indirect_analysis()
+    print test_indirect_analysis()
+
+#[  9.99097317e-01   9.02682565e-04]
