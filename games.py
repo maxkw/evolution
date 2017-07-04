@@ -76,8 +76,9 @@ class Playable(object):
         participant_ids = [participant.world_id for participant in participants]
         decider = participants[0]
         intention = decider.decide(decision,participant_ids)
+
         
-        if flip(tremble):
+        if flip(decision.tremble):
             action = np.random.choice(decision.actions)
         else:
             action = intention
@@ -517,13 +518,24 @@ class AnnotatedDS(DecisionSeq):
 
         #initialize accumulators
         observations = []
-        record = []
         payoffs = np.zeros(len(participants))
+        record = [{
+            'round':0,
+            'payoff':payoffs,
+            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
+            'likelihoods': tuple(copy(getattr(agent, 'likelihood', None)) for agent in participants),
+            'new_likelihoods': tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants)
+        }]
+
+        record = []
 
         #cache the dot references
         extend_obs = observations.extend
         extend_rec = record.append
         annotate = self.annotate
+
+        
+        
 
         extend_rec(annotate(participants,payoffs,[],[], notes))
 
@@ -572,8 +584,10 @@ class Repeated(AnnotatedDS):
             'actors':tuple(observation[1] for observation in observations),
             'payoff': copy(payoff),
             'games':tuple(observation[0] for observation in observations),
-            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
-            #'likelihood' :tuple(copy(agent.likelihood) for agent in participants),
+            
+            'beliefs': tuple(copy(getattr(getattr(agent,'me',None), 'belief', None)) for agent in participants),
+            'likelihoods' :tuple(deepcopy(getattr(getattr(agent,'me',None),'likelihood', None)) for agent in participants),
+            'new_likelihoods':tuple(copy(getattr(getattr(agent,'me',None), 'new_likelihoods', None)) for agent in participants),
             }
         note.update(notes)
         return note
@@ -591,7 +605,21 @@ class Indirect(AnnotatedDS):
         self.game = game
         self.rounds = rounds
         self.N_players = game.N_players
-        self.current_round = 05
+        self.current_round = 0
+
+
+    def annotate(self,r, participants,payoff,observations,record,notes):
+        note = {
+            'round':r,
+            'actions':tuple(observation[3] for observation in observations),
+            'payoff': copy(payoff),
+            #'games':tuple(observation[0] for observation in observations),
+            'beliefs': tuple(copy(getattr(getattr(agent,'me',None), 'belief', None)) for agent in participants),
+            'likelihoods' :tuple(deepcopy(getattr(getattr(agent,'me',None),'likelihood', None)) for agent in participants),
+            'new_likelihoods':tuple(copy(getattr(getattr(agent,'me',None), 'new_likelihoods', None)) for agent in participants),
+            }
+        note.update(notes)
+        return note
 
     def play(self, participants, observers = None, tremble = 0,notes = {}):
         if observers is None:
@@ -626,8 +654,10 @@ class Indirect(AnnotatedDS):
         for r, ordering in zip(range(1,rounds+1), matchups):
             ordering = np.array(ordering)
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
+            new_pay = payoffs*0
+            new_pay[ordering] += pay
             payoffs[ordering] += pay
-            # extend_rec(annotate(r,participants,pay,obs,rec,notes))
+            extend_rec(annotate(r,participants,new_pay,obs,rec,notes))
             extend_obs(obs)
 
         return payoffs,observations,record
@@ -769,7 +799,9 @@ def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3,**junk):
     observability = .5
     PD = PrisonersDilemma(cost = cost, benefit = benefit)
     if visibility == "private":
-        return Repeated(rounds, PrivatelyObserved(PD))
+        g =  Repeated(rounds, PrivatelyObserved(PD))
+        g.tremble = junk.get('tremble',0)
+        return g
     if visibility == "random":
         return Repeated(rounds, PubliclyObserved(Combinatorial(RandomlyObservable(observability,PD))))
     if visibility == "public":
