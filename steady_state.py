@@ -7,6 +7,7 @@ import numpy as np
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 from observability_experiments import indirect_simulator
 from functools import partial
+
 def fixed_length_partitions(n,L):
     """
     Integer partitions of n into L parts, in colex order.
@@ -66,8 +67,6 @@ def all_partitions(n,L=None):
             for part in fixed_length_partitions(n,l):
                 for perm in permutations(part+[0]*(L-l)):
                     yield perm
-
-print len(list(all_partitions(50, 3)))
 
 def binomial(n,k):
     return factorial(n)/(factorial(k)*factorial(n-k))
