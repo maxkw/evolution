@@ -7,6 +7,9 @@ import numpy as np
 from experiment_utils import fun_call_labeler
 from inspect import getargspec
 
+COST = 1
+BENEFIT = 3
+
 def literal(constructor):
     """
     use this decorator for functions that generate playables
@@ -55,8 +58,8 @@ class Playable(object):
     all Playable class instances should have a 'name' and '_name' variable
     whose value is the string representing the expression that generates it
     for example:
-        Combinatorial(PrisonersDilemma(cost = 1, benefit = 3)).name has the value
-        'Combinatorial(PrisonersDilemma(cost = 1, benefit = 3))'
+        Combinatorial(PrisonersDilemma(cost = COST, benefit = BENEFIT)).name has the value
+        'Combinatorial(PrisonersDilemma(cost = COST, benefit = BENEFIT))'
 
     the idea is that the name perfectly specifies how the object came to be and how
     to recreate it.
@@ -217,13 +220,13 @@ class Decision(Playable):
 
 
 
-def BinaryDictatorDict(endowment = 0, cost = 1, benefit = 2):
+def BinaryDictatorDict(endowment = 0, cost = COST, benefit = BENEFIT):
     return {
         "keep": (endowment, 0),
         "give": (endowment-cost, benefit)
     }
 
-def BinaryDictator(endowment = 0, cost = 1, benefit = 2, tremble = 0):
+def BinaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
     """
     a 2-participant decision
     """
@@ -409,7 +412,7 @@ class EveryoneDecides(EveryoneDecidesMatchup,DecisionSeq):
     pass
 
 @literal
-def PrisonersDilemma(endowment = 0, cost = 1, benefit = 3):
+def PrisonersDilemma(endowment = 0, cost = COST, benefit = BENEFIT):
     return Symmetric(BinaryDictator(endowment,cost,benefit))
 
 
@@ -786,15 +789,15 @@ Exponential(PrisonersDilemma, cost = {'gamma':9,'scale':3}, benefit = {'gamma':3
 """
 
 #@literal
-def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = 1, benefit = 3, gamma = 1):
+def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = COST, benefit = BENEFIT, gamma = 1):
     return Repeated(rounds,PrivatelyObserved(Exponential(PrisonersDilemma)))
 #return Repeated(rounds,PrivatelyObserved(DynamicPD()))
 
 def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
-    BD = BinaryDictator(cost = 1, benefit = 3)
+    BD = BinaryDictator(cost = COST, benefit = BENEFIT)
     return Repeated(rounds,PrivatelyObserved(Symmetric(BD)))
 @literal
-def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3,**junk):
+def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3, **junk):
     visibility = "private"
     observability = .5
     PD = PrisonersDilemma(cost = cost, benefit = benefit)
@@ -808,7 +811,7 @@ def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3,**junk):
         return Repeated(rounds, PubliclyObserved(PD))
 
 @literal
-def IndirectReciprocity(rounds = 10, observability = .5, cost = 1, benefit = 3, tremble = 0, **junk):
+def IndirectReciprocity(rounds = 10, observability = .5, cost = COST, benefit = BENEFIT, tremble = 0, **junk):
     bd = BinaryDictator(cost = cost, benefit = benefit)
     bd.tremble = tremble
     g = Indirect(rounds, RandomlyObserved(observability,bd)) 

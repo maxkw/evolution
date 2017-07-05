@@ -69,9 +69,6 @@ class Agent(object):
         self.likelihood = dict()
 
     def utility(self, payoffs, agent_ids):
-        return sum(self._utility(payoff, id) for payoff, id in itertools.izip(payoffs, agent_ids))
-
-    def _utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
     def decide_likelihood(self, game, agents, tremble=0):
@@ -184,7 +181,6 @@ class RationalAgent(Agent):
         super(RationalAgent, self).__init__(genome, world_id)
         self._type_to_index = dict(map(reversed, enumerate(genome['agent_types'])))
         self.pop_prior = copy(self.genome['prior'])
-        self.uniform_likelihood = normalized(self.pop_prior * 0 + 1)
         self.model = AgentDict(genome)
 
         self.likelihood = ConstantDefaultDict(self.initialize_likelihood())
@@ -222,8 +218,7 @@ class RationalAgent(Agent):
         return np.zeros_like(self.pop_prior)
     
     def utility(self, payoffs, agent_ids):
-        sample_alpha = self.sample_alpha
-        weights = map(sample_alpha, agent_ids)
+        weights = map(self.sample_alpha, agent_ids)
         return np.dot(weights, payoffs)
 
     def sample_alpha(self, agent_id):
@@ -266,8 +261,7 @@ class RationalAgent(Agent):
         rational_types = filter(lambda t: _issubclass(
             t, RationalAgent), agent_types)
 
-        my_id = self.world_id
-        observations = filter(lambda obs: my_id in obs[2], observations)
+        observations = filter(lambda obs: self.world_id in obs[2], observations)
         for observation in observations:
             observers = observation[2]
 
@@ -286,17 +280,16 @@ class RationalAgent(Agent):
 
             decider_id = participants[0]
 
-            if decider_id == my_id:
+            if decider_id == self.world_id:
                 continue
 
             likelihood = []
-            append_to_likelihood = likelihood.append
             action_index = game.action_lookup[action]
 
             # calculate the normalized likelihood for each type
             for agent_type in agent_types:
                 model = self.model[decider_id][agent_type]
-                append_to_likelihood(model.decide_likelihood(
+                likelihood.append(model.decide_likelihood(
                     game, participants, tremble)[action_index])
 
             # # Not using log-likelihoods
@@ -305,7 +298,6 @@ class RationalAgent(Agent):
             # prior = self.pop_prior
             # likelihood = self.likelihood[decider_id]
             # self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)
-
             self.likelihood[decider_id] += np.log(likelihood)
             prior = np.log(self.pop_prior)
             likelihood = self.likelihood[decider_id]

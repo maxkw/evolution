@@ -701,13 +701,13 @@ def belief_experiments():
                              #games = game,
                              file_name = "belief - trial "+str(trial),
                              trials = [trial])
-@experiment(unpack = 'record')
+@experiment(unpack = 'record', memoize=False)
 def coop_prob(cost=1, benefit=3, **kwargs):
     bd = BinaryDictator(cost = cost, benefit = benefit)
     actions = bd.actions
     #W = WeAgent(default_genome(agent_type = WeAgent, agent_types = ('self', AllD)), world_id = "A")
     record = []
-    for beta, belief in product(np.linspace(0,6,13), np.linspace(0,1,20)):
+    for beta, belief in product([1, 3, 5, 10, 100], np.linspace(0,1,200)):
         W = WeAgent(default_genome(agent_type = WeAgent, agent_types = ('self', AllD), RA_prior = belief, beta = beta), world_id = "A")
         for a,p in zip(actions, W.decide_likelihood(bd,"AB",0)):
             record.append({
@@ -721,7 +721,21 @@ def coop_prob(cost=1, benefit=3, **kwargs):
 @plotter(coop_prob, plot_exclusive_args = ['data'])
 def plot_coop_prob(data = []):
     data = data[data['action'] == 'give']
-    sns.factorplot(data = data, x = "belief", y = 'prob', hue = 'beta')
+    fig = plt.figure(figsize=(6,6))
+
+    for hue in data['beta'].unique():
+        d = data[data['beta']==hue]
+        p = plt.plot(d['belief'], d['prob'], label=hue)
+
+    plt.ylim([0, 1.05])
+    plt.xlim([0, 1])
+    plt.yticks([0,0.5,1])
+    plt.xticks([0.25, 0.5, 0.75, 1])
+    plt.xlabel('Reciprocity Prior')
+    plt.ylabel('P(Action = Give)')
+    sns.despine()
+    plt.legend()
+    plt.tight_layout()
 
 def test_standing(**kwargs):
     from games import Symmetric

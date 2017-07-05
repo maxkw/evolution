@@ -1,23 +1,33 @@
-from agents import ReciprocalAgent, AltruisticAgent, RationalAgent, SelfishAgent
-from experiments import joint_fitness_plot, reward_table, belief_plot, pop_fitness_plot, forgiveness
-from experiment_utils import MultiArg
+import numpy as np
+# from agents import ReciprocalAgent, AltruisticAgent, RationalAgent, SelfishAgent
+# from experiment_utils import MultiArg
 import scenarios
+from experiments import plot_coop_prob
 import evolve
 
-def kwarg_to_dict(**kwargs):
-    return kwargs
+plot_dir = './figures/'
+
+params = dict(prior = 0.5,
+              beta = 5,
+)
+
+plot_coop_prob(file_name='coop_prob', plot_dir = plot_dir)
+scenarios.main(plot_dir=plot_dir, **params)
+
+# # Currently broken
+# evolve.AllC_AllD_race()
+# evolve.Pavlov_gTFT_race()
 
 
-plot_dir = './default_plots/'
-condition = kwarg_to_dict(trials=50,
-                          plot_dir=plot_dir,
-                          #player_types = (ReciprocalAgent,SelfishAgent),
-                          agent_types=(ReciprocalAgent, SelfishAgent),
-                          beta=1)
+assert 0 
 
-scenarios.main()
-evolve.AllC_AllD_race()
-evolve.Pavlov_gTFT_race()
+
+condition = dict(trials=50,
+                 plot_dir=plot_dir,
+                 beta=5,
+)
+
+
 
 belief_plot(believed_type=ReciprocalAgent,
             player_types=ReciprocalAgent, priors=.75, Ks=1, **condition)
