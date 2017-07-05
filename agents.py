@@ -91,7 +91,6 @@ class Agent(object):
         return game.actions[action_id]
 
     # For uniformity with Rational Agents
-
     def observe(self, observations):
         pass
 
@@ -437,7 +436,7 @@ class Standing(Agent):
     def __init__(self, genome, world_id = None):
         self.genome = genome
         self.world_id = world_id
-        self.image = defaultdict(lambda: True)
+        self.image = ConstantDefaultDict(True)
         self.action_dict = genome['action_dict']
         self.assesment_dict = genome['assesment_dict']
 
@@ -699,9 +698,9 @@ class ModelNode(object):
         non_WA_prior = (1-RA_prior)/(len(genome['agent_types'])-1)
         self.pop_prior = prior = np.array([RA_prior if t is genome['type'] else non_WA_prior for t in genome['agent_types']])
 
-        self.belief = defaultdict(lambda:prior)
-        self.likelihood = defaultdict(lambda:np.zeros_like(prior))
-        self.new_likelihoods = defaultdict(lambda:np.zeros_like(prior))
+        self.belief = ConstantDefaultDict(prior)
+        self.likelihood = ConstantDefaultDict(np.zeros_like(prior))
+        self.new_likelihoods = ConstantDefaultDict(np.zeros_like(prior))
         #self.new_likelihoods = defaultdict(int)
         
     def copy(self,new_id_set):
@@ -738,7 +737,7 @@ class ModelNode(object):
 
     def observe(self, observations):
         agent_types = self.genome['agent_types']
-        self.new_likelihoods = new_likelihoods = defaultdict(lambda:np.zeros_like(self.pop_prior))
+        self.new_likelihoods = ConstantDefaultDict(np.zeros_like(self.pop_prior))
 
         for observation in observations:
             game, participants, observers, action = observation
@@ -755,11 +754,11 @@ class ModelNode(object):
                     model = self.other_models[decider_id][agent_type]
                 likelihood.append(model.decide_likelihood(game,participants,tremble)[action_index])
 
-            new_likelihoods[decider_id] += np.log(likelihood)
+            self.new_likelihoods[decider_id] += np.log(likelihood)
         #self.nl_cache = copy(new_likelihoods)
 
         prior = np.log(self.pop_prior)
-        for decider_id, new_likelihood in new_likelihoods.iteritems():
+        for decider_id, new_likelihood in self.new_likelihoods.iteritems():
             self.likelihood[decider_id] += new_likelihood
             likelihood = self.likelihood[decider_id]
             self.belief[decider_id] = np.exp(prior+likelihood)

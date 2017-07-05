@@ -587,10 +587,9 @@ class Repeated(AnnotatedDS):
             'actors':tuple(observation[1] for observation in observations),
             'payoff': copy(payoff),
             'games':tuple(observation[0] for observation in observations),
-            
-            'beliefs': tuple(copy(getattr(getattr(agent,'me',None), 'belief', None)) for agent in participants),
-            'likelihoods' :tuple(deepcopy(getattr(getattr(agent,'me',None),'likelihood', None)) for agent in participants),
-            'new_likelihoods':tuple(copy(getattr(getattr(agent,'me',None), 'new_likelihoods', None)) for agent in participants),
+            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
+            'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
+            'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
             }
         note.update(notes)
         return note
@@ -617,9 +616,9 @@ class Indirect(AnnotatedDS):
             'actions':tuple(observation[3] for observation in observations),
             'payoff': copy(payoff),
             #'games':tuple(observation[0] for observation in observations),
-            'beliefs': tuple(copy(getattr(getattr(agent,'me',None), 'belief', None)) for agent in participants),
-            'likelihoods' :tuple(deepcopy(getattr(getattr(agent,'me',None),'likelihood', None)) for agent in participants),
-            'new_likelihoods':tuple(copy(getattr(getattr(agent,'me',None), 'new_likelihoods', None)) for agent in participants),
+            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
+            'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
+            'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
             }
         note.update(notes)
         return note

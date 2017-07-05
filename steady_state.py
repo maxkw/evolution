@@ -170,7 +170,7 @@ def invasion_probability(payoff, invader, dominant, pop_size, s):
     def g(count):
         return np.exp(s*(count*payoff[dominant,invader]+(pop_size-count-1)*payoff[dominant,dominant])/(pop_size-1))
     
-    ratios = np.array(map(lambda count: f(count) / g(count), range(1, pop_size)))
+    ratios = np.array(map(lambda count: g(count) / f(count), range(1, pop_size)))
     return 1 / (1 + sum(np.cumprod(ratios)))
     
     # accum = 1.0
@@ -179,7 +179,11 @@ def invasion_probability(payoff, invader, dominant, pop_size, s):
     #     assert g_i>=0 and f_i>=0
     #     accum *= (g_i/f_i)
     #     accum += 1
-    # return 1/accum
+
+    # print 1/accum, 1 / (1 + sum(np.cumprod(ratios)))
+    # np.testing.assert_almost_equal(1 / (1 + sum(np.cumprod(ratios))), 1/accum)
+    
+    # return 1 / accum
 
 def invasion_matrix(payoff, pop_size, s):
     """

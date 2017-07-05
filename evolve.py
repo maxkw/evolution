@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,matchup_matrix_per_round
 from params import default_genome, default_params
+import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
 from steady_state import limit_analysis, complete_analysis
 import pandas as pd
@@ -250,10 +251,8 @@ def AllC_AllD_race():
     MRA = ReciprocalAgent
     ToM = ('self', AllC, AllD)
     opponents = (AllC, AllD)
-   # pop = (WeAgent(RA_prior = prior, agent_types = ('self',AllD))
+    pop = (WeAgent(RA_prior = prior, agent_types = ToM), ag.TFT)
            
-           #gTFT(y=1,p=1,q=0))
-    
     for t in [0, 0.05]:
         limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 10, tremble = t, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, plot_dir = today)
         limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 100, tremble = t, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, plot_dir = today)
@@ -316,23 +315,16 @@ def Pavlov_gTFT_race():
 def bc_rounds_contest():
     WA = WeAgent
     prior = 0.5
-    MRA = ReciprocalAgent
-    SA = SelfishAgent
-    AA = AltruisticAgent
-    AC = AllC
-    AD = AllD
-    TFT = gTFT(y=1,p=1,q=0)
-    GTFT = gTFT(y=1,p=.99,q=.33)
 
-    RA = WA(RA_prior = prior, agent_types = ('self', AllC, AllD))
-    player_types = (RA, TFT, GTFT, Pavlov)
+    RA = WA(RA_prior = prior, agent_types = ('self', ag.AllC, ag.AllD))
+    player_types = (RA, ag.TFT, ag.GTFT, ag.Pavlov)
 
     for t in [0, 0.05]:
         bc_rounds_plot(
             max_rounds = 20,
             experiment = compare_bc_v_rounds,
             player_types = player_types,
-            opponent_types = (AllC, AllD),
+            opponent_types = (ag.AllC, ag.AllD),
             tremble = t
         )
 
@@ -342,31 +334,23 @@ def bc_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
     plot_dir = "./plots/bc_rounds_race/"
 
-    MRA = ReciprocalAgent
-    SA = SelfishAgent
-    AA = AltruisticAgent
-    AC = AllC
-    AD = AllD
-    TFT = gTFT(y=1,p=1,q=0)
-    GTFT = gTFT(y=1,p=.99,q=.33)
-
     max_rounds = 20
 
     priors = [
         #.1,
-        #.5,
-        .75
+        .5,
+        # .75
     ]
 
     ToMs = [
-        ('self', AC, AD, TFT, GTFT, Pavlov)
+        ('self', ag.AllC, ag.AllD, ag.TFT, ag.GTFT, ag.Pavlov)
     ]
 
     betas = [
         #1,
         #3,
-        #5,
-        10,
+        5,
+        # 10,
     ]
 
     trembles = [
@@ -376,7 +360,7 @@ def bc_rounds_race():
 
     for prior, ToM, beta in product(priors,ToMs,betas):
         RA = WeAgent(RA_prior = prior, agent_types = ToM, beta = beta)
-        everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
+        everyone = (RA, ag.AllC, ag.AllD, ag.TFT, ag.GTFT, ag.Pavlov)
         for t in trembles:
             bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t,
                            plot_dir = plot_dir,
@@ -434,11 +418,11 @@ def limit_rounds_race():
 
 
 if __name__ == "__main__":
-    image_contest()
-    #AllC_AllD_race()
-    #Pavlov_gTFT_race()
-    #bc_rounds_race()
-    #limit_rounds_race()
+    # image_contest()
+    # AllC_AllD_race()
+    Pavlov_gTFT_race()
+    # bc_rounds_race()
+    # limit_rounds_race()
     assert 0
 
     MRA = ReciprocalAgent
