@@ -258,8 +258,7 @@ class RationalAgent(Agent):
         # if K < 0: return
         genome = self.genome
         agent_types = genome['agent_types']
-        rational_types = filter(lambda t: _issubclass(
-            t, RationalAgent), agent_types)
+        rational_types = filter(lambda t: _issubclass(t, RationalAgent), agent_types)
 
         observations = filter(lambda obs: self.world_id in obs[2], observations)
         for observation in observations:
@@ -289,8 +288,7 @@ class RationalAgent(Agent):
             # calculate the normalized likelihood for each type
             for agent_type in agent_types:
                 model = self.model[decider_id][agent_type]
-                likelihood.append(model.decide_likelihood(
-                    game, participants, tremble)[action_index])
+                likelihood.append(model.decide_likelihood(game, participants, tremble)[action_index])
 
             # # Not using log-likelihoods
             # self.likelihood[decider_id] *= likelihood
@@ -303,8 +301,7 @@ class RationalAgent(Agent):
             likelihood = self.likelihood[decider_id]
 
             self.belief[decider_id] = np.exp(prior + likelihood)
-            self.belief[decider_id] = belief = normalized(
-                self.belief[decider_id])
+            self.belief[decider_id] = normalized(self.belief[decider_id])
 
         # Observe the other person, when this code runs at K=0
         # nothing will happen because of the return at the top
