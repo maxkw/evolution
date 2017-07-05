@@ -186,38 +186,38 @@ def first_impressions_plot(data=[]):
     plt.tight_layout()
 
 
-def main():
+def main(prior = 0.75, beta = 5, **kwargs):
     scene_plot(
         scenario_func=reciprocal_scenarios_0,
         agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
-        RA_prior=.75,
+        RA_prior=prior,
         RA_K=MultiArg([0, 1]),
-        beta=5,
-        file_name='scene_reciprocal_0')
+        beta=beta,
+        file_name='scene_reciprocal_0', **kwargs)
 
     scene_plot(
         scenario_func=reciprocal_scenarios_1,
         agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
-        RA_prior=.75,
+        RA_prior=prior,
         RA_K=MultiArg([0, 1]),
-        beta=5,
-        file_name='scene_reciprocal_1')
+        beta=beta,
+        file_name='scene_reciprocal_1', **kwargs)
 
     scene_plot(
         scenario_func=false_belief_scenarios,
         agent_types=(ReciprocalAgent, SelfishAgent),
-        RA_prior=.75,
+        RA_prior=prior,
         RA_K=MultiArg([0, 1, 2]),
-        beta=5,
-        file_name='scene_false_belief')
+        beta=beta,
+        file_name='scene_false_belief', **kwargs)
 
     first_impressions_plot(
         agent_types=(ReciprocalAgent, SelfishAgent),
-        RA_prior=.75,
-        beta=5,
+        RA_prior=prior,
+        beta=beta,
         RA_K=1,
         tremble=0.05,
-        file_name='first_impressions')
+        file_name='first_impressions', **kwargs)
 
 if __name__ == '__main__':
     main()
