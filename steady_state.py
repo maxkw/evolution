@@ -1,6 +1,6 @@
 from __future__ import division
 from collections import Counter, defaultdict
-from itertools import product, permutations
+from itertools import product, permutations, combinations, izip
 from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
@@ -199,11 +199,65 @@ def invasion_matrix(payoff, pop_size, s):
     #print transition
     #assert False
     for i in range(type_count):
-        
         transition[i,i] = 1-np.sum(transition[:,i])
         #print transition[:,i]
         #transition[:,i] = normalized(transition[:,i]-transition[:,i].min())
         
+        try:
+            np.testing.assert_approx_equal(np.sum(transition[:,i]),1)
+        except:
+            print transition[:,i]
+            print np.sum(transition[:,i])
+            raise
+    return transition
+
+def invasion_matrix2(payoff, pop_size, s):
+    """
+    returns a matrix M of size TxT where M[a,b] is the probability of a homogeneous population of a becoming
+    a homogeneous population of b under weak mutation
+    types in this matrix are ordered as in 'payoff'
+    """
+    type_count = len(payoff)
+    liminal_pops = [np.array((i, pop_size-i)) for i in range(1,pop_size)]
+    type_indices_matchups = list(combinations(range(type_count), 2))
+
+    mcp_lists= []
+    for types in type_indices_matchups:
+        payoffs = []
+        type_indices = np.array([True if i in tuple(types) else False for i in range(type_count)])
+        print type_indices
+        for counts in liminal_pops:
+            pop = np.zeros(type_count)
+            print type_indices
+            pop[type_indices] = counts
+            #pop[(0,1)]
+            payoffs.append([np.dot(pop,payoff[t]) for t in types])
+        mcp_lists.append(payoffs)
+    mcp_matrix = np.array(mcp_lists)
+
+    transition = np.zeros((type_count,)*2)
+    for matchup, payoff_by_parts_ in izip(type_indices_matchups, mcp_matrix):
+        a,b = matchup
+
+        accum_ab = 1
+        accum_ba = 1
+        payoff_by_parts = [softmax(p,s) for p in payoff_by_parts_]
+        for p_ab, p_ba in izip(payoff_by_parts,reversed(payoff_by_parts)):
+
+            assert len(p_ab)==2
+            assert all(p>=0 for p in p_ab+p_ba)
+            accum_ab *= p_ab[1]/p_ab[0]
+            accum_ab += 1
+
+            accum_ba *= p_ba[0]/p_ba[1]
+            accum_ba += 1
+
+        transition[a,b] = 1/(accum_ab*(type_count-1))
+        transition[b,a] = 1/(accum_ba*(type_count-1))
+
+
+    for i in range(type_count):
+        transition[i,i] = 1-np.sum(transition[:,i])
         try:
             np.testing.assert_approx_equal(np.sum(transition[:,i]),1)
         except:
@@ -219,8 +273,7 @@ def limit_analysis(payoff, pop_size, s, **kwargs):
     """
     type_count = len(payoff)
     # partition_count = partitions(pop_size, type_count)
-    transition = invasion_matrix(payoff, pop_size, s)
-    # print "transition"
+    transition = invasion_matrix(payoff, pop_size, s)    # print "transition"
     # print transition
     ssd = steady_state(transition)
     return ssd
@@ -235,11 +288,13 @@ def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
     """
     type_count = len(payoff)
     I = np.identity(type_count)
-    part_to_id = dict(map(reversed,enumerate(sorted(set(all_partitions(pop_size,type_count))))))
+    partitions = sorted(set(all_partitions(pop_size,type_count)))
+    part_to_id = dict(map(reversed,enumerate(partitions)))
+    print sorted(part_to_id.values())
     partition_count = len(part_to_id)
     transition = np.zeros((partition_count,)*2)
     
-    for i,pop in enumerate(all_partitions(pop_size,type_count)):
+    for pop,i in part_to_id.iteritems():
         fitnesses = softmax([np.dot(pop-I[t],payoff[t]) for t in range(type_count)], s)
         node = np.array(pop)
         for b,d in permutations(xrange(type_count),2):

@@ -10,12 +10,13 @@ import seaborn as sns
 import pandas as pd
 from utils import softmax_utility, softmax, normalized, memoized, logspace
 from functools import partial
-from evolve import limit_param_plot, limit_param_plot
+from evolve import limit_param_plot, limit_param_plot,limit_v_param
 from steady_state import all_partitions, steady_state
 from itertools import permutations,product,imap,chain,repeat, izip,starmap,combinations
-from math import factorial
+from math import factorial,ceil
 from multiprocessing import Pool
 from games import RepeatedPrisonersTournament
+
 
 @multi_call(unordered = ['agent_types'], verbose = 3)
 def indirect_game_ratios(WA_ratio = .5, pop_size = 30, *args, **kwargs):
@@ -46,7 +47,9 @@ def indirect_game(player_types, counts, observability = 1, rounds = 50, tremble=
 
     params = default_params(**kwargs)
     params.update(kwargs)
-    params['games'] = g = RepeatedPrisonersTournament(rounds = rounds, observability = observability, tremble = tremble,**kwargs)#IndirectReciprocity(rounds, observability, tremble = tremble, **kwargs)
+    
+    params['games'] = g = RepeatedPrisonersTournament(rounds = rounds, tremble = tremble, **kwargs)
+    #params['games'] = g = IndirectReciprocity(rounds, observability, tremble = tremble, **kwargs)
     genomes = [default_genome(agent_type = t, **params) for t in type_list]
 
     world = World(params,genomes)
@@ -124,24 +127,30 @@ def sim_complete_analysis(simulator, types,  pop_size, s, **kwargs):
     return pop_sum / pop_size
 
 def sim_complete_analysis_per_round(types, pop_size, s, rounds, **kwargs):
+    trials = 100
     type_count = len(types)
     partitions = set(all_partitions(pop_size,type_count))
     
     part_to_id = dict(map(reversed,enumerate(sorted(partitions))))
     rounds_list = range(1,rounds+1)
 
-    #partition_to_fitness_per_round = {}#p: {r:softmax(f,s) for r,f in simulator(type_count_pairs = tuple(zip(types,p))).iteritems()}
-    #for p in partitions:
-    #    partition_to_fitness_per_round[p] = fpr = {r:softmax(f,s)
-    #                                         for r,f in simulator(type_count_pairs = tuple(zip(types,p))).iteritems()}
     pool = Pool(8)
     def part_to_argdict(part):
-        return dict(type_count_pairs = tuple(zip(types,part)), types = types, rounds = rounds, trials = 200, per_round = True, **kwargs)
+        prts,typs = zip(*((p,t) for p,t in zip(part,types) if p is not 0))
+        return dict(counts = prts, player_types = typs, rounds = rounds, trials = trials, **kwargs)
+
     partition_to_round_to_fitness = zip(partitions, pool.map(indirect_simulator_from_dict, map(part_to_argdict,partitions)))
     
     partition_to_fitness_per_round = {}
     for p,rtf in partition_to_round_to_fitness:
-        partition_to_fitness_per_round[p] = {r:softmax(f,s) for r,f in rtf.iteritems()}
+        #partition_to_fitness_per_round[p]
+        round_to_fitness = {}
+        non_zero_types = np.array(p)!=0
+        for r,f in enumerate(rtf,1):
+            fitness = np.zeros_like(types)
+            fitness[non_zero_types] = softmax(f,s)
+            round_to_fitness[r] = fitness
+        partition_to_fitness_per_round[p] = round_to_fitness
   
     expected_pop_per_round = {}
     part_to_fitness = {}
@@ -199,10 +208,10 @@ def fitnesses_to_transition_matrix(pop_to_payoff, types, pop_size,mu = .001):
 
     return transition
 
-def indirect_analysis(types, rounds,  pop_size = 100, s = 1, **kwargs):
+def indirect_analysis(player_types, rounds,  pop_size = 100, s = 1, **kwargs):
     #sim_conditions = dict(types = types, rounds = rounds, **kwargs)
     #simulator = partial(indirect_simulator, per_round = True, **sim_conditions)
-    return sim_complete_analysis_per_round(types, rounds = rounds, pop_size = pop_size, s = s, **kwargs)
+    return sim_complete_analysis_per_round(player_types, rounds = rounds, pop_size = pop_size, s = s, **kwargs)
 
 def test_indirect_analysis():
     from agents import WeAgent,AllD,AllC
@@ -224,6 +233,7 @@ def sim_ssd_v_param_dispatch(param, player_types, analysis = 'limit', **kwargs):
     elif param == 'bc':
         Xs = [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]
     elif param == "rounds":
+
         if analysis == 'limit':
             return sim_ssd_limit_v_rounds(player_types,**kwargs)
         else:
@@ -244,18 +254,26 @@ def sim_ssd_v_param_dispatch(param, player_types, analysis = 'limit', **kwargs):
 
 def sim_ssd_v_param(param, player_types, analysis = 'limit', **kwargs):
     if param == 'rounds':
+        rounds = kwargs['rounds']
+        pop_size = kwargs['pop_size']
+        unique_interactions =  factorial(pop_size)/factorial(pop_size-2)
+
+        if not unique_interactions >= rounds:
+            raise Exception("There are fewer rounds than unique interactions. Raise pop_size or lower rounds.")
+
         if analysis == 'limit':
             return sim_ssd_limit_v_rounds(player_types, **kwargs)
         else:
             return sim_ssd_v_rounds(player_types, **kwargs)
     else:
-        return sim_ssd_v_param_dispatch(param,player_types, analysis, **kwargs)
+        return sim_ssd_v_param_dispatch(param, player_types, analysis, **kwargs)
 
 
 
 @experiment(unpack = 'record', memoize = False, verbose = 3)
 def sim_ssd_v_rounds(player_types, rounds, **kwargs):
     record = []
+    print kwargs
     rounds_to_expected_pop = indirect_analysis(player_types = player_types, rounds = rounds, **kwargs)
     for rounds in rounds_to_expected_pop:
         for t,p in zip(player_types,rounds_to_expected_pop[rounds]):
@@ -355,6 +373,8 @@ def image_contest():
 def sim_limit_analysis(player_types, pop_size, s, rounds, trials = 100, **kwargs):
     pool = Pool(8)
 
+
+
     #produce all elements along the edges of the population simplex
     #does not include the homogeneous populations at the vertices
     #ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
@@ -369,48 +389,50 @@ def sim_limit_analysis(player_types, pop_size, s, rounds, trials = 100, **kwargs
         return dict(counts = count, player_types = matchup, rounds = rounds, trials = trials, **kwargs)
 
     payoffs = pool.map(indirect_simulator_from_dict, imap(part_to_argdict, matchups, counts))
-                       
-    # matchup_rtf_pairs = izip(matchup_list, pool.map(indirect_simulator_from_dict, imap(part_to_argdict, types_pops_pairs)))
 
     #make a mapping from matchup to list of lists of payoffs
     #the first level is ordered by partitions
     #the second layer is ordered by rounds
 
     type_indices_matchups = list(combinations(range(len(player_types)), 2))
-    rmcp = np.zeros((rounds, len(unique_matchups), len(liminal_pops), len(player_types)))
+    rmcp = np.zeros((rounds, len(unique_matchups), len(liminal_pops), 2))
 
     # Unpack the data into a giant matrix
     for (m, c), p in zip(product(range(len(unique_matchups)), range(len(liminal_pops))), payoffs):
         rmcp[:, m, c, :] = np.array(p)
 
     ssds = []
- 
     for r in range(rounds):
         invasion = invasion_matrix(type_indices_matchups, rmcp[r, :, :, :], s)
         ssds.append(steady_state(invasion))
-        
     return dict(enumerate(ssds))
 
 def invasion_matrix(type_indices_matchups, mcp_matrix, s):
+    """
+    type_indices_matchups, a list of the matchups where instead of the type, it's index is in it's position
+    mcp_matrix matchup x count x payoff, matrix
+    """
     type_count = np.max(type_indices_matchups) + 1
     transition = np.zeros((type_count,)*2)
     
-    for matchup, payoff_by_parts in izip(type_indices_matchups, mcp_matrix):
+    for matchup, payoff_by_parts_ in izip(type_indices_matchups, mcp_matrix):
         a,b = matchup
 
         accum_ab = 1
         accum_ba = 1
-        payoff_by_parts = [softmax(p,s) for p in payoff_by_parts]
+        payoff_by_parts = [softmax(p,s) for p in payoff_by_parts_]
         for p_ab, p_ba in izip(payoff_by_parts,reversed(payoff_by_parts)):
 
+            assert len(p_ab)==2
+            assert all(p>=0 for p in p_ab+p_ba)
             accum_ab *= p_ab[1]/p_ab[0]
             accum_ab += 1
 
             accum_ba *= p_ba[0]/p_ba[1]
             accum_ba += 1
 
-        transition[a,b] = 1/accum_ab
-        transition[b,a] = 1/accum_ba
+        transition[a,b] = 1/(accum_ab*(type_count-1))
+        transition[b,a] = 1/(accum_ba*(type_count-1))
 
     for i in xrange(type_count):
         transition[i,i] = 1-np.sum(transition[:,i])
@@ -421,7 +443,7 @@ def invasion_matrix(type_indices_matchups, mcp_matrix, s):
             print transition[:,i]
             print np.sum(transition[:,i])
             raise
-        
+
     return transition
 
 
@@ -437,28 +459,53 @@ def invasion_matrix(type_indices_matchups, mcp_matrix, s):
 
 
 def test_sim_limit_analysis():
-    types = (AllC,AllD)
-    #sim_invasion_matrix(None,types,5,1,10)
-
+    
     pop_size = 10
+
+    #rounds/(pop-1) = avg decisions per agent
+    #rounds/((pop-1)*2) = avg interactions per agent
+    aipa = avg_interaction_per_agent = 2.5
+
+    rounds = int(ceil(aipa*(pop_size-1)*2))
+    rounds = 50
+
+    opponents = (AllC,AllD)
+    types = (WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)+opponents
     params = dict(param = 'rounds',
-                  experiment = sim_ssd_v_param,
                   player_types = types,
                   tremble = .05,
-                  rounds = 50,
-                  benefit = 3,
-                  s = 1,
-                  pop_size = pop_size)
-    
-    limit_param_plot(analysis = 'limit', **params)
-    #limit_param_plot(analysis = 'complete', **params)
+                  benefit = 10,
+                  s = .5,
+                  pop_size = pop_size,
+                  extension = '.png',
+    )
+
+    sim_params = dict(experiment = sim_ssd_v_param,rounds = rounds, kind = "sim", game = 'pd',**params)
+    classic_params = dict(experiment = limit_v_param, max_rounds = rounds, kind = 'heatmap', analysis = "limit", note="type2", **params)
+    #limit_param_plot(analysis = 'limit', **sim_params)
+    #limit_param_plot(analysis = 'complete', **sim_params)
+    limit_param_plot(**classic_params)
+
 
     # c = sim_complete_analysis_per_round(**params)
-    l = sim_limit_analysis(**params)
+    #l = sim_limit_analysis(**params)
 
-    for r in xrange(1,50):
+    #for r in xrange(1,50):
         # print c[r],l[r]
-        print l[r]
+    #    print l[r]
+
+
+def test_sanity():
+    n = 7
+    proportion = 1
+    (pop_size-1)*2
+    alphabet = "abcdefghijklmnopqrstuvwxyz"
+    print sum(1 if "a" in p else 0 for p in permutations(alphabet[:n],2))/ len(list(permutations(alphabet[:n],2)))
+    print 2/n
+    print (n-1)*2
+    print n*(n-1)
+    
+    
 
 
 if __name__ == "__main__":
@@ -468,6 +515,8 @@ if __name__ == "__main__":
     #    print i,len(set(all_partitions(i,3)))
     #image_contest()
     #sim_invasion_matrix(0,"ABCD",5,0,10)
+    #test_sanity()
     test_sim_limit_analysis()
     #print softmax([0,1,2],1)
     #print softmax([1,2],1)
+
