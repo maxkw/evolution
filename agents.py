@@ -837,7 +837,8 @@ class JoinLatticeModel(object):
 
         return True if any of the new sets is smaller than the smallest known set
         """
-
+        
+        
         model = self.model
         size_to_sets = self.size_to_sets
         new_set = frozenset(new_set)
@@ -888,12 +889,15 @@ class JoinLatticeModel(object):
         sets = self.sets
         insert = self.insert_new_set
 
-        observers = [frozenset(o[2]) for o in observations]
-        new_top = any(insert(s) for s in observers if s not in sets)
+
+        observers = set(frozenset(o[2]) for o in observations)
+        
+        
+        #this must be a list, because 'any' will short-circuit as it expands an iterator
+        new_top = any([insert(s) for s in observers if s not in sets])
+        
 
         #observer_sets = sorted(set().union(self.subsets[o] for o in observers), key = len)
-
-        
         observer_subsets = sorted(set().union(*[self.subsets[o] for o in observers]), key = len)
         for s in observer_subsets:
             self.model[s].observe(observations)
