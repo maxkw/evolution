@@ -92,18 +92,17 @@ def indirect_game(player_types, counts, observability = 1, rounds = 50, tremble 
 def avg_payoff_per_type_from_matchup(matchup_data):
     running_fitness = 0
     fitness_per_round = []
-    rs = []
+
     for r, r_d in matchup_data.groupby('round'):
         fitness = []
-        for i,(t, t_d) in enumerate(r_d.groupby('type')):
-            try:
-                fitness.append(t_d.mean()['fitness'])
-            except ZeroDivisionError:
-                fitness.append(0)
-            rs.append([r,t,t_d.mean()['fitness']])
+        for i, (t, t_d) in enumerate(r_d.groupby('type')):
+            fitness.append(t_d['fitness'].mean())
+            
         running_fitness += np.array(fitness)
-        fitness_per_round.append([f for f in running_fitness])
+        fitness_per_round.append(np.array(running_fitness))
+        
     return fitness_per_round[1:]
+
 @memoized
 def indirect_simulatorV2(player_types,rounds,*args,**kwargs):
     matchup_data = matchup(per_round = True, player_types = player_types, rounds = rounds, *args, **kwargs)
@@ -559,20 +558,18 @@ def test_sim_limit_analysis():
     #    print l[r]
 
 
-def mmpr_to_cumulative_payoff(pop,mmpr):
+def mmpr_to_cumulative_payoff(pop, mmpr):
     cumulatives = []
     I = np.identity(len(pop))
     counts = np.array(pop)
     pop_size = sum(pop)
 
-    
     for r, payoffs in mmpr:
-        pay = [np.dot(counts-I[t],payoffs[t])*r for t in [0,1]]
+        pay = [np.dot(counts-I[t], payoffs[t])*r for t in [0,1]]
         print payoffs
         cumulatives.append(pay)
+        
     return cumulatives
-
-
 
 def test_mcp_creation():
     rounds = 50
@@ -605,30 +602,30 @@ def test_mcp_creation():
 
 
 def test_matchup_to_avg():
-    rounds = 50
-    pop_size = 10
+    rounds = 10
+    pop_size = 2
     opponents = (AllD,)
-    types = opponents+(WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)#+opponents
+    # types = opponents+(WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)#+opponents
+    types = opponents+(AllC, )
+    types = tuple(sorted(types))
     params = dict(param = 'rounds',
                   player_types = types,
-                  tremble = .05,
+                  tremble = .0,
                   benefit = 10,
                   s = 1,
                   pop_size = pop_size,
                   trials = [1]
     )
 
-    pop = (5,5)
+    pop = (1,1)
     m_d = matchup(per_round = True, pop = pop, rounds = rounds, **params)
-    print m_d
     print "run once"
-    m = avg_payoff_per_type_from_matchup(m_d)#rm
-    mm = mmpr_to_cumulative_payoff(pop,matchup_matrix_per_round(max_rounds = rounds, **params))
+    m = avg_payoff_per_type_from_matchup(m_d)
+    mm = mmpr_to_cumulative_payoff(pop, matchup_matrix_per_round(max_rounds = rounds, **params))
     assert len(mm) == len(m)
 
-    for mat,vec in zip(mm,m):
-        print "ana", mat
-        print "sim",vec
+    for r, (mat,vec) in enumerate(zip(mm,m)):
+        print r, "ana", mat, "sim",vec
     
 
 
