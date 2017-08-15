@@ -32,8 +32,8 @@ def product_of_vals(orderedDict):
     keys,val_lists = orderedDict.keys(),orderedDict.values()
     return [OrderedDict(zip(keys,vals)) for vals in apply(product,val_lists)]
 
-def dict_hash(dict):
-    return hash(tuple(sorted(dict.iteritems())))
+def dict_hash(d):
+    return hash(str(tuple(sorted(d.iteritems()))))
 
 class hashableDict(dict):
     def __hash__(self):

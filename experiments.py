@@ -56,10 +56,17 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
 @experiment(unpack = 'record', trials = 100, verbose = 3)
-def matchup(player_types, **kwargs):
-    condition = dict(locals(),**kwargs)
+def matchup(player_types, pop = None, **kwargs):
+    condition = dict(player_types = player_types,**kwargs)
     params = default_params(**condition)
+
+    if not pop:
+        pop = tuple(1 for t in player_types)
+    else:
+        assert len(player_types)==len(pop)
+    player_types = sum([[t]*p for t,p in zip(player_types,pop)],[])
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
+
     world = World(params,genomes)
     fitness, history = world.run()
 

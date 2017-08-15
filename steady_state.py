@@ -194,7 +194,7 @@ def invasion_matrix(payoff, pop_size, s):
     type_count = len(payoff)
     transition = np.zeros((type_count,)*2)
     for dominant,invader in permutations(range(type_count),2):
-        transition[invader,dominant] = invasion_probability(payoff,invader,dominant,pop_size,s)/(type_count-1)
+        transition[invader,dominant] = invasion_probability(payoff, invader, dominant, pop_size, s)/(type_count-1)
 
     #print transition
     #assert False
@@ -211,6 +211,35 @@ def invasion_matrix(payoff, pop_size, s):
             raise
     return transition
 
+def payoff_to_mcp_matrix(payoff,pop_size,s):
+    """
+    this takes a TxT matrix that gives the payoff to t1 when facing t2 into a
+    matchup->composition->payoff matrix, which goes from the
+    index of an ordered pair of type indices AND
+    the index of a population composition,
+    to a vector of payoffs indexed by type
+    """
+
+    type_count = len(payoff)
+    liminal_pops = [np.array((i, pop_size-i)) for i in range(1,pop_size)]
+    type_indices_matchups = list(combinations(range(type_count), 2))
+
+    I = np.identity(type_count)
+
+    mcp_lists= []
+    for types in type_indices_matchups:
+        payoffs = []
+        type_indices = np.array([True if i in tuple(types) else False for i in range(type_count)])
+        
+        #print type_indices
+        for counts in liminal_pops:
+            pay = np.exp(s*np.array([np.dot(counts-I[t][type_indices],payoff[t][type_indices])/(pop_size-1) for t in types]))
+            payoffs.append(pay)
+        mcp_lists.append(payoffs)
+    mcp_matrix = np.array(mcp_lists)
+    return mcp_matrix
+
+
 def invasion_matrix2(payoff, pop_size, s):
     """
     returns a matrix M of size TxT where M[a,b] is the probability of a homogeneous population of a becoming
@@ -218,43 +247,22 @@ def invasion_matrix2(payoff, pop_size, s):
     types in this matrix are ordered as in 'payoff'
     """
     type_count = len(payoff)
-    liminal_pops = [np.array((i, pop_size-i)) for i in range(1,pop_size)]
     type_indices_matchups = list(combinations(range(type_count), 2))
-
-    mcp_lists= []
-    for types in type_indices_matchups:
-        payoffs = []
-        type_indices = np.array([True if i in tuple(types) else False for i in range(type_count)])
-        print type_indices
-        for counts in liminal_pops:
-            pop = np.zeros(type_count)
-            print type_indices
-            pop[type_indices] = counts
-            #pop[(0,1)]
-            payoffs.append([np.dot(pop,payoff[t]) for t in types])
-        mcp_lists.append(payoffs)
-    mcp_matrix = np.array(mcp_lists)
-
+    mcp_matrix = payoff_to_mcp_matrix(payoff, pop_size, s)
     transition = np.zeros((type_count,)*2)
-    for matchup, payoff_by_parts_ in izip(type_indices_matchups, mcp_matrix):
+    for matchup, payoff_by_parts in izip(type_indices_matchups, mcp_matrix):
         a,b = matchup
+        pbp =  payoff_by_parts
+        #pbp = np.exp(s*payoff_by_parts)
 
-        accum_ab = 1
-        accum_ba = 1
-        payoff_by_parts = [softmax(p,s) for p in payoff_by_parts_]
-        for p_ab, p_ba in izip(payoff_by_parts,reversed(payoff_by_parts)):
+        ratios = np.divide(pbp[:,1],pbp[:,0])
 
-            assert len(p_ab)==2
-            assert all(p>=0 for p in p_ab+p_ba)
-            accum_ab *= p_ab[1]/p_ab[0]
-            accum_ab += 1
+        ab = ratios
+        ba = list(reversed(np.reciprocal(ratios)))
 
-            accum_ba *= p_ba[0]/p_ba[1]
-            accum_ba += 1
-
-        transition[a,b] = 1/(accum_ab*(type_count-1))
-        transition[b,a] = 1/(accum_ba*(type_count-1))
-
+        trans_fn = lambda seq: 1/((type_count-1)*(1+np.sum(np.cumprod(seq))))
+        transition[a,b] = trans_fn(ab)
+        transition[b,a] = trans_fn(ba)
 
     for i in range(type_count):
         transition[i,i] = 1-np.sum(transition[:,i])
@@ -273,7 +281,7 @@ def limit_analysis(payoff, pop_size, s, **kwargs):
     """
     type_count = len(payoff)
     # partition_count = partitions(pop_size, type_count)
-    transition = invasion_matrix(payoff, pop_size, s)    # print "transition"
+    transition = invasion_matrix2(payoff, pop_size, s)    # print "transition"
     # print transition
     ssd = steady_state(transition)
     return ssd
@@ -345,3 +353,6 @@ if __name__ == "__main__":
     print test_indirect_analysis()
 
 #[  9.99097317e-01   9.02682565e-04]
+
+
+
