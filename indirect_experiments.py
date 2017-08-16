@@ -11,7 +11,7 @@ import pandas as pd
 from utils import softmax_utility, softmax, normalized, memoized, logspace
 from functools import partial
 from evolve import limit_param_plot, limit_param_plot,limit_v_param
-from steady_state import all_partitions, steady_state, payoff_to_mcp_matrix
+from steady_state import all_partitions, steady_state, payoff_to_mcp_matrix, mcp_to_invasion
 from itertools import permutations,product,imap,chain,repeat, izip,starmap,combinations
 from math import factorial,ceil
 from multiprocessing import Pool
@@ -89,19 +89,7 @@ def indirect_game(player_types, counts, observability = 1, rounds = 50, tremble 
     #return [{"fitness_ratio":fitness_ratio}]
     return records
 
-def avg_payoff_per_type_from_matchup(matchup_data):
-    running_fitness = 0
-    fitness_per_round = []
 
-    for r, r_d in matchup_data.groupby('round'):
-        fitness = []
-        for i, (t, t_d) in enumerate(r_d.groupby('type')):
-            fitness.append(t_d['fitness'].mean())
-            
-        running_fitness += np.array(fitness)
-        fitness_per_round.append(np.array(running_fitness))
-        
-    return fitness_per_round[1:]
 
 @memoized
 def indirect_simulatorV2(player_types,rounds,*args,**kwargs):
@@ -302,6 +290,8 @@ def sim_ssd_v_rounds(player_types, rounds, **kwargs):
     record = []
     print kwargs
     rounds_to_expected_pop = indirect_analysis(player_types = player_types, rounds = rounds, **kwargs)
+
+    #for r,mcp in enumerate(rmcp)
     for rounds in rounds_to_expected_pop:
         for t,p in zip(player_types,rounds_to_expected_pop[rounds]):
             record.append({
@@ -315,8 +305,9 @@ def sim_ssd_v_rounds(player_types, rounds, **kwargs):
 @experiment(unpack = 'record', memoize = False, verbose = 3)
 def sim_ssd_limit_v_rounds(player_types, rounds, **kwargs):
     record = []
-    rounds_to_expected_pop = sim_limit_analysis2(player_types = player_types, rounds = rounds, **kwargs)
-    
+    rounds_to_expected_pop = sim_limit_analysis(player_types = player_types, rounds = rounds, **kwargs)
+
+
     for r in rounds_to_expected_pop:
         for t,p in zip(player_types, rounds_to_expected_pop[r]):
             record.append({
@@ -398,43 +389,15 @@ def image_contest():
 
 
 def sim_limit_analysis(player_types, pop_size, s, rounds, trials = 100, **kwargs):
-    pool = Pool(8)
-
-
-
-    #produce all elements along the edges of the population simplex
-    #does not include the homogeneous populations at the vertices
-    #ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
-    liminal_pops = [(i, pop_size-i) for i in range(1,pop_size)]
-
-    #all the pairings of two player_types, note these are combinations
-    unique_matchups = list(combinations(player_types,2))
-
-    matchups, counts = zip(*list(product(unique_matchups, liminal_pops)))
-
-    def part_to_argdict(matchup, count):
-        return dict(pop = count, player_types = matchup, rounds = rounds, trials = trials, **kwargs)
-
-    payoffs = pool.map(indirect_simulator_from_dict, imap(part_to_argdict, matchups, counts))
-
-    #make a mapping from matchup to list of lists of payoffs
-    #the first level is ordered by partitions
-    #the second layer is ordered by rounds
-
     type_indices_matchups = list(combinations(range(len(player_types)), 2))
-    rmcp = np.zeros((rounds, len(unique_matchups), len(liminal_pops), 2))
-
-    # Unpack the data into a giant matrix
-    for (m, c), p in zip(product(range(len(unique_matchups)), range(len(liminal_pops))), payoffs):
-        rmcp[:, m, c, :] = np.array(p)
-
+    rmcp = ana_to_rmcp(player_types, pop_size,rounds,trials,**kwargs)
     ssds = []
     for r in range(rounds):
-        invasion = invasion_matrix(type_indices_matchups, rmcp[r, :, :, :], s)
+        invasion = mcp_to_invasion(np.exp(s*rmcp[r, :, :, :]))
         ssds.append(steady_state(invasion))
     return dict(enumerate(ssds))
 
-def sim_to_rmcp(player_types, pop_size, s, rounds, trials = 100, **kwargs):
+def sim_to_rmcp(player_types, pop_size,rounds, trials, **kwargs):
     pool = Pool(8)
 
     #produce all elements along the edges of the population simplex
@@ -448,7 +411,7 @@ def sim_to_rmcp(player_types, pop_size, s, rounds, trials = 100, **kwargs):
     matchups, counts = zip(*list(product(unique_matchups, liminal_pops)))
 
     def part_to_argdict(matchup, count):
-        return dict(pop = count, player_types = matchup, rounds = rounds, trials = trials, **kwargs)
+        return dict(player_types = zip(matchup,count), rounds = rounds, trials = trials, **kwargs)
 
     payoffs = pool.map(indirect_simulator_from_dict, imap(part_to_argdict, matchups, counts))
 
@@ -463,62 +426,27 @@ def sim_to_rmcp(player_types, pop_size, s, rounds, trials = 100, **kwargs):
     for (m, c), p in zip(product(range(len(unique_matchups)), range(len(liminal_pops))), payoffs):
         rmcp[:, m, c, :] = np.array(p)
 
+    rmcp /= (pop_size-1)
     return rmcp
+  
+def avg_payoff_per_type_from_matchup(matchup_data):
+    running_fitness = 0
+    fitness_per_round = []
 
-def sim_limit_analysis2(player_types,pop_size,s,rounds,trials = 100, **kwargs):
+    for r, r_d in matchup_data.groupby('round'):
+        fitness = []
+        for i, (t, t_d) in enumerate(r_d.groupby('type')):
+            fitness.append(t_d['fitness'].mean())
+
+        running_fitness += np.array(fitness)
+        fitness_per_round.append(np.array(running_fitness)/r)
+
+    return fitness_per_round[1:]
+
+def ana_to_rmcp(player_types,pop_size,rounds,trials, **kwargs):
     payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, trials = trials, **kwargs)
-    rmcp = np.array([payoff_to_mcp_matrix(payoff,pop_size,s) for r,payoff in payoffs])
-    ssds = []
-    type_indices_matchups = list(combinations(range(len(player_types)), 2))
-    for mcp in rmcp:
-        invasion = invasion_matrix(type_indices_matchups, mcp, s)
-        ssds.append(steady_state(invasion))
-    return dict(enumerate(ssds))
-
-def invasion_matrix(type_indices_matchups, mcp_matrix, s):
-    """
-    type_indices_matchups, a list of the matchups where instead of the type, it's index is in it's position
-    mcp_matrix is a matchup x count x payoff, matrix
-
-    a matchup is the combination of agent types involved,
-    a count is the ordered population composition
-    a payoff is the vector of payoffs to each of the participating agents for that matchup and population composition
-    """
-    type_count = np.max(type_indices_matchups) + 1
-    transition = np.zeros((type_count,)*2)
-
-    
-    #this only works because invasion matrices are a ratio of payoffs
-    #mcp_matrix = np.exp(s*mcp_matrix)
-    #print mcp_matrix
-    for matchup, payoff_by_parts in izip(type_indices_matchups, mcp_matrix):
-        a,b = matchup
-        #pbp =  payoff_by_parts
-        #pbp = np.array([softmax(p,s) for p in pbp])
-        print "here", payoff_by_parts
-        #pbp = np.exp(s*payoff_by_parts)
-        pbp = np.array([softmax(v,s) for v in payoff_by_parts])
-        print "there", pbp
-
-        ratios = np.divide(pbp[:,1],pbp[:,0])
-
-        ab = ratios
-        ba = list(reversed(np.reciprocal(ratios)))
-
-        trans_fn = lambda seq: 1/((type_count-1)*(1+np.sum(np.cumprod(seq))))
-        transition[a,b] = trans_fn(ab)
-        transition[b,a] = trans_fn(ba)
-
-    for i in range(type_count):
-        transition[i,i] = 1-np.sum(transition[:,i])
-        try:
-            np.testing.assert_approx_equal(np.sum(transition[:,i]),1)
-        except:
-            print transition[:,i]
-            print np.sum(transition[:,i])
-            raise
-    return transition
-
+    rmcp = np.array([payoff_to_mcp_matrix(payoff,pop_size) for r,payoff in payoffs])
+    return rmcp
 
 def test_sim_limit_analysis():
     
@@ -528,13 +456,13 @@ def test_sim_limit_analysis():
     #rounds/((pop-1)*2) = avg interactions per agent
     aipa = avg_interaction_per_agent = 2.5
 
-    rounds = int(ceil(aipa*(pop_size-1)*2))
-    #rounds = 50
+    #rounds = int(ceil(aipa*(pop_size-1)*2))
+    rounds = 50
 
     opponents = (AllC,AllD)
     types = (WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)+opponents
     params = dict(param = 'rounds',
-                  player_types = types,
+                  player_types = tuple(sorted(types)),
                   tremble = .05,
                   benefit = 10,
                   s = 1,
@@ -547,7 +475,7 @@ def test_sim_limit_analysis():
     classic_params = dict(experiment = limit_v_param, max_rounds = rounds, analysis = "limit", file_name = "heatmap", **params)
     limit_param_plot(analysis = 'limit', **sim_params)
     #limit_param_plot(analysis = 'complete', **sim_params)
-    #limit_param_plot(**classic_params)
+    limit_param_plot(**classic_params)
 
 
     # c = sim_complete_analysis_per_round(**params)
@@ -565,24 +493,24 @@ def mmpr_to_cumulative_payoff(pop, mmpr):
     pop_size = sum(pop)
 
     for r, payoffs in mmpr:
-        pay = [np.dot(counts-I[t], payoffs[t])*r for t in [0,1]]
-        print payoffs
+        pay = [np.dot(counts-I[t], payoffs[t])/(pop_size-1) for t in [0,1]]
         cumulatives.append(pay)
         
     return cumulatives
 
-def test_mcp_creation():
+def test_rmcp_creation():
     rounds = 50
     pop_size = 10
     opponents = (AllD,AllC)
     types = opponents#+(WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)#+opponents
     params = dict(param = 'rounds',
-                  player_types = types,
+                  player_types = tuple(sorted(types)),
                   tremble = .05,
                   benefit = 10,
+                  rounds = 50,
                   s = 1,
                   pop_size = pop_size,
-                  trials = [1]
+                  trials = 1
     )
 
 
@@ -591,25 +519,26 @@ def test_mcp_creation():
     make mcp from payoffs
     """
 
-    payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, trials = trials, **kwargs)
-    rmcp = np.array([payoff_to_mcp_matrix(payoff,pop_size,s) for r,payoff in payoffs])
+    ana_rmcp = ana_to_rmcp(**params)
 
 
     """
     make mcp from simulation results
     """
 
+    sim_rmcp = sim_to_rmcp(**params)
+
+    print zip(ana_rmcp[0],sim_rmcp[0])
 
 
 def test_matchup_to_avg():
-    rounds = 10
-    pop_size = 2
+    rounds = 50
+    pop_size = 10
     opponents = (AllD,)
-    # types = opponents+(WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)#+opponents
-    types = opponents+(AllC, )
+    types = opponents+(WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)#+opponents
+    #types = opponents+(AllC, )
     types = tuple(sorted(types))
     params = dict(param = 'rounds',
-                  player_types = types,
                   tremble = .0,
                   benefit = 10,
                   s = 1,
@@ -617,15 +546,17 @@ def test_matchup_to_avg():
                   trials = [1]
     )
 
-    pop = (1,1)
-    m_d = matchup(per_round = True, pop = pop, rounds = rounds, **params)
+    pop = (5,5)
+    m_d = matchup(player_types = zip(types,pop), per_round = True, rounds = rounds, **params)
     print "run once"
     m = avg_payoff_per_type_from_matchup(m_d)
-    mm = mmpr_to_cumulative_payoff(pop, matchup_matrix_per_round(max_rounds = rounds, **params))
+    mm = mmpr_to_cumulative_payoff(pop, matchup_matrix_per_round(player_types = types, max_rounds = rounds, **params))
     assert len(mm) == len(m)
 
     for r, (mat,vec) in enumerate(zip(mm,m)):
-        print r, "ana", mat, "sim",vec
+        print r
+        print "ana", mat
+        print "sim",vec/(pop_size-1)
     
 
 
@@ -637,8 +568,8 @@ if __name__ == "__main__":
     #image_contest()
     #sim_invasion_matrix(0,"ABCD",5,0,10)
     #test_sanity()
-    #test_sim_limit_analysis()
+    test_sim_limit_analysis()
+    #test_rmcp_creation()
     
-    
-     test_matchup_to_avg()
+     #test_matchup_to_avg()
 

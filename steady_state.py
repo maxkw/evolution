@@ -211,7 +211,7 @@ def invasion_matrix(payoff, pop_size, s):
             raise
     return transition
 
-def payoff_to_mcp_matrix(payoff,pop_size,s):
+def payoff_to_mcp_matrix(payoff,pop_size):
     """
     this takes a TxT matrix that gives the payoff to t1 when facing t2 into a
     matchup->composition->payoff matrix, which goes from the
@@ -233,7 +233,7 @@ def payoff_to_mcp_matrix(payoff,pop_size,s):
         
         #print type_indices
         for counts in liminal_pops:
-            pay = np.exp(s*np.array([np.dot(counts-I[t][type_indices],payoff[t][type_indices])/(pop_size-1) for t in types]))
+            pay = np.array([np.dot(counts-I[t][type_indices],payoff[t][type_indices])/(pop_size-1) for t in types])
             payoffs.append(pay)
         mcp_lists.append(payoffs)
     mcp_matrix = np.array(mcp_lists)
@@ -248,12 +248,51 @@ def invasion_matrix2(payoff, pop_size, s):
     """
     type_count = len(payoff)
     type_indices_matchups = list(combinations(range(type_count), 2))
-    mcp_matrix = payoff_to_mcp_matrix(payoff, pop_size, s)
+    mcp_matrix = payoff_to_mcp_matrix(payoff, pop_size)
+    mcp_matrix = np.exp(s*mcp_matrix)
     transition = np.zeros((type_count,)*2)
     for matchup, payoff_by_parts in izip(type_indices_matchups, mcp_matrix):
         a,b = matchup
         pbp =  payoff_by_parts
-        #pbp = np.exp(s*payoff_by_parts)
+
+        ratios = np.divide(pbp[:,1],pbp[:,0])
+
+        ab = ratios
+        ba = list(reversed(np.reciprocal(ratios)))
+
+        trans_fn = lambda seq: 1/((type_count-1)*(1+np.sum(np.cumprod(seq))))
+        transition[a,b] = trans_fn(ab)
+        transition[b,a] = trans_fn(ba)
+
+    for i in range(type_count):
+        transition[i,i] = 1-np.sum(transition[:,i])
+        try:
+            np.testing.assert_approx_equal(np.sum(transition[:,i]),1)
+        except:
+            print transition[:,i]
+            print np.sum(transition[:,i])
+            raise
+    return transition
+
+def mcp_to_invasion(mcp):
+    """
+    type_indices_matchups, a list of the matchups where instead of the type, it's index is in it's position
+    mcp_matrix is a matchup x count x payoff, matrix
+
+    a matchup is the combination of agent types involved,
+    a count is the ordered population composition
+    a payoff is the vector of payoffs to each of the participating agents for that matchup and population composition
+    """
+    
+    type_count = mcp.shape[-1]+1
+    type_indices_matchups = list(combinations(range(type_count), 2))
+    transition = np.zeros((type_count,)*2)
+
+    for matchup, payoff_by_parts in izip(type_indices_matchups, mcp):
+        a,b = matchup
+        
+
+        pbp = payoff_by_parts
 
         ratios = np.divide(pbp[:,1],pbp[:,0])
 
@@ -279,13 +318,12 @@ def limit_analysis(payoff, pop_size, s, **kwargs):
     calculates the steady state under low mutation
     where the states correspond to the homogeneous strategy in the same order as in payoff
     """
-    type_count = len(payoff)
-    # partition_count = partitions(pop_size, type_count)
-    transition = invasion_matrix2(payoff, pop_size, s)    # print "transition"
-    # print transition
-    ssd = steady_state(transition)
-    return ssd
+    mcp = payoff_to_mcp_matrix(payoff, pop_size)
+    return steady_state(mcp_to_invasion(np.exp(s*mcp)))
 
+def mcp_to_ssd(mcp,s):
+    transition = mcp_to_invasion(np.exp(s*mcp))
+    return steady_state(transition)
 
 def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
     """
