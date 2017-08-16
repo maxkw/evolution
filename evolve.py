@@ -139,16 +139,16 @@ def limit_v_rounds_old(player_types, max_rounds = 100,  **kwargs):
 @experiment(unpack = 'record', memoize = False, verbose = 3)
 def limit_v_rounds(player_types, max_rounds, s, pop_size,  **kwargs):
     payoffs = matchup_matrix_per_round(player_types, max_rounds = max_rounds, **kwargs)
-    rmcp = [(r,payoff_to_mcp_matrix(payoff,pop_size)) for r,payoff in payoffs]
+    rmcp = [(r,payoff_to_mcp_matrix(payoff,pop_size)) for r, payoff in payoffs]
     #rmcp = ana_to_rmcp(player_types, pop_size,rounds,trials,**kwargs)
     record = []
     
     for r, mcp in rmcp:
-        for t,p in zip(player_types, mcp_to_ssd(mcp,s)):
+        for t,p in zip(player_types, mcp_to_ssd(mcp, s)):
             record.append({
-                'rounds':r,
-                "type":t.short_name("agent_types"),
-                "proportion":p
+                'rounds': r,
+                "type": t.short_name("agent_types"),
+                "proportion": p
             })
     return record
 
