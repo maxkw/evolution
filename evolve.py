@@ -12,7 +12,7 @@ from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,ma
 from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from steady_state import limit_analysis, complete_analysis, payoff_to_mcp_matrix, mcp_to_ssd
+from steady_state import limit_analysis, complete_analysis, mm_to_limit_mcp, mcp_to_ssd
 import pandas as pd
 from datetime import date
 from agents import leading_8_dict,shorthand_to_standing
@@ -107,7 +107,7 @@ def limit_v_sim_param(param, player_types, **kwargs):
 
     record = []
     for x in Xs:
-        payoffs = matchup_matrix(player_types = player_types, **dict(kwargs,**{param:x}))
+        payoffs = -matchup_matrix(player_types = player_types, **dict(kwargs,**{param:x}))
 
         for t,p in zip(player_types, limit_analysis(payoffs, **default_params(**{param:x}))):
             record.append({
@@ -139,7 +139,7 @@ def limit_v_rounds_old(player_types, max_rounds = 100,  **kwargs):
 @experiment(unpack = 'record', memoize = False, verbose = 3)
 def limit_v_rounds(player_types, max_rounds, s, pop_size,  **kwargs):
     payoffs = matchup_matrix_per_round(player_types, max_rounds = max_rounds, **kwargs)
-    rmcp = [(r,payoff_to_mcp_matrix(payoff,pop_size)) for r, payoff in payoffs]
+    rmcp = [(r,mm_to_limit_mcp(payoff,pop_size)) for r, payoff in payoffs]
     #rmcp = ana_to_rmcp(player_types, pop_size,rounds,trials,**kwargs)
     record = []
     

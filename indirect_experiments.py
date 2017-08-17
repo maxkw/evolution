@@ -11,13 +11,74 @@ import pandas as pd
 from utils import softmax_utility, softmax, normalized, memoized, logspace
 from functools import partial
 from evolve import limit_param_plot, limit_param_plot,limit_v_param
-from steady_state import all_partitions, steady_state, payoff_to_mcp_matrix, mcp_to_invasion
+from steady_state import all_partitions, steady_state, mm_to_limit_mcp, mcp_to_invasion
 from itertools import permutations,product,imap,chain,repeat, izip,starmap,combinations
 from math import factorial,ceil
 from multiprocessing import Pool
 from games import RepeatedPrisonersTournament
 from experiments import matchup, matchup_matrix_per_round
 
+
+def image_contest():
+    pop_size = 20
+    rounds = 50
+    
+
+    unique_interactions =  factorial(pop_size)/factorial(pop_size-2)
+    assert unique_interactions >= rounds
+
+    opponent_types = (
+        AllD,
+        AllC,
+    )
+    W = WeAgent
+    S = shorthand_to_standing("ggggbbbbynyn")
+
+    shorthand_name_pairs = (
+        ("ggggbbbb", "Scoring"),
+        ("ggggbgbb", "Standing"),
+        ("gbgbbgbb", "Judging"),
+        ("gbgbbbbb", "Shunning"))
+    default_action = "ynyn"
+
+    named_imagers = []
+    for s,n in shorthand_name_pairs:
+        t = shorthand_to_standing(s+default_action)
+        t._nickname = n
+        named_imagers.append(t)
+    #named_imagers = tuple(named_imagers)
+
+    standing_types = tuple(s_type for name,s_type in sorted(leading_8_dict().iteritems(),key = lambda x:x[0]))
+    
+   
+    #+standing_types#[0:1]
+
+    WeRange = [WeAgent(agent_types = ('self',)+opponent_types, beta = b, RA_prior = p)
+                for b,p in product([3,5,10],[.25,.5,.75])]
+
+    player_types = [WeAgent(agent_types = ('self',)+opponent_types, beta = 10, RA_prior = .5),
+                    #S
+    ]+named_imagers
+
+    #player_types = WeRange#+named_imagers
+
+    for s in [1]:#range(len(player_types)+1):
+        pt = player_types
+        for t in [#0,
+                  .05
+        ]:
+            limit_param_plot(
+                'rounds',
+                experiment = compare_sim_ssd_v_param,
+                player_types = pt,
+                opponent_types = opponent_types,
+                tremble = .05,
+                rounds = rounds,
+                benefit = 10,
+                s = s,
+                pop_size = pop_size
+            )
+            break
 
 # def sim_complete_analysis(simulator, types,  pop_size, s, **kwargs):
 #     """
@@ -82,8 +143,21 @@ from experiments import matchup, matchup_matrix_per_round
 #     return expected_pop_per_round
 
 @experiment(unpack = 'record', memoize = False, verbose = 3)
-def sim_ssd_v_param(param, player_types, **kwargs):
+def sim_ssd_v_param(param, player_types, direct = False, **kwargs):
+    """
+    This should be optimized to reflect the fact that
+    in terms of complexity
+    rounds>s>=pop_size>=anything_else
 
+    for 'rounds' you do a single analysis and then plot each round
+    for 's' you should only make the RMCP once and then do the analysis for different s
+    for 'pop_size',
+       in direct reciprocity you only need to make the payoff matrix once
+       in indirect you need to make an rmcp for each value of pop_size
+    for anything else, the whole thing needs to be rerun
+
+
+    """
     # Test to make sure each agent interacts with a new agent each
     # time. Otherwise its not true 'indirect' reciprocity.
     unique_interactions = kwargs['pop_size'] * (kwargs['pop_size'] - 1)
@@ -93,8 +167,8 @@ def sim_ssd_v_param(param, player_types, **kwargs):
     record = []
 
     if param == "rounds":
-        expected_pop_per_round = sim_limit_analysis(player_types = player_types, **kwargs)
-        for r, pop in enumerate(expected_pop_per_round):
+        expected_pop_per_round = limit_analysis(player_types = player_types, direct = direct, **kwargs)
+        for r, pop in enumerate(expected_pop_per_round,start = 1):
             for t, p in zip(player_types, pop):
                 record.append({
                     'rounds': r,
@@ -119,7 +193,7 @@ def sim_ssd_v_param(param, player_types, **kwargs):
         raise Exception("Unknown param provided")
 
     for x in Xs:
-        for t, p in zip(player_types, sim_limit_analysis(types = player_types, **dict(kwargs,**{param:x}))[-1]):
+        for t, p in zip(player_types, limit_analysis(types = player_types, direct = direct, **dict(kwargs,**{param:x}))[-1]):
             record.append({
                 param: x,
                 "type": t.short_name("agent_types"),
@@ -127,14 +201,7 @@ def sim_ssd_v_param(param, player_types, **kwargs):
             })
     return record
 
-@memoized
-def indirect_simulator(player_types, rounds, *args, **kwargs):
-    matchup_data = matchup(per_round = True, player_types = player_types, rounds = rounds, *args, **kwargs)
-    fitness_per_round = avg_payoff_per_type_from_matchup(matchup_data)
-    return fitness_per_round
-
-def indirect_simulator_from_dict(d):
-    return indirect_simulator(**d)
+def 
 
 def compare_sim_ssd_v_param(param, player_types, opponent_types, **kwargs):
     dfs = []
@@ -143,128 +210,98 @@ def compare_sim_ssd_v_param(param, player_types, opponent_types, **kwargs):
         dfs.append(df[df['type']==player_type.short_name("agent_types")])
     return pd.concat(dfs, ignore_index = True)
 
+def mmpr_to_cumulative_payoff(pop, mmpr):
+    cumulatives = []
+    I = np.identity(len(pop))
+    counts = np.array(pop)
+    pop_size = sum(pop)
 
-def image_contest():
-    pop_size = 20
-    rounds = 50
-    
-
-    unique_interactions =  factorial(pop_size)/factorial(pop_size-2)
-    assert unique_interactions >= rounds
-
-    opponent_types = (
-        AllD,
-        AllC,
-    )
-    W = WeAgent
-    S = shorthand_to_standing("ggggbbbbynyn")
-
-    shorthand_name_pairs = (
-        ("ggggbbbb", "Scoring"),
-        ("ggggbgbb", "Standing"),
-        ("gbgbbgbb", "Judging"),
-        ("gbgbbbbb", "Shunning"))
-    default_action = "ynyn"
-
-    named_imagers = []
-    for s,n in shorthand_name_pairs:
-        t = shorthand_to_standing(s+default_action)
-        t._nickname = n
-        named_imagers.append(t)
-    #named_imagers = tuple(named_imagers)
-
-    standing_types = tuple(s_type for name,s_type in sorted(leading_8_dict().iteritems(),key = lambda x:x[0]))
-    
-   
-    #+standing_types#[0:1]
-
-    WeRange = [WeAgent(agent_types = ('self',)+opponent_types, beta = b, RA_prior = p)
-                for b,p in product([3,5,10],[.25,.5,.75])]
-
-    player_types = [WeAgent(agent_types = ('self',)+opponent_types, beta = 10, RA_prior = .5),
-                    #S
-    ]+named_imagers
-
-    #player_types = WeRange#+named_imagers
-
-    for s in [1]:#range(len(player_types)+1):
-        pt = player_types
-        for t in [#0,
-                  .05
-        ]:
-            limit_param_plot(
-                'rounds',
-                experiment = compare_sim_ssd_v_param,
-                player_types = pt,
-                opponent_types = opponent_types,
-                tremble = .05,
-                rounds = rounds,
-                benefit = 10,
-                s = s,
-                pop_size = pop_size
-            )
-            break
-
-
-def sim_limit_analysis(player_types, pop_size, s, rounds, trials = 100, **kwargs):
-    rmcp = sim_to_rmcp(player_types, pop_size, rounds, trials, **kwargs)
-
-    ssds = []
-    for r, mcp in enumerate(rmcp):
-        ssds.append(mcp_to_ssd(mcp, s))
+    for r, payoffs in mmpr:
+        pay = [np.dot(counts-I[t], payoffs[t])/(pop_size-1) for t in [0,1]]
+        cumulatives.append(pay)
         
-    return ssds
+    return cumulatives
 
-def sim_to_rmcp(player_types, pop_size,rounds, trials, **kwargs):
-    pool = Pool(8)
-
-    #produce all elements along the edges of the population simplex
-    #does not include the homogeneous populations at the vertices
-    #ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
-    liminal_pops = [(i, pop_size-i) for i in range(1,pop_size)]
-
-    #all the pairings of two player_types, note these are combinations
-    unique_matchups = list(combinations(player_types,2))
-
-    matchups, counts = zip(*list(product(unique_matchups, liminal_pops)))
-
-    def part_to_argdict(matchup, count):
-        return dict(player_types = zip(matchup,count), rounds = rounds, trials = trials, **kwargs)
-
-    payoffs = pool.map(indirect_simulator_from_dict, imap(part_to_argdict, matchups, counts))
-
-    #make a mapping from matchup to list of lists of payoffs
-    #the first level is ordered by partitions
-    #the second layer is ordered by rounds
-
-    type_indices_matchups = list(combinations(range(len(player_types)), 2))
-    rmcp = np.zeros((rounds, len(unique_matchups), len(liminal_pops), 2))
-
-    # Unpack the data into a giant matrix
-    for (m, c), p in zip(product(range(len(unique_matchups)), range(len(liminal_pops))), payoffs):
-        rmcp[:, m, c, :] = np.array(p)
-
-    rmcp /= (pop_size-1)
-    return rmcp
-  
-def avg_payoff_per_type_from_matchup(matchup_data):
+def avg_payoff_per_type_from_sim(sim_data):
     running_fitness = 0
     fitness_per_round = []
+    pop_size = max(sim_data['id'].unique())+1
 
-    for r, r_d in matchup_data.groupby('round'):
+    for r, r_d in sim_data.groupby('round'):
         fitness = []
         for i, (t, t_d) in enumerate(r_d.groupby('type')):
             fitness.append(t_d['fitness'].mean())
 
         running_fitness += np.array(fitness)
-        fitness_per_round.append(np.array(running_fitness)/r)
+        fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
 
     return fitness_per_round[1:]
 
-def ana_to_rmcp(player_types,pop_size,rounds,trials, **kwargs):
-    payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, trials = trials, **kwargs)
-    rmcp = np.array([payoff_to_mcp_matrix(payoff,pop_size) for r,payoff in payoffs])
+@memoized
+def indirect_simulator(player_types, rounds, *args, **kwargs):
+    sim_data = matchup(per_round = True, player_types = player_types, rounds = rounds, *args, **kwargs)
+    fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
+    return fitness_per_round
+
+def indirect_simulator_from_dict(d):
+    return indirect_simulator(**d)
+
+def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
+    pool = Pool(8)
+
+    assert player_types == sorted(player_types)
+    #produce all elements along the edges of the population simplex
+    #does not include the homogeneous populations at the vertices
+    #ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
+    populations = [(i, pop_size-i) for i in range(1,pop_size)]
+    #player_types = sorted(player_types)
+    #all the pairings of two player_types, note these are combinations
+    matchups = list(combinations(player_types,2))
+    
+    #this is the same as above, except that each type is replaced by it's index in the 'player_types' list
+    type_indices_matchups = list(combinations(range(len(player_types)), 2))
+
+    matchup_list, population = zip(*list(product(matchups, populations)))
+    matchup_pop_pairs = list(product(matchups,populations))
+
+    def part_to_argdict(matchup_pop_pair):
+        return dict(player_types = zip(*matchup_pop_pair), rounds = rounds, **kwargs)
+
+    payoffs = pool.map(indirect_simulator_from_dict, imap(part_to_argdict, matchup_pop_pairs))
+
+    #make a mapping from matchup to list of lists of payoffs
+    #the first level is ordered by partitions
+    #the second layer is ordered by rounds
+
+    # Unpack the data into a giant matrix
+    rmcp = np.zeros((rounds, len(matchups), len(populations), 2))
+    for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
+        rmcp[:, m, c, :] = np.array(p)
+
     return rmcp
+
+def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
+    payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
+    rmcp = np.array([mm_to_limit_mcp(payoff,pop_size) for r,payoff in payoffs])
+    return rmcp
+
+def limit_analysis(player_types, s, direct = False, **kwargs):
+    type_to_index = dict(map(reversed,enumerate(sorted(player_types))))
+    original_order = np.array([type_to_index[t] for t in player_types])
+    player_types = sorted(player_types)
+
+    if direct:
+        rmcp = ana_to_limit_rmcp(player_types, **kwargs)
+    else:
+        rmcp = sim_to_limit_rmcp(player_types, **kwargs)
+
+    rmcp = np.exp(s*rmcp)
+    ssds = []
+
+    for r, mcp in enumerate(rmcp):
+        ssds.append(steady_state(mcp_to_invasion(mcp)))
+    return np.array(ssds)[:,original_order]
+
 
 def test_sim_limit_analysis():
     
@@ -282,39 +319,19 @@ def test_sim_limit_analysis():
     opponents = (AllC,AllD)
     types = (WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)+opponents
     params = dict(param = 'rounds',
-                  player_types = tuple(sorted(types)),
+                  player_types = types,#tuple(sorted(types)),
                   tremble = 0,
                   benefit = 10,
                   s = 1,
                   pop_size = pop_size,
     )
 
-    sim_params = dict(experiment = sim_ssd_v_param, rounds = rounds, file_name = "sim",  **params)
-    classic_params = dict(experiment = limit_v_param, max_rounds = rounds, analysis = "limit", file_name = "heatmap", **params)
-    limit_param_plot(analysis = 'limit', **sim_params)
-    #limit_param_plot(analysis = 'complete', **sim_params)
+    ana_params = dict(experiment = sim_ssd_v_param, rounds = rounds, direct = True,  **params)
+    sim_params = dict(experiment = sim_ssd_v_param, rounds = rounds, direct = False,  **params)
+    classic_params = dict(experiment = limit_v_param, max_rounds = rounds, **params)
+    limit_param_plot(**sim_params)
+    limit_param_plot(**ana_params)
     limit_param_plot(**classic_params)
-
-
-    # c = sim_complete_analysis_per_round(**params)
-    #l = sim_limit_analysis(**params)
-
-    #for r in xrange(1,50):
-        # print c[r],l[r]
-    #    print l[r]
-
-
-def mmpr_to_cumulative_payoff(pop, mmpr):
-    cumulatives = []
-    I = np.identity(len(pop))
-    counts = np.array(pop)
-    pop_size = sum(pop)
-
-    for r, payoffs in mmpr:
-        pay = [np.dot(counts-I[t], payoffs[t])/(pop_size-1) for t in [0,1]]
-        cumulatives.append(pay)
-        
-    return cumulatives
 
 def test_rmcp_creation():
     rounds = 50
@@ -344,37 +361,10 @@ def test_rmcp_creation():
     make mcp from simulation results
     """
 
-    sim_rmcp = sim_to_rmcp(**params)
+    sim_rmcp = sim_to_limit_rmcp(**params)
 
     print zip(ana_rmcp[0],sim_rmcp[0])
 
-
-def test_matchup_to_avg():
-    rounds = 50
-    pop_size = 10
-    opponents = (AllD,)
-    types = opponents+(WeAgent(RA_prior = .5, beta = 10, agent_types = ('self',)+opponents),)#+opponents
-    #types = opponents+(AllC, )
-    types = tuple(sorted(types))
-    params = dict(param = 'rounds',
-                  tremble = .0,
-                  benefit = 10,
-                  s = 1,
-                  pop_size = pop_size,
-                  trials = [1]
-    )
-
-    pop = (5,5)
-    m_d = matchup(player_types = zip(types,pop), per_round = True, rounds = rounds, **params)
-    print "run once"
-    m = avg_payoff_per_type_from_matchup(m_d)
-    mm = mmpr_to_cumulative_payoff(pop, matchup_matrix_per_round(player_types = types, max_rounds = rounds, **params))
-    assert len(mm) == len(m)
-
-    for r, (mat,vec) in enumerate(zip(mm,m)):
-        print r
-        print "ana", mat
-        print "sim",vec/(pop_size-1)
     
 
 

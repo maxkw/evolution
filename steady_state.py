@@ -211,7 +211,7 @@ def invasion_matrix(payoff, pop_size, s):
             raise
     return transition
 
-def payoff_to_mcp_matrix(payoff,pop_size):
+def mm_to_limit_mcp(payoff,pop_size):
     """
     this takes a TxT matrix that gives the payoff to t1 when facing t2 into a
     matchup->composition->payoff matrix, which goes from the
@@ -238,41 +238,6 @@ def payoff_to_mcp_matrix(payoff,pop_size):
         mcp_lists.append(payoffs)
     mcp_matrix = np.array(mcp_lists)
     return mcp_matrix
-
-
-def invasion_matrix2(payoff, pop_size, s):
-    """
-    returns a matrix M of size TxT where M[a,b] is the probability of a homogeneous population of a becoming
-    a homogeneous population of b under weak mutation
-    types in this matrix are ordered as in 'payoff'
-    """
-    type_count = len(payoff)
-    type_indices_matchups = list(combinations(range(type_count), 2))
-    mcp_matrix = payoff_to_mcp_matrix(payoff, pop_size)
-    mcp_matrix = np.exp(s*mcp_matrix)
-    transition = np.zeros((type_count,)*2)
-    for matchup, payoff_by_parts in izip(type_indices_matchups, mcp_matrix):
-        a,b = matchup
-        pbp =  payoff_by_parts
-
-        ratios = np.divide(pbp[:,1],pbp[:,0])
-
-        ab = ratios
-        ba = list(reversed(np.reciprocal(ratios)))
-
-        trans_fn = lambda seq: 1/((type_count-1)*(1+np.sum(np.cumprod(seq))))
-        transition[a,b] = trans_fn(ab)
-        transition[b,a] = trans_fn(ba)
-
-    for i in range(type_count):
-        transition[i,i] = 1-np.sum(transition[:,i])
-        try:
-            np.testing.assert_approx_equal(np.sum(transition[:,i]),1)
-        except:
-            print transition[:,i]
-            print np.sum(transition[:,i])
-            raise
-    return transition
 
 def mcp_to_invasion(mcp):
     """

@@ -209,8 +209,8 @@ def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
                 payoffs[p,o] += trials.mean()['fitness']
         payoffs_list.append(copy(payoffs))
 
-    for i,p in enumerate(payoffs_list,start=1):
-        p/=i
+    for r,p in enumerate(payoffs_list,start=1):
+        p/=r
     return list(enumerate(payoffs_list,start=1))
 
 
