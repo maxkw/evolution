@@ -1,7 +1,7 @@
 from __future__ import division
 from collections import Counter, defaultdict
 from itertools import product, permutations, izip
-from utils import normalized, softmax, excluding_keys, logspace, int_logspace
+from utils import normalized, softmax, excluding_keys, logspace, int_logspace, memoized
 from math import factorial
 import numpy as np
 from copy import copy
@@ -12,10 +12,10 @@ from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,ma
 from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from steady_state import limit_analysis, complete_analysis, mm_to_limit_mcp, mcp_to_ssd
+from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion
 import pandas as pd
 from datetime import date
-from agents import leading_8_dict,shorthand_to_standing
+from agents import leading_8_dict, shorthand_to_standing
 
 def agent_sim(payoff, pop, s, mu):
     pop_size = sum(pop)
@@ -71,113 +71,166 @@ def sim_plotter(generations, pop, player_types, data =[]):
     plt.legend()
 
 @experiment(unpack = 'record', memoize = False, verbose = 3)
-def limit_v_evo_param(param, player_types, **kwargs):
-    payoffs = matchup_matrix(player_types = player_types, **kwargs)
-    # matchup_plot(player_types = player_types, **kwargs)
+def ssd_v_param(param, player_types, direct = False, **kwargs):
+    """
+    This should be optimized to reflect the fact that
+    in terms of complexity
+    rounds=s>=pop_size>=anything_else
 
-    if param == 'pop_size':
-        Xs = np.unique(np.geomspace(2, 2**10, 200, dtype=int))
-    elif param == 's':
-        Xs = logspace(start = .001, stop = 10, samples = 100)
-    else:
-        print param
-        raise
-
-    params = default_params(**kwargs)
-    
-    record = []
-    for x in Xs:
-        params[param] = x
-        for t, p in zip(player_types, limit_analysis(payoffs, **params)):
-            record.append({
-                param : x,
-                "type" : t.short_name("agent_types"),
-                "proportion" : p
-            })
-    return record
-
-@experiment(unpack = 'record', memoize = False, verbose = 3)
-def limit_v_sim_param(param, player_types, **kwargs):
-    if param == "RA_prior":
-        Xs = np.linspace(0,1,21)[1:-1]
-    elif param == "beta":
-        Xs = logspace(.5,6,11)
-    else:
-        raise
-
-    record = []
-    for x in Xs:
-        payoffs = -matchup_matrix(player_types = player_types, **dict(kwargs,**{param:x}))
-
-        for t,p in zip(player_types, limit_analysis(payoffs, **default_params(**{param:x}))):
-            record.append({
-                param:x,
-                "type":t.short_name("agent_types"),
-                "proportion":p
-            })
-    return record
+    for 'rounds' you do a single analysis and then plot each round
+    for 's' you should only make the RMCP once and then do the analysis for different s
+    for 'pop_size',
+       in direct reciprocity you only need to make the payoff matrix once
+       in indirect you need to make an rmcp for each value of pop_size
+    for anything else, the whole thing needs to be rerun
 
 
+    """
+    # Test to make sure each agent interacts with a new agent each
+    # time. Otherwise its not true 'indirect' reciprocity.
+    unique_interactions = kwargs['pop_size'] * (kwargs['pop_size'] - 1)
+    if unique_interactions <= kwargs['rounds']:
+        raise Exception("There are more rounds than unique interactions. Raise pop_size or lower rounds.")
 
-@experiment(unpack = 'record', memoize = False, verbose = 3)
-def limit_v_rounds_old(player_types, max_rounds = 100,  **kwargs):
-    matrices = matchup_matrix_per_round(player_types, max_rounds = max_rounds, **kwargs)
-    params = default_params(**kwargs)
+    Xs = {
+        # 'RA_prior': np.linspace(0,1,21)[1:-1],
+        'RA_prior': np.linspace(0, 1, 21),
+        'benefit': [1.5, 2, 2.5, 3],
+        'beta': np.linspace(1, 11, 6),
+        'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
+        's': logspace(start = .001, stop = 1, samples = 100)
+    }
     record = []
     
-    for r, payoff in matrices:
+    if param == "rounds":
+        expected_pop_per_round = limit_analysis(player_types = player_types, direct = direct, **kwargs)
+        for r, pop in enumerate(expected_pop_per_round, start = 1):
+            for t, p in zip(player_types, pop):
+                record.append({
+                    'rounds': r,
+                    'type': t.short_name('agent_types'),
+                    'proportion': p
+                })
 
-        for t,p in zip(player_types, limit_analysis(payoff, **params)):
-            record.append({
-                'rounds':r,
-                "type":t.short_name("agent_types"),
-                "proportion":p
-            })
-    return record
+        return record
 
+    elif param in Xs:
+        for x in Xs[param]:
+            ssd = limit_analysis(player_types = player_types, direct = direct, **dict(kwargs,**{param:x}))[-1]
+            for t, p in zip(player_types, ssd):
+                record.append({
+                    param: x,
+                    "type": t.short_name("agent_types"),
+                    "proportion": p
+                })
+        return record
 
-@experiment(unpack = 'record', memoize = False, verbose = 3)
-def limit_v_rounds(player_types, max_rounds, s, pop_size,  **kwargs):
-    payoffs = matchup_matrix_per_round(player_types, max_rounds = max_rounds, **kwargs)
-    rmcp = [(r,mm_to_limit_mcp(payoff,pop_size)) for r, payoff in payoffs]
-    #rmcp = ana_to_rmcp(player_types, pop_size,rounds,trials,**kwargs)
-    record = []
-    
-    for r, mcp in rmcp:
-        for t,p in zip(player_types, mcp_to_ssd(mcp, s)):
-            record.append({
-                'rounds': r,
-                "type": t.short_name("agent_types"),
-                "proportion": p
-            })
-    return record
-
-def limit_v_param(param,player_types,**kwargs):
-    if param in ['beta','RA_prior']:
-        return limit_v_sim_param(param,player_types,**kwargs)
-    elif param in ['pop_size','s']:
-        return limit_v_evo_param(param,player_types,**kwargs)
-    elif param == 'bc':
-        return limit_v_bc(player_types,**kwargs)
-    elif param == 'rounds':
-        return limit_v_rounds(player_types,**kwargs)
     else:
-        raise Exception("Unknown param produced")
+        raise Exception('Param %s is not implemented. Add the range to Xs' % param)
 
-@plotter(limit_v_param, plot_exclusive_args = ['experiment','data'])
+def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
+    dfs = []
+    for player_type in player_types:
+        df = ssd_v_param(param = param, player_types = (player_type,)+opponent_types, **kwargs)
+        dfs.append(df[df['type']==player_type.short_name("agent_types")])
+    return pd.concat(dfs, ignore_index = True)
+
+def avg_payoff_per_type_from_sim(sim_data):
+    running_fitness = 0
+    fitness_per_round = []
+    pop_size = max(sim_data['id'].unique())+1
+
+    for r, r_d in sim_data.groupby('round'):
+        fitness = []
+        for i, (t, t_d) in enumerate(r_d.groupby('type')):
+            fitness.append(t_d['fitness'].mean())
+
+        running_fitness += np.array(fitness)
+        fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
+
+    return fitness_per_round[1:]
+
+@memoized
+def indirect_simulator(player_types, rounds, *args, **kwargs):
+    sim_data = matchup(per_round = True, player_types = player_types, rounds = rounds, *args, **kwargs)
+    fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
+    return fitness_per_round
+
+def indirect_simulator_from_dict(d):
+    return indirect_simulator(**d)
+
+def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
+    pool = Pool(8)
+
+    assert player_types == sorted(player_types)
+
+    # produce all elements along the edges of the population simplex
+    # does not include the homogeneous populations at the vertices
+    # ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
+    populations = [(i, pop_size-i) for i in range(1, pop_size)]
+
+    # player_types = sorted(player_types)
+    # all the pairings of two player_types, note these are combinations
+    matchups = list(combinations(player_types, 2))
+    # matchup_pop_pairs = list(product(matchups, populations))
+    # def part_to_argdict(matchup_pop_pair):
+        # return dict(player_types = zip(*matchup_pop_pair), rounds = rounds, **kwargs)
+
+    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), rounds = rounds, **kwargs) for pop_pair in product(matchups, populations)]
+
+    # make a mapping from matchup to list of lists of payoffs
+    # the first level is ordered by partitions
+    # the second layer is ordered by rounds
+    payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
+
+
+    # Unpack the data into a giant matrix
+    rmcp = np.zeros((rounds, len(matchups), len(populations), 2))
+    for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
+        rmcp[:, m, c, :] = np.array(p)
+
+    return rmcp
+
+@memoized
+def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
+    payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
+    rmcp = np.array([mm_to_limit_mcp(payoff,pop_size) for r,payoff in payoffs])
+    return rmcp
+
+def limit_analysis(player_types, s, direct = False, **kwargs):
+    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
+    original_order = np.array([type_to_index[t] for t in player_types])
+    player_types = sorted(player_types)
+
+    if direct:
+        rmcp = ana_to_limit_rmcp(player_types, **kwargs)
+    else:
+        rmcp = sim_to_limit_rmcp(player_types, **kwargs)
+
+    rmcp = np.exp(s * rmcp)
+    ssds = []
+
+    for mcp in rmcp:
+        ssds.append(steady_state(mcp_to_invasion(mcp)))
+        
+    return np.array(ssds)[:, original_order]
+    
+@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data'])
 def limit_param_plot(param, player_types, data = [], **kwargs):
     fig = plt.figure()
     for hue in data['type'].unique():
         d = data[data['type']==hue]
         p = plt.plot(d[param], d['proportion'], label=hue)
-    if param in ["beta"]:
-        plt.axes().set_xscale('log',basex=10)
+
     if param in ['pop_size']:
         plt.axes().set_xscale('log',basex=2)
-    if param in ['rounds']:
-        pass
     elif param == 's':
         plt.axes().set_xscale('log')
+
+    # if param in ["beta"]:
+        # plt.axes().set_xscale('log',basex=10)
+    # if param in ['rounds']:
+        # pass
 
     plt.xlabel(param)
     plt.ylim([0, 1.05])
@@ -186,30 +239,9 @@ def limit_param_plot(param, player_types, data = [], **kwargs):
     plt.legend()
     plt.tight_layout()
 
-def compare_limit_param(param, player_types, opponent_types, **kwargs):
-    dfs = []
-    for player_type in player_types:
-        df = limit_v_param(param = param, player_types = (player_type,)+opponent_types,**kwargs)
-        dfs.append(df[df['type']==player_type.short_name("agent_types")])
-        
-    return pd.concat(dfs,ignore_index = True)
-
-@experiment(unpack = 'record', verbose = 3)
-def limit_v_bc(player_types,**kwargs):
-    params = default_params(**kwargs)
-    record = []
-    Bs = [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4, 2.6, 2.8, 3]
-    for b in Bs:
-        payoff = matchup_matrix(player_types = player_types, benefit = b, **kwargs)
-        ssd = limit_analysis(payoff, **params)
-        for t,p in zip(player_types,ssd):
-            record.append({
-                "bc":b,
-                "type":t.short_name('agent_types'),
-                "proportion":p
-            })
-    return record
-
+####
+# ''' BC / ROUND HEAT MAP CODE '''
+####
 @experiment(unpack = 'record', verbose = 2, memoize = True)
 def bc_v_rounds(player_types, max_rounds, **kwargs):
     Warning('Memoize is one in the experiment!')
@@ -263,19 +295,30 @@ def bc_rounds_plot(player_types, data=[], **kwargs):
 
 def AllC_AllD_race():
     today = "./plots/"+date.today().isoformat()+"/"
-    prior = 0.5
-    r = 10
-    MRA = ReciprocalAgent
+    
     ToM = ('self', AllC, AllD)
     opponents = (AllC, AllD)
-    pop = (WeAgent(RA_prior = prior, agent_types = ToM), ag.TFT)
-           
+    pop = (WeAgent(agent_types = ToM), ag.TFT)
+    
     for t in [0, 0.05]:
-        limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 10, tremble = t, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, plot_dir = today)
-        limit_param_plot('s', player_types = pop, opponent_types = opponents, experiment = compare_limit_param, rounds = 100, tremble = t, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, plot_dir = today)
-        limit_param_plot("rounds", player_types = pop, agent_types = ToM, opponent_types = opponents, experiment = compare_limit_param, tremble = t, file_name = 'contest_rounds_tremble=%0.2f' % t, plot_dir = today)
+        background_params = dict(
+            experiment = compare_ssd_v_param,
+            direct = True,
+            RA_prior = 0.5,
+            beta = 5,
+            player_types = pop,
+            opponent_types = opponents,
+            agent_types = ToM,
+            tremble = t,
+            pop_size = 100, 
+            plot_dir = today
+        )
         
-        limit_param_plot("RA_prior", player_types = (MRA(RA_K=0, agent_types = ToM), MRA(RA_K=1, agent_types = ToM)), opponent_types = opponents, experiment = compare_limit_param, rounds = r, tremble = t, file_name = 'contest_prior_tremble=%0.2f' % t, plot_dir = today)
+        # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
+        # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
+        # limit_param_plot("rounds", rounds = 100, s=1, file_name = 'contest_rounds_tremble=%0.2f' % t, **background_params)
+        limit_param_plot("RA_prior", rounds = 10, s=1, file_name = 'contest_prior_tremble=%0.2f' % t, **background_params)
+        # limit_param_plot("beta", rounds = 10, s=1, file_name = 'contest_beta_tremble=%0.2f' % t, **background_params)
 
 
 #a_type, proportion = max(zip(player_types,ssd), key = lambda tup: tup[1])
@@ -313,7 +356,7 @@ def Pavlov_gTFT_race():
                          player_types = comparables,
                          opponent_types = opponents,
                          tremble = t,
-                         experiment = compare_limit_param,
+                         experiment = compare_ssd_v_param,
                          file_name = 'horse_rounds_no_random_tremble=%0.2f' % t,
                          plot_dir = today)
 
@@ -325,7 +368,7 @@ def Pavlov_gTFT_race():
                          player_types = comparables,
                          opponent_types = opponents,
                          tremble = t,
-                         experiment = compare_limit_param,
+                         experiment = compare_ssd_v_param,
                          file_name = 'horse_rounds_with_random_tremble=%.2f' % t,
                          plot_dir = today)
 
@@ -436,8 +479,8 @@ def limit_rounds_race():
 
 if __name__ == "__main__":
     # image_contest()
-    # AllC_AllD_race()
-    Pavlov_gTFT_race()
+    AllC_AllD_race()
+    # Pavlov_gTFT_race()
     # bc_rounds_race()
     # limit_rounds_race()
     assert 0
