@@ -10,11 +10,11 @@ import seaborn as sns
 import pandas as pd
 from utils import softmax_utility, softmax, normalized, memoized, logspace
 from functools import partial
-from evolve import limit_param_plot, limit_param_plot,limit_v_param
+from evolve import limit_param_plot, limit_param_plot, ssd_v_param
 from steady_state import all_partitions, steady_state, mm_to_limit_mcp, mcp_to_invasion
 from itertools import permutations,product,imap,chain,repeat, izip,starmap,combinations
 from math import factorial,ceil
-from multiprocessing import Pool
+
 from games import RepeatedPrisonersTournament
 from experiments import matchup, matchup_matrix_per_round
 
@@ -167,12 +167,12 @@ def test_sim_limit_analysis():
                   pop_size = pop_size,
     )
 
-    ana_params = dict(experiment = sim_ssd_v_param, rounds = rounds, direct = True,  **params)
-    sim_params = dict(experiment = sim_ssd_v_param, rounds = rounds, direct = False,  **params)
-    classic_params = dict(experiment = limit_v_param, max_rounds = rounds, **params)
+    ana_params = dict(experiment = ssd_v_param, rounds = rounds, direct = True,  **params)
+    sim_params = dict(experiment = ssd_v_param, rounds = rounds, direct = False,  **params)
+
     limit_param_plot(**sim_params)
     limit_param_plot(**ana_params)
-    limit_param_plot(**classic_params)
+    
 
 def test_rmcp_creation():
     rounds = 50

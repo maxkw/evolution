@@ -12,7 +12,7 @@ from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,ma
 from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion
+from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis
 import pandas as pd
 from datetime import date
 from agents import leading_8_dict, shorthand_to_standing
@@ -135,86 +135,6 @@ def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
         dfs.append(df[df['type']==player_type.short_name("agent_types")])
     return pd.concat(dfs, ignore_index = True)
 
-def avg_payoff_per_type_from_sim(sim_data):
-    running_fitness = 0
-    fitness_per_round = []
-    pop_size = max(sim_data['id'].unique())+1
-
-    for r, r_d in sim_data.groupby('round'):
-        fitness = []
-        for i, (t, t_d) in enumerate(r_d.groupby('type')):
-            fitness.append(t_d['fitness'].mean())
-
-        running_fitness += np.array(fitness)
-        fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
-
-    return fitness_per_round[1:]
-
-@memoized
-def indirect_simulator(player_types, rounds, *args, **kwargs):
-    sim_data = matchup(per_round = True, player_types = player_types, rounds = rounds, *args, **kwargs)
-    fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
-    return fitness_per_round
-
-def indirect_simulator_from_dict(d):
-    return indirect_simulator(**d)
-
-def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
-    pool = Pool(8)
-
-    assert player_types == sorted(player_types)
-
-    # produce all elements along the edges of the population simplex
-    # does not include the homogeneous populations at the vertices
-    # ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
-    populations = [(i, pop_size-i) for i in range(1, pop_size)]
-
-    # player_types = sorted(player_types)
-    # all the pairings of two player_types, note these are combinations
-    matchups = list(combinations(player_types, 2))
-    # matchup_pop_pairs = list(product(matchups, populations))
-    # def part_to_argdict(matchup_pop_pair):
-        # return dict(player_types = zip(*matchup_pop_pair), rounds = rounds, **kwargs)
-
-    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), rounds = rounds, **kwargs) for pop_pair in product(matchups, populations)]
-
-    # make a mapping from matchup to list of lists of payoffs
-    # the first level is ordered by partitions
-    # the second layer is ordered by rounds
-    payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
-
-
-    # Unpack the data into a giant matrix
-    rmcp = np.zeros((rounds, len(matchups), len(populations), 2))
-    for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
-        rmcp[:, m, c, :] = np.array(p)
-
-    return rmcp
-
-@memoized
-def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
-    payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
-    rmcp = np.array([mm_to_limit_mcp(payoff,pop_size) for r,payoff in payoffs])
-    return rmcp
-
-def limit_analysis(player_types, s, direct = False, **kwargs):
-    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
-    original_order = np.array([type_to_index[t] for t in player_types])
-    player_types = sorted(player_types)
-
-    if direct:
-        rmcp = ana_to_limit_rmcp(player_types, **kwargs)
-    else:
-        rmcp = sim_to_limit_rmcp(player_types, **kwargs)
-
-    rmcp = np.exp(s * rmcp)
-    ssds = []
-
-    for mcp in rmcp:
-        ssds.append(steady_state(mcp_to_invasion(mcp)))
-        
-    return np.array(ssds)[:, original_order]
-    
 @plotter(ssd_v_param, plot_exclusive_args = ['experiment','data'])
 def limit_param_plot(param, player_types, data = [], **kwargs):
     fig = plt.figure()
@@ -292,6 +212,11 @@ def bc_rounds_plot(player_types, data=[], **kwargs):
     #    xticks=[],
     #    xlabel='',
     #    ylabel='')
+
+
+####
+# Premade experiments
+####
 
 def AllC_AllD_race():
     today = "./plots/"+date.today().isoformat()+"/"

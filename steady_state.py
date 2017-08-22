@@ -7,7 +7,9 @@ import numpy as np
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 from observability_experiments import indirect_simulator
 from functools import partial
-
+from utils import memoized
+from multiprocessing import Pool
+from experiments import matchup,matchup_matrix_per_round
 def fixed_length_partitions(n,L):
     """
     Integer partitions of n into L parts, in colex order.
@@ -133,13 +135,12 @@ def steady_state(matrix):
         #    vec = vec.real
         #    val = val.real
         if np.isclose(val,1):
-            
             if negative_vec(vec):
                 steady_states.append((val,np.absolute(vec)))
             elif all(np.logical_or(np.isclose(vec, 0), vec >= 0)):
                 steady_states.append((val,vec))
             # for each element must be either greater OR close to 0
- 
+
     try:
         [steady_states] = steady_states
         steady_states = steady_states[1]
@@ -156,60 +157,6 @@ def steady_state(matrix):
         #return matrix**100
         raise e
     return np.array(normalized([n.real for n in steady_states]))
-
-def invasion_probability(payoff, invader, dominant, pop_size, s):
-    """
-    calculates the odds of a single individual invading a population of dominant agents
-
-    payoff is a TxT matrix where T is the number of types, payoff[r,o] is r's expected payoff when playing against o
-    invader and dominant are integers in range(T) that shouldn't be the same
-    pop_size is the total number of individuals in the population
-    """
-    def f(count):
-        return np.exp(s*((count-1)*payoff[invader,invader]+(pop_size-count)*payoff[invader,dominant])/(pop_size-1))
-    def g(count):
-        return np.exp(s*(count*payoff[dominant,invader]+(pop_size-count-1)*payoff[dominant,dominant])/(pop_size-1))
-    
-    ratios = np.array(map(lambda count: g(count) / f(count), range(1, pop_size)))
-    return 1 / (1 + sum(np.cumprod(ratios)))
-    
-    # accum = 1.0
-    # for i in reversed(xrange(1, pop_size)):
-    #     g_i,f_i = g(i),f(i)
-    #     assert g_i>=0 and f_i>=0
-    #     accum *= (g_i/f_i)
-    #     accum += 1
-
-    # print 1/accum, 1 / (1 + sum(np.cumprod(ratios)))
-    # np.testing.assert_almost_equal(1 / (1 + sum(np.cumprod(ratios))), 1/accum)
-    
-    # return 1 / accum
-
-def invasion_matrix(payoff, pop_size, s):
-    """
-    returns a matrix M of size TxT where M[a,b] is the probability of a homogeneous population of a becoming
-    a homogeneous population of b under weak mutation
-    types in this matrix are ordered as in 'payoff'
-    """
-    type_count = len(payoff)
-    transition = np.zeros((type_count,)*2)
-    for dominant,invader in permutations(range(type_count),2):
-        transition[invader,dominant] = invasion_probability(payoff, invader, dominant, pop_size, s)/(type_count-1)
-
-    #print transition
-    #assert False
-    for i in range(type_count):
-        transition[i,i] = 1-np.sum(transition[:,i])
-        #print transition[:,i]
-        #transition[:,i] = normalized(transition[:,i]-transition[:,i].min())
-        
-        try:
-            np.testing.assert_approx_equal(np.sum(transition[:,i]),1)
-        except:
-            print transition[:,i]
-            print np.sum(transition[:,i])
-            raise
-    return transition
 
 def mm_to_limit_mcp(payoff,pop_size):
     """
@@ -238,6 +185,117 @@ def mm_to_limit_mcp(payoff,pop_size):
         mcp_lists.append(payoffs)
     mcp_matrix = np.array(mcp_lists)
     return mcp_matrix
+
+def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
+    """
+    returns a matrix that returns the probability of transitioning from one population composition
+    to another
+
+    the index of a population is it's position as given by the 'all_partitions()' function
+    """
+    type_count = len(payoff)
+    I = np.identity(type_count)
+    partitions = sorted(set(all_partitions(pop_size,type_count)))
+    part_to_id = dict(map(reversed,enumerate(partitions)))
+    print sorted(part_to_id.values())
+    partition_count = len(part_to_id)
+    transition = np.zeros((partition_count,)*2)
+    for pop,i in part_to_id.iteritems():
+        fitnesses = softmax([np.dot(pop-I[t],payoff[t]) for t in range(type_count)], s)
+        node = np.array(pop)
+        for b,d in permutations(xrange(type_count),2):
+            if pop[d] != 0:
+                neighbor = pop+I[b] - I[d]
+                #print i,part_to_id[tuple(neighbor)]
+                death_odds = pop[d] / pop_size
+                #birth_odds = np.fitnesses[b]/np.exp(s*(total_fitness)))#*(1-mu)+mu*(1/type_count)
+                birth_odds = fitnesses[b] * (1-mu) + mu * (1 / type_count)
+                transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
+
+    for i in xrange(partition_count):
+        transition[i,i] = 1-sum(transition[:,i])
+
+    return transition
+
+def complete_analysis(payoff, pop_size, s, **kwargs):
+    """
+    calculates the steady state distribution over population compositions
+    """
+    type_count = len(payoff)
+    transition = pop_transition_matrix(payoff, pop_size, s, **kwargs)
+    ssd = steady_state(transition)
+
+    pop_sum = np.zeros(type_count)
+    for p,partition in zip(ssd, sorted(set(all_partitions(pop_size, type_count)))):
+        pop_sum += np.array(partition) * p
+
+    return pop_sum / pop_size
+
+def avg_payoff_per_type_from_sim(sim_data):
+    running_fitness = 0
+    fitness_per_round = []
+    pop_size = max(sim_data['id'].unique())+1
+
+    for r, r_d in sim_data.groupby('round'):
+        fitness = []
+        for i, (t, t_d) in enumerate(r_d.groupby('type')):
+            fitness.append(t_d['fitness'].mean())
+
+        running_fitness += np.array(fitness)
+        fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
+
+    return fitness_per_round[1:]
+
+@memoized
+def indirect_simulator(player_types, *args, **kwargs):
+    sim_data = matchup(per_round = True, player_types = player_types, *args, **kwargs)
+    fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
+    return fitness_per_round
+
+def indirect_simulator_from_dict(d):
+    return indirect_simulator(**d)
+
+def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
+    pool = Pool(8)
+
+    assert player_types == sorted(player_types)
+
+    # produce all elements along the edges of the population simplex
+    # does not include the homogeneous populations at the vertices
+    # ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
+    populations = [(i, pop_size-i) for i in range(1, pop_size)]
+
+    # player_types = sorted(player_types)
+    # all the pairings of two player_types, note these are combinations
+    matchups = list(combinations(player_types, 2))
+    # matchup_pop_pairs = list(product(matchups, populations))
+    # def part_to_argdict(matchup_pop_pair):
+        # return dict(player_types = zip(*matchup_pop_pair), rounds = rounds, **kwargs)
+
+    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), rounds = rounds, **kwargs) for pop_pair in product(matchups, populations)]
+
+    # make a mapping from matchup to list of lists of payoffs
+    # the first level is ordered by partitions
+    # the second layer is ordered by rounds
+    payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
+
+
+    # Unpack the data into a giant matrix
+    rmcp = np.zeros((rounds, len(matchups), len(populations), 2))
+    for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
+        rmcp[:, m, c, :] = np.array(p)
+
+    return rmcp
+
+@memoized
+def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
+    payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
+    rmcp = np.array([mm_to_limit_mcp(payoff,pop_size) for r,payoff in payoffs])
+    return rmcp
+
+def mcp_to_ssd(mcp,s):
+    transition = mcp_to_invasion(np.exp(s*mcp))
+    return steady_state(transition)
 
 def mcp_to_invasion(mcp):
     """
@@ -278,68 +336,28 @@ def mcp_to_invasion(mcp):
             raise
     return transition
 
-def limit_analysis(payoff, pop_size, s, **kwargs):
-    """
-    calculates the steady state under low mutation
-    where the states correspond to the homogeneous strategy in the same order as in payoff
-    """
-    mcp = payoff_to_mcp_matrix(payoff, pop_size)
-    return steady_state(mcp_to_invasion(np.exp(s*mcp)))
+def limit_analysis(player_types, s, direct = False, **kwargs):
+    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
+    original_order = np.array([type_to_index[t] for t in player_types])
+    player_types = sorted(player_types)
 
-def mcp_to_ssd(mcp,s):
-    transition = mcp_to_invasion(np.exp(s*mcp))
-    return steady_state(transition)
+    if direct:
+        rmcp = ana_to_limit_rmcp(player_types, **kwargs)
+    else:
+        rmcp = sim_to_limit_rmcp(player_types, **kwargs)
 
-def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
-    """
-    returns a matrix that returns the probability of transitioning from one population composition
-    to another
+    rmcp = np.exp(s * rmcp)
+    ssds = []
 
-    the index of a population is it's position as given by the 'all_partitions()' function
-    """
-    type_count = len(payoff)
-    I = np.identity(type_count)
-    partitions = sorted(set(all_partitions(pop_size,type_count)))
-    part_to_id = dict(map(reversed,enumerate(partitions)))
-    print sorted(part_to_id.values())
-    partition_count = len(part_to_id)
-    transition = np.zeros((partition_count,)*2)
-    
-    for pop,i in part_to_id.iteritems():
-        fitnesses = softmax([np.dot(pop-I[t],payoff[t]) for t in range(type_count)], s)
-        node = np.array(pop)
-        for b,d in permutations(xrange(type_count),2):
-            if pop[d] != 0:
-                neighbor = pop+I[b] - I[d]
-                #print i,part_to_id[tuple(neighbor)]
-                death_odds = pop[d] / pop_size
-                #birth_odds = np.fitnesses[b]/np.exp(s*(total_fitness)))#*(1-mu)+mu*(1/type_count)
-                birth_odds = fitnesses[b] * (1-mu) + mu * (1 / type_count)
-                transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
-                
-
-    for i in xrange(partition_count):
-        transition[i,i] = 1-sum(transition[:,i])
-
-    return transition
+    for mcp in rmcp:
+        ssds.append(steady_state(mcp_to_invasion(mcp)))
+        
+    return np.array(ssds)[:, original_order]
 
 
-
-def complete_analysis(payoff, pop_size, s, **kwargs):
-    """
-    calculates the steady state distribution over population compositions
-    """
-    type_count = len(payoff)
-    transition = pop_transition_matrix(payoff, pop_size, s, **kwargs)
-    ssd = steady_state(transition)
-
-    pop_sum = np.zeros(type_count)
-    for p,partition in zip(ssd, sorted(set(all_partitions(pop_size, type_count)))):
-        pop_sum += np.array(partition) * p
-
-    return pop_sum / pop_size
-
-
+####
+# Testing
+####
 
 def test_complete_limit():
     matrix = np.array([[0, .1], [-.1, 2]])
@@ -352,10 +370,6 @@ def test_complete_limit():
 
 
 if __name__ == "__main__":
-    #test_complete_limit()
-    print test_indirect_analysis()
-
-#[  9.99097317e-01   9.02682565e-04]
-
+    pass
 
 
