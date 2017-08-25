@@ -44,8 +44,13 @@ def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 
     given_values = locals()
     given_values.update(kwargs)
 
+    
     if not games:
+        
         games = RepeatedPrisonersTournament(rounds,tremble = tremble,**kwargs)
+        #games = IndirectReciprocity(rounds = rounds ,tremble = tremble,**kwargs)
+    else:
+        games = games(rounds = rounds, **kwargs)
     
     values =  {
         'N_agents' : N_agents,
