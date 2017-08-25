@@ -164,14 +164,16 @@ def test_sim_limit_analysis():
                   tremble = 0,
                   benefit = 10,
                   s = 1,
+                  games = IndirectReciprocity,
                   pop_size = pop_size,
+                  extension = ".png",
     )
 
     ana_params = dict(experiment = ssd_v_param, rounds = rounds, direct = True,  **params)
     sim_params = dict(experiment = ssd_v_param, rounds = rounds, direct = False,  **params)
 
     limit_param_plot(**sim_params)
-    limit_param_plot(**ana_params)
+    #limit_param_plot(**ana_params)
     
 
 def test_rmcp_creation():
@@ -184,6 +186,7 @@ def test_rmcp_creation():
                   tremble = .05,
                   benefit = 10,
                   rounds = 50,
+                  games = IndirectReciprocity,
                   s = 1,
                   pop_size = pop_size,
                   trials = 1
