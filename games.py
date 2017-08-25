@@ -80,7 +80,6 @@ class Playable(object):
         decider = participants[0]
         intention = decider.decide(decision,participant_ids)
 
-        
         if flip(decision.tremble):
             action = np.random.choice(decision.actions)
         else:
@@ -381,7 +380,25 @@ class SymmetricMatchup(object):
             yield (game, list(matchup))
 class Symmetric(SymmetricMatchup,DecisionSeq):
     pass
-            
+
+class CircularMatchup(object):
+    def __init__(self,game):
+        self.game = game
+        self.name = self._name = "Circular("+game.name+")"
+        self.N_players = game.N_players
+
+    def matchups(self,participants):
+        indices = range(len(participants))
+        np.random.shuffle(indices)
+        matchups = zip(indices,indices[1:]+indices[:1])
+
+        playable = self.game
+        for matchup in matchups:
+            yield (playable, list(matchup))
+
+class Circular(CircularMatchup,DecisionSeq):
+    pass
+
 class EveryoneDecidesMatchup(object):
     """
     plays the playable with every adequately sized subset of participants
@@ -610,7 +627,7 @@ class Indirect(AnnotatedDS):
         self.current_round = 0
 
 
-    def annotate(self,r, participants,payoff,observations,record,notes):
+    def annotate(self, r, participants,payoff,observations,record,notes):
         note = {
             'round':r,
             'actions':tuple(observation[3] for observation in observations),
@@ -796,11 +813,13 @@ def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
     BD = BinaryDictator(cost = COST, benefit = BENEFIT)
     return Repeated(rounds,PrivatelyObserved(Symmetric(BD)))
 @literal
-def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3, **junk):
+def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3, tremble = 0, **junk):
     visibility = "private"
     observability = .5
-    PD = PrisonersDilemma(cost = cost, benefit = benefit)
+    PD = Symmetric(BinaryDictator(cost = cost, benefit = benefit, tremble = tremble))
+
     if visibility == "private":
+        PD.tremble = junk.get('tremble',0)
         g =  Repeated(rounds, PrivatelyObserved(PD))
         g.tremble = junk.get('tremble',0)
         return g
@@ -809,11 +828,11 @@ def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3, **junk):
     if visibility == "public":
         return Repeated(rounds, PubliclyObserved(PD))
 
+
 @literal
-def IndirectReciprocity(rounds = 10, observability = .5, cost = COST, benefit = BENEFIT, tremble = 0, **junk):
-    bd = BinaryDictator(cost = cost, benefit = benefit)
-    bd.tremble = tremble
-    g = Indirect(rounds, RandomlyObserved(observability,bd)) 
+def IndirectReciprocity(rounds = 10, cost = COST, benefit = BENEFIT, tremble = 0, **junk):
+    bd = BinaryDictator(cost = cost, benefit = benefit, tremble = tremble)
+    g = Repeated(rounds, PrivatelyObserved(Circular(bd)))
     return g
 
 
