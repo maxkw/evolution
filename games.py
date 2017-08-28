@@ -554,9 +554,6 @@ class AnnotatedDS(DecisionSeq):
         extend_rec = record.append
         annotate = self.annotate
 
-        
-        
-
         extend_rec(annotate(participants,payoffs,[],[], notes))
 
         for game,ordering in self.matchups(participants):
@@ -830,12 +827,10 @@ def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3, tremble = 0, **j
 
 
 @literal
-def IndirectReciprocity(rounds = 10, cost = COST, benefit = BENEFIT, tremble = 0, **junk):
+def IndirectReciprocity(rounds = 10, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, **junk):
     bd = BinaryDictator(cost = cost, benefit = benefit, tremble = tremble)
-    g = Repeated(rounds, PrivatelyObserved(Circular(bd)))
+    g = Repeated(rounds, RandomlyObserved(observability, Circular(bd)))
     return g
-
-
 
 if __name__ == "__main__":
     from agents import ReciprocalAgent, Puppet

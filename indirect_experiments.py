@@ -167,6 +167,7 @@ def test_sim_limit_analysis():
                   games = IndirectReciprocity,
                   pop_size = pop_size,
                   extension = ".png",
+                  observability = .75,
     )
 
     ana_params = dict(experiment = ssd_v_param, rounds = rounds, direct = True,  **params)
