@@ -98,7 +98,8 @@ def ssd_v_param(param, player_types, direct = False, **kwargs):
         'benefit': [1.5, 2, 2.5, 3],
         'beta': np.linspace(1, 11, 6),
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
-        's': logspace(start = .001, stop = 1, samples = 100)
+        's': logspace(start = .001, stop = 1, samples = 100),
+        'observability': np.linspace(0, 1, 5)
     }
     record = []
     

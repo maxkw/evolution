@@ -1,5 +1,5 @@
 from __future__ import division
-from utils import flip, randomly_chosen
+from utils import flip
 from itertools import product, combinations, permutations
 from numpy import array
 from copy import copy, deepcopy
@@ -9,6 +9,7 @@ from inspect import getargspec
 
 COST = 1
 BENEFIT = 3
+ROUNDS = 10
 
 def literal(constructor):
     """
@@ -118,38 +119,6 @@ Distinguish Observability vs Observation
 These modules force observation. What about when I want to change the observer list
 at the bottom level, but no actually observe?
 """
-class PrivatelyObserved(Playable):
-    """
-    calls _play with no observers
-    participants observe
-    """
-    def __init__(self,playable):
-        self.name = "PrivatelyObserved(%s)" % playable.name
-        self.N_players = playable.N_players
-        self.playable=playable
-
-    def play(self,participants,observers=[], tremble=0):
-        payoffs, observations,notes = self.playable.play(participants,[],tremble)
-        for observer in list(participants):
-            observer.observe(observations)
-        return payoffs, observations, notes
-
-class PubliclyObserved(Playable):
-    """
-    passes complete observer list to _play
-    observers and participants observe
-    """
-    def __init__(self,playable):
-        self.name = "PubliclyObserved(%s)" % playable.name
-        self.N_players = playable.N_players
-        self.playable=playable
-
-    def play(self,participants,observers=[], tremble=0):
-        payoffs, observations, notes = self.playable.play(participants,observers,tremble)
-        for observer in set(list(observers)+list(participants)):
-            observer.observe(observations)
-        return payoffs, observations, notes
-
 class RandomlyObserved(Playable):
     """
     randomly selects a specified percent of the provided observers
@@ -157,37 +126,39 @@ class RandomlyObserved(Playable):
     these observers are passed down into _play
     selected observers and all participants observe
     """
-    def __init__(self,observability,playable):
+    def __init__(self,observability, playable):
         self.name = "RandomlyObserved(%s,%s)" % (observability, playable.name)
         self.observability = observability
         self.N_players = playable.N_players
         self.playable=playable
 
-    def play(self,participants,observers=[], tremble=0):
-        observers = randomly_chosen(self.observability,observers)
-        payoffs, observations, notes = self.playable.play(participants,observers,tremble)
+    def play(self, participants, observers = [], tremble=0):
+        if self.observability < 1:
+            # Sample from the list of possible observers
+            observers = np.random.choice(observers,
+                                         size=int(len(observers)*self.observability),
+                                         replace=False)
+        elif self.observability == 0:
+            observers = []
+            
+        payoffs, observations, notes = self.playable.play(participants, observers, tremble)
+        
         for observer in set(list(observers)+list(participants)):
             observer.observe(observations)
+            
         return payoffs, observations, notes
 
-class PubliclyObservable(Playable):
-    def __init__(self, playable):
-        self.name = "PubliclyObservable(%s)" % playable.name
-        self.N_players = playable.N_players
-        self.playable=playable
-    def play(self,participants,observers=None, tremble=0):
-        observer_subset = randomly_chosen(self.observability,observers)
-        return self.playable.play(participants,observer_subset,tremble)
-class RandomlyObservable(Playable):
-    def __init__(self,observability,playable):
-        self.name = "RandomlyObservable(%s,%s)" % (observability, playable.name)
-        self.observability = observability
-        self.N_players = playable.N_players
-        self.playable=playable
+class PrivatelyObserved(RandomlyObserved):
+    def __init__(self,playable):
+        super(PrivatelyObserved, self).__init__(0, playable)
+        self.name = "PrivatelyObserved(%s)" % playable.name
 
-    def play(self,participants,observers=[], tremble=0):
-        observer_subset = randomly_chosen(self.observability,observers)
-        return self.playable.play(participants,observer_subset,tremble)
+class PubliclyObserved(RandomlyObserved):
+    def __init__(self,playable):
+        super(PubliclyObserved, self).__init__(1, playable)
+        self.name = "PubliclyObserved(%s)" % playable.name
+
+
 """
 Decisions
 These are the only things Agents actually know how to deal with
@@ -378,6 +349,7 @@ class SymmetricMatchup(object):
         game = self.game
         for matchup in matchups:
             yield (game, list(matchup))
+            
 class Symmetric(SymmetricMatchup,DecisionSeq):
     pass
 
@@ -396,7 +368,7 @@ class CircularMatchup(object):
         for matchup in matchups:
             yield (playable, list(matchup))
 
-class Circular(CircularMatchup,DecisionSeq):
+class Circular(CircularMatchup, DecisionSeq):
     pass
 
 class EveryoneDecidesMatchup(object):
@@ -566,15 +538,6 @@ class AnnotatedDS(DecisionSeq):
 
     _play = play
 
-class IndirectReciprocity(AnnotatedDS):
-    def __init__(self, rounds, game):
-        self.name = self._name= "IndirectReciprocity("+str(rounds)+","+game.name+")"
-        self.game = game
-        self.rounds = rounds
-        self.N_players = game.N_players
-        self.current_round = 0
-
-
 class Repeated(AnnotatedDS):
     """
     Specified by a game and a number of repetitions
@@ -613,70 +576,6 @@ class Repeated(AnnotatedDS):
         for game_round in xrange(1,self.rounds+1):
             self.current_round = game_round
             yield self.game, ordering
-
-class Indirect(AnnotatedDS):
-    def __init__(self, rounds, game):
-
-        self.name = self._name= "Indirect("+str(rounds)+","+game.name+")"
-        self.game = game
-        self.rounds = rounds
-        self.N_players = game.N_players
-        self.current_round = 0
-
-
-    def annotate(self, r, participants,payoff,observations,record,notes):
-        note = {
-            'round':r,
-            'actions':tuple(observation[3] for observation in observations),
-            'payoff': copy(payoff),
-            #'games':tuple(observation[0] for observation in observations),
-            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
-            'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
-            'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
-            }
-        note.update(notes)
-        return note
-
-    def play(self, participants, observers = None, tremble = 0,notes = {}):
-        if observers is None:
-            observers = participants
-
-        game = self.game
-        rounds = self.rounds
-        
-
-        player_count = len(participants)
-
-        #initialize accumulators
-        observations = []
-        record = []
-        payoffs = np.zeros(player_count)
-
-        #cache the dot references
-        extend_obs = observations.extend
-        extend_rec = record.append
-        annotate = self.annotate
-
-        # extend_rec(annotate(0,participants,payoffs,[],[],notes))
-
-        matchups = list(permutations(range(player_count),2))
-        np.random.shuffle(matchups)
-        #observers = list(combinations(player_count, int(player_count*proportion)))
-        #np.shuffle(observers)
-
-        #rounds = int(len(matchups)*rounds)
-
-        
-        for r, ordering in zip(range(1,rounds+1), matchups):
-            ordering = np.array(ordering)
-            pay,obs,rec = game.play(participants[ordering],observers,tremble)
-            new_pay = payoffs*0
-            new_pay[ordering] += pay
-            payoffs[ordering] += pay
-            extend_rec(annotate(r,participants,new_pay,obs,rec,notes))
-            extend_obs(obs)
-
-        return payoffs,observations,record
 
 class IndefiniteHorizonGame(DecisionSeq):
     def __init__(self,gamma,playable):
@@ -731,6 +630,7 @@ class Dynamic(Playable):
 
 def exponential(scale,gamma=1):
     return np.random.exponential(gamma)*scale
+
 def constant(val,**kwargs):
     return val
 
@@ -802,23 +702,24 @@ Exponential(PrisonersDilemma, cost = {'gamma':9,'scale':3}, benefit = {'gamma':3
 """
 
 #@literal
-def RepeatedDynamicPrisoners(rounds = 10, endowment = 0, cost = COST, benefit = BENEFIT, gamma = 1):
+def RepeatedDynamicPrisoners(rounds = ROUNDS, endowment = 0, cost = COST, benefit = BENEFIT, gamma = 1):
     return Repeated(rounds,PrivatelyObserved(Exponential(PrisonersDilemma)))
 #return Repeated(rounds,PrivatelyObserved(DynamicPD()))
 
-def RepeatedSequentialBinary(rounds = 10, visibility = "private"):
+def RepeatedSequentialBinary(rounds = ROUNDS, visibility = "private"):
     BD = BinaryDictator(cost = COST, benefit = BENEFIT)
     return Repeated(rounds,PrivatelyObserved(Symmetric(BD)))
+
 @literal
-def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3, tremble = 0, **junk):
+def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tremble = 0, **kwargs):
     visibility = "private"
     observability = .5
     PD = Symmetric(BinaryDictator(cost = cost, benefit = benefit, tremble = tremble))
 
     if visibility == "private":
-        PD.tremble = junk.get('tremble',0)
+        PD.tremble = kwargs.get('tremble', 0)
         g =  Repeated(rounds, PrivatelyObserved(PD))
-        g.tremble = junk.get('tremble',0)
+        g.tremble = kwargs.get('tremble', 0)
         return g
     if visibility == "random":
         return Repeated(rounds, PubliclyObserved(Combinatorial(RandomlyObservable(observability,PD))))
@@ -827,9 +728,9 @@ def RepeatedPrisonersTournament(rounds = 10, cost=1, benefit=3, tremble = 0, **j
 
 
 @literal
-def IndirectReciprocity(rounds = 10, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, **junk):
+def IndirectReciprocity(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, **kwargs):
     bd = BinaryDictator(cost = cost, benefit = benefit, tremble = tremble)
-    g = Repeated(rounds, RandomlyObserved(observability, Circular(bd)))
+    g = Repeated(rounds, Circular(RandomlyObserved(observability, bd)))
     return g
 
 if __name__ == "__main__":

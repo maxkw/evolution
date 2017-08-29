@@ -13,6 +13,7 @@ from inspect import getargspec
 from collections import OrderedDict
 import os
 from functools import wraps
+from pickle import load, dump
 
 pd.set_option('precision',5)
 
@@ -177,7 +178,7 @@ def namedArrayConstructor(fields, className = "NamedArray"):
 
     return NamedArray
 
-from pickle import load, dump
+
 def pickled(obj,path,mode = "w"):
     with open(path,mode) as file:
         dump(obj,file)
@@ -190,25 +191,6 @@ def normalized(array):
     return array / np.sum(array)
 
 assert np.sum(normalized(np.array([.2,.3]))) ==1
-
-def constraint_min(f,x):
-    out = sp.optimize.minimize(f, x,
-                               constraints={'type':'eq', 'fun': lambda x: 1-sum(x)},
-                               bounds = [(0.01, 0.99) for _ in range(len(x))],
-                               # options={'ftol':10e-40},
-                               # tol = 10e-10
-    )
-    return out
-
-def randomly_chosen(percent,elements):
-    """
-    given a percentage and a list of elements
-    randomly select that percent of elements from the list
-    uses floor of number of elements times percent
-    """
-    indices = range(int(len(elements)*percent))
-    np.random.shuffle(indices)
-    return list(elements[indices])
 
 def dict_hash(dict):
     return hash(tuple(sorted(dict.iteritems())))

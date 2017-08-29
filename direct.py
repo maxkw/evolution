@@ -1,3 +1,23 @@
+from __future__ import division
+from collections import Counter, defaultdict
+from itertools import product, permutations, izip
+from utils import normalized, softmax, excluding_keys, logspace, int_logspace, memoized
+from math import factorial
+import numpy as np
+from copy import copy
+from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
+import matplotlib.pyplot as plt
+import seaborn as sns
+from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,matchup_matrix_per_round
+from params import default_genome, default_params
+import agents as ag
+from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
+from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis
+import pandas as pd
+from datetime import date
+from agents import leading_8_dict, shorthand_to_standing
+from evolve import *
+
 def AllC_AllD_race():
     today = "./plots/"+date.today().isoformat()+"/"
     
@@ -5,7 +25,7 @@ def AllC_AllD_race():
     opponents = (AllC, AllD)
     pop = (WeAgent(agent_types = ToM), ag.TFT)
     
-    for t in [#0,
+    for t in [ 0,
               0.05]:
         background_params = dict(
             experiment = compare_ssd_v_param,
@@ -22,8 +42,8 @@ def AllC_AllD_race():
         
         # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
         # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        # limit_param_plot("rounds", rounds = 100, s=1, file_name = 'contest_rounds_tremble=%0.2f' % t, **background_params)
-        limit_param_plot("RA_prior", rounds = 10, s=1, file_name = 'contest_prior_tremble=%0.2f' % t, **background_params)
+        limit_param_plot("rounds", rounds = 100, s=1, file_name = 'contest_rounds_tremble=%0.2f' % t, **background_params)
+        # limit_param_plot("RA_prior", rounds = 10, s=1, file_name = 'contest_prior_tremble=%0.2f' % t, **background_params)
         # limit_param_plot("beta", rounds = 10, s=1, file_name = 'contest_beta_tremble=%0.2f' % t, **background_params)
 
 

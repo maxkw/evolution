@@ -277,6 +277,7 @@ def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     # make a mapping from matchup to list of lists of payoffs
     # the first level is ordered by partitions
     # the second layer is ordered by rounds
+    # payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
     payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 from agents import SelfishAgent,ReciprocalAgent,AltruisticAgent,RationalAgent,IngroupAgent,PrefabAgent, is_agent_type
-from games import RepeatedPrisonersTournament
+from games import RepeatedPrisonersTournament, IndirectReciprocity
 import math
 from utils import _issubclass
 import seaborn as sns
@@ -44,13 +44,12 @@ def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 
     given_values = locals()
     given_values.update(kwargs)
 
-    
     if not games:
-        
-        games = RepeatedPrisonersTournament(rounds,tremble = tremble,**kwargs)
-        #games = IndirectReciprocity(rounds = rounds ,tremble = tremble,**kwargs)
+        games = RepeatedPrisonersTournament(rounds, tremble = tremble, **kwargs)
+    elif games == 'indirect':
+        games = IndirectReciprocity(rounds = rounds, tremble = tremble, **kwargs)
     else:
-        games = games(rounds = rounds, **kwargs)
+        games = games(rounds = rounds, tremble = tremble, **kwargs)
     
     values =  {
         'N_agents' : N_agents,

@@ -440,14 +440,15 @@ class Standing(Agent):
         self.action_dict = genome['action_dict']
         self.assesment_dict = genome['assesment_dict']
 
-    def observe(self,observations):
-        #print observations
-        [obs] = observations
-        decider, recipient = obs[1]
-        action = obs[3]
-        image = self.image
-        assesment = self.assesment_dict
-        image[decider] = assesment[(action,image[decider],image[recipient])]
+    def observe(self, observations):
+        # ASSUMPTION: You only see every agent act once, in a round. 
+        for obs in observations:
+            assert self.world_id in set(obs[2])
+            decider, recipient = obs[1]
+            action = obs[3]
+            image = self.image
+            assesment = self.assesment_dict
+            image[decider] = assesment[(action,image[decider],image[recipient])]
 
     def decide_likelihood(self, game, agents = None, tremble = 0):
         action_dict = self.action_dict
