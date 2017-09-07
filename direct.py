@@ -13,23 +13,25 @@ from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
 from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis
+
 import pandas as pd
 from datetime import date
 from agents import leading_8_dict, shorthand_to_standing
-from evolve import *
+from evolve import param_v_rounds_plot, param_v_rounds, compare_param_v_rounds
+from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param
 
 def AllC_AllD_race():
     today = "./plots/"+date.today().isoformat()+"/"
     
-    ToM = ('self', AllC, AllD)
-    opponents = (AllC, AllD)
+    opponents = (AllD, AllC)
+    ToM = ('self', ) + opponents
     pop = (WeAgent(agent_types = ToM), ag.TFT)
     
-    for t in [ 0,
-              0.05]:
+    for t in [0.05]:
         background_params = dict(
             experiment = compare_ssd_v_param,
             direct = True,
+            games = 'direct',
             RA_prior = 0.5,
             beta = 5,
             player_types = pop,
@@ -99,28 +101,32 @@ def Pavlov_gTFT_race():
                          plot_dir = today)
 
 def bc_rounds_contest():
-    WA = WeAgent
-    prior = 0.5
-
-    RA = WA(RA_prior = prior, agent_types = ('self', ag.AllC, ag.AllD))
-    player_types = (RA, ag.TFT, ag.GTFT, ag.Pavlov)
-
     for t in [0, 0.05]:
-        bc_rounds_plot(
-            max_rounds = 20,
-            experiment = compare_bc_v_rounds,
-            player_types = player_types,
-            opponent_types = (ag.AllC, ag.AllD),
-            tremble = t
-        )
-
-
+        for opp in [
+                (AllD, AllC)
+        ]:
+            RA = WeAgent(RA_prior = .5, beta = 5, agent_types = ('self',) + opp)
+            player_types = (RA, ag.TFT, ag.GTFT, ag.Pavlov
+            )
+            
+            params = dict(param = 'benefit',
+                          rounds = 10,
+                          player_types = player_types,
+                          opponent_types = opp,
+                          tremble = t,
+                          s = 1,
+                          pop_size = 100,
+                          games = 'direct',
+                          direct = True,
+                          experiment = compare_param_v_rounds,
+                          file_name = 'bc_rounds_contest_tremble=%.2f_opp=%s' % (t, opp)
+            )
+            
+            param_v_rounds_plot(**params)
 
 def bc_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
     plot_dir = "./plots/bc_rounds_race/"
-
-    max_rounds = 20
 
     priors = [
         #.1,
@@ -148,10 +154,26 @@ def bc_rounds_race():
         RA = WeAgent(RA_prior = prior, agent_types = ToM, beta = beta)
         everyone = (RA, ag.AllC, ag.AllD, ag.TFT, ag.GTFT, ag.Pavlov)
         for t in trembles:
-            bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t,
-                           plot_dir = plot_dir,
-                           file_name = file_name % (ToM,beta,prior,t)
+            params = dict(param = 'benefit',
+                          rounds = 10,
+                          player_types = everyone,
+                          tremble = t,
+                          s = 1,
+                          pop_size = 100,
+                          games = 'direct',
+                          direct = True,
+                          experiment = param_v_rounds,
+                          file_name = file_name % (ToM,beta,prior,t)
             )
+            
+            param_v_rounds_plot(**params)
+
+
+            
+            # bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t,
+            #                plot_dir = plot_dir,
+            #                file_name = 
+            # )
 
 def limit_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
@@ -169,7 +191,7 @@ def limit_rounds_race():
 
     priors = [
         #.1,
-        #.5,
+        .5,
         #.75
         #.99
     ]
@@ -182,8 +204,8 @@ def limit_rounds_race():
         #.5,
         #1,
         #3,
-        #5,
-        10,
+        5,
+        # 10,
     ]
 
     trembles = [
@@ -198,16 +220,15 @@ def limit_rounds_race():
             limit_param_plot(param = 'rounds', player_types = everyone, max_rounds = max_rounds, tremble = t,
                              plot_dir = plot_dir,
                              file_name = file_name % (ToM,beta,prior,t),
-                             extension = '.png'
             )
 
 
 
 if __name__ == "__main__":
-    # image_contest()
-    AllC_AllD_race()
+    # AllC_AllD_race()
+    # bc_rounds_contest()
     # Pavlov_gTFT_race()
-    # bc_rounds_race()
+    bc_rounds_race()
     # limit_rounds_race()
     assert 0
 

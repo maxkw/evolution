@@ -255,6 +255,7 @@ def indirect_simulator(player_types, *args, **kwargs):
 def indirect_simulator_from_dict(d):
     return indirect_simulator(**d)
 
+@memoized
 def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     pool = Pool(8)
 
@@ -298,7 +299,7 @@ def mcp_to_ssd(mcp,s):
     transition = mcp_to_invasion(np.exp(s*mcp))
     return steady_state(transition)
 
-def mcp_to_invasion(mcp):
+def mcp_to_invasion(mcp, type_count):
     """
     type_indices_matchups, a list of the matchups where instead of the type, it's index is in it's position
     mcp_matrix is a matchup x count x payoff, matrix
@@ -308,10 +309,12 @@ def mcp_to_invasion(mcp):
     a payoff is the vector of payoffs to each of the participating agents for that matchup and population composition
     """
     
-    type_count = mcp.shape[-1]+1
+
+    # type_count = mcp.shape[-1]+1
     type_indices_matchups = list(combinations(range(type_count), 2))
     transition = np.zeros((type_count,)*2)
-
+    # print type_count
+    # print transition
     for matchup, payoff_by_parts in izip(type_indices_matchups, mcp):
         a,b = matchup
         
@@ -335,6 +338,7 @@ def mcp_to_invasion(mcp):
             print transition[:,i]
             print np.sum(transition[:,i])
             raise
+
     return transition
 
 def limit_analysis(player_types, s, direct = False, **kwargs):
@@ -351,8 +355,8 @@ def limit_analysis(player_types, s, direct = False, **kwargs):
     ssds = []
 
     for mcp in rmcp:
-        ssds.append(steady_state(mcp_to_invasion(mcp)))
-        
+        ssds.append(steady_state(mcp_to_invasion(mcp, len(player_types))))
+
     return np.array(ssds)[:, original_order]
 
 

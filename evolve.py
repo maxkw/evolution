@@ -71,7 +71,7 @@ def sim_plotter(generations, pop, player_types, data =[]):
     plt.legend()
 
 @experiment(unpack = 'record', memoize = False, verbose = 3)
-def ssd_v_param(param, player_types, direct = False, **kwargs):
+def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
     """
     This should be optimized to reflect the fact that
     in terms of complexity
@@ -89,17 +89,20 @@ def ssd_v_param(param, player_types, direct = False, **kwargs):
     # Test to make sure each agent interacts with a new agent each
     # time. Otherwise its not true 'indirect' reciprocity.
     unique_interactions = kwargs['pop_size'] * (kwargs['pop_size'] - 1)
+
+    
     if unique_interactions <= kwargs['rounds']:
         raise Exception("There are more rounds than unique interactions. Raise pop_size or lower rounds.")
 
     Xs = {
         # 'RA_prior': np.linspace(0,1,21)[1:-1],
         'RA_prior': np.linspace(0, 1, 21),
-        'benefit': [1.5, 2, 2.5, 3],
+        'benefit': np.linspace(2, 10, 5),
         'beta': np.linspace(1, 11, 6),
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
-        'observability': np.linspace(0, 1, 5)
+        'observability': [0, 0.25, .5, 1],
+        'tremble': np.linspace(0,.25,6),
     }
     record = []
     
@@ -112,18 +115,28 @@ def ssd_v_param(param, player_types, direct = False, **kwargs):
                     'type': t.short_name('agent_types'),
                     'proportion': p
                 })
-
+                
         return record
 
     elif param in Xs:
         for x in Xs[param]:
-            ssd = limit_analysis(player_types = player_types, direct = direct, **dict(kwargs,**{param:x}))[-1]
-            for t, p in zip(player_types, ssd):
-                record.append({
-                    param: x,
-                    "type": t.short_name("agent_types"),
-                    "proportion": p
-                })
+            expected_pop_per_round = limit_analysis(player_types = player_types, direct = direct, **dict(kwargs,**{param:x}))
+
+
+            if return_rounds:
+                start = 1
+            else:
+                start = len(expected_pop_per_round)-1
+
+            for r, pop in enumerate(expected_pop_per_round[start:], start = 1):
+                for t, p in zip(player_types, pop):
+                    record.append({
+                        param: x,
+                        'rounds': r,
+                        'type': t.short_name('agent_types'),
+                        'proportion': p
+                    })
+
         return record
 
     else:
@@ -160,49 +173,78 @@ def limit_param_plot(param, player_types, data = [], **kwargs):
     plt.legend()
     plt.tight_layout()
 
-####
-# ''' BC / ROUND HEAT MAP CODE '''
-####
-@experiment(unpack = 'record', verbose = 2, memoize = True)
-def bc_v_rounds(player_types, max_rounds, **kwargs):
-    Warning('Memoize is one in the experiment!')
-    params = default_params(**kwargs)
-    records = []
-    Rs = np.unique(np.geomspace(4, max_rounds, 10, dtype=int))
-    # Bs = np.unique(np.geomspace(1.5, 10, 8, dtype=int))
-    Bs = [1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3]
-    # Bs = [1.5, 2, 2.5, 3, 4, 5, 7, 10]
-    for b in Bs:
-        matrices = matchup_matrix_per_round(player_types, max_rounds, benefit = b, **kwargs)
-        for rounds, payoffs in matrices:
-            ssd = limit_analysis(payoffs, **params)
-            #winner = max(zip(ssd,player_types),key = lambda t: t[0])[1]
-            if rounds in Rs:
-                for i, t in enumerate(player_types):
-                    records.append({
-                        "benefit":b,
-                        "frequency":ssd[i],
-                        "rounds":rounds,
-                        "type": t.short_name('agent_types')
-                    })
-    return records
+def param_v_rounds(param, player_types, direct, rounds, **kwargs):
+    return ssd_v_param(param, player_types, direct, return_rounds=True, rounds=rounds, **kwargs)
 
-def compare_bc_v_rounds(player_types, max_rounds, opponent_types, **kwargs):
+def compare_param_v_rounds(param, player_types, opponent_types, direct, rounds, **kwargs):
     dfs = []
     for player_type in player_types:
-        df = bc_v_rounds((player_type,)+opponent_types, max_rounds, **kwargs)
+        df = param_v_rounds(param, (player_type,)+opponent_types, direct, rounds, **kwargs)
         dfs.append(df[df['type']==player_type.short_name("agent_types")])
     return pd.concat(dfs,ignore_index = True)
 
-@plotter(bc_v_rounds)
-def bc_rounds_plot(player_types, data=[], **kwargs):
+@plotter(param_v_rounds)
+def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[], **kwargs):
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop('data')
+        import pdb; pdb.set_trace()
         d = data.pivot(index=args[1], columns=args[0], values=args[2])
         sns.heatmap(d, **kwargs)
-
+        
     g = sns.FacetGrid(data = data, col = 'type')
-    g.map_dataframe(draw_heatmap, 'benefit', 'rounds', 'frequency',  cbar=False, square=True, vmin=0, vmax=data['frequency'].max(),
-                    #cmap=plt.cm.gray_r,
+    g.map_dataframe(draw_heatmap, param, 'rounds', 'proportion',  cbar=False, square=True,
+                    vmin=0,
+                    vmax=1,
+                    # vmax=data['frequency'].max(),
+                    cmap=plt.cm.gray_r,
                     linewidths=.5)
+
+
+
+####
+# ''' BC / ROUND HEAT MAP CODE '''
+####
+# @experiment(unpack = 'record', verbose = 2, memoize = True)
+# def bc_v_rounds(player_types, max_rounds, **kwargs):
+#     Warning('Memoize is one in the experiment!')
+#     params = default_params(**kwargs)
+#     records = []
+#     Rs = np.unique(np.geomspace(4, max_rounds, 10, dtype=int))
+#     # Bs = np.unique(np.geomspace(1.5, 10, 8, dtype=int))
+#     Bs = [1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3]
+#     # Bs = [1.5, 2, 2.5, 3, 4, 5, 7, 10]
+#     for b in Bs:
+#         matrices = matchup_matrix_per_round(player_types, max_rounds, benefit = b, **kwargs)
+#         for rounds, payoffs in matrices:
+#             ssd = limit_analysis(payoffs, **params)
+#             #winner = max(zip(ssd,player_types),key = lambda t: t[0])[1]
+#             if rounds in Rs:
+#                 for i, t in enumerate(player_types):
+#                     records.append({
+#                         "benefit":b,
+#                         "frequency":ssd[i],
+#                         "rounds":rounds,
+#                         "type": t.short_name('agent_types')
+#                     })
+#     return records
+
+# def compare_bc_v_rounds(player_types, max_rounds, opponent_types, **kwargs):
+#     dfs = []
+#     for player_type in player_types:
+#         df = bc_v_rounds((player_type,)+opponent_types, max_rounds, **kwargs)
+#         dfs.append(df[df['type']==player_type.short_name("agent_types")])
+#     return pd.concat(dfs,ignore_index = True)
+
+# @plotter(bc_v_rounds)
+# def bc_rounds_plot(player_types, data=[], **kwargs):
+#     def draw_heatmap(*args, **kwargs):
+#         data = kwargs.pop('data')
+#         d = data.pivot(index=args[1], columns=args[0], values=args[2])
+#         sns.heatmap(d, **kwargs)
+
+#     g = sns.FacetGrid(data = data, col = 'type')
+#     g.map_dataframe(draw_heatmap, 'benefit', 'rounds', 'frequency',  cbar=False, square=True, vmin=0,
+#                     # vmax=data['frequency'].max(),
+#                     cmap=plt.cm.gray_r,
+#                     linewidths=.5)
 

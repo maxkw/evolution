@@ -400,7 +400,8 @@ class PrefabAgent(Agent):
             return self.__name__
 
     def __repr__(self):
-        return self.short_name('agent_types')#str(self)
+        # return self.short_name('agent_types')
+        return self.short_name()#str(self)
 
     def __hash__(self):
         return hash(str(self))
@@ -476,7 +477,7 @@ STANDING_SHORTHAND_TRANSLATOR = {
 def shorthand_to_standing(shorthand):
     translated = [STANDING_SHORTHAND_TRANSLATOR[s] for s in shorthand]
     assesments,actions = translated[:8],translated[8:12]
-    print assesments
+
     assert all([a in [True,False] for a in assesments])
     assert len(assesments) == 8
     
