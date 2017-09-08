@@ -9,6 +9,7 @@ from inspect import getargspec
 
 COST = 1
 BENEFIT = 3
+ENDOWMENT = 0
 ROUNDS = 10
 
 def literal(constructor):
@@ -203,6 +204,16 @@ def BinaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
     decision = Decision(BinaryDictatorDict(endowment,cost,benefit))
     decision.tremble = tremble
     decision.name = decision._name = "BinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))
+    return decision
+
+@literal
+def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 5, tremble = 0):
+    ratio = cost/benefit
+    benefits = np.linspace(0,benefit,intervals)
+    costs = benefits*ratio
+    decision = Decision(dict((str(p),p) for p in zip(endowment-costs,benefits)))
+    decision.tremble = tremble
+    #decision._name = "GradatedBinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))"
     return decision
 
 """
@@ -714,7 +725,7 @@ def RepeatedSequentialBinary(rounds = ROUNDS, visibility = "private"):
 def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tremble = 0, **kwargs):
     visibility = "private"
     observability = .5
-    PD = Symmetric(BinaryDictator(cost = cost, benefit = benefit, tremble = tremble))
+    PD = Symmetric(GradatedBinaryDictator(cost = cost, benefit = benefit, tremble = tremble))
 
     if visibility == "private":
         PD.tremble = kwargs.get('tremble', 0)
@@ -729,7 +740,7 @@ def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tre
 
 @literal
 def IndirectReciprocity(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, **kwargs):
-    bd = BinaryDictator(cost = cost, benefit = benefit, tremble = tremble)
+    bd = GradatedBinaryDictator(cost = cost, benefit = benefit, tremble = tremble)
     g = Repeated(rounds, Circular(RandomlyObserved(observability, bd)))
     return g
 
