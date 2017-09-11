@@ -19,7 +19,7 @@ from utils import softmax_utility, _issubclass, normalized
 import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
-
+import games
 priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
 diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
 
@@ -45,7 +45,9 @@ def justcaps(t):
 @experiment(unpack = 'dict', trials = 100, verbose = 3)
 def binary_matchup(player_types, priors, Ks, **kwargs):
     condition = dict(locals(),**kwargs)
+
     params = default_params(**condition)
+
     genomes = [default_genome(agent_type = t, RA_prior=p, RA_K = k, **condition) for t,p,k in zip(player_types,priors,Ks)]
     world = World(params,genomes)
     fitness,history = world.run()
@@ -56,7 +58,7 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
 @experiment(unpack = 'record', trials = 100, verbose = 3)
-def matchup(player_types, **kwargs):
+def matchup(player_types, game, **kwargs):
 
     try:
         player_types,pop = zip(*player_types)
@@ -66,6 +68,20 @@ def matchup(player_types, **kwargs):
 
     condition = dict(player_types = player_types,**kwargs)
     params = default_params(**condition)
+
+    if game == 'direct':
+        g = RepeatedPrisonersTournament(**kwargs)
+    elif game == 'indirect':
+        g = games.IndirectReciprocity(**kwargs)
+    elif game == 'exponential indirect':
+        g = games.ExponentialIndirectReciprocity(**kwargs)
+    elif game == 'manual':
+        raise NotImplementedError
+    else:
+        raise Exception("Game must be specified for 'matchup'")
+
+
+    params['games'] = g
 
     player_types = sum([[t]*p for t,p in zip(player_types,pop)],[])
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
