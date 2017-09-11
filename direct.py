@@ -23,28 +23,41 @@ from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param
 def AllC_AllD_race():
     today = "./plots/"+date.today().isoformat()+"/"
     
-    opponents = (AllD, AllC)
+    #opponents = (AllD, AllC)
+    opponents = (ag.SelfishAgent,ag.AltruisticAgent)
     ToM = ('self', ) + opponents
-    pop = (WeAgent(agent_types = ToM), ag.TFT)
-    
-    for t in [0.05]:
+    pop = (WeAgent(agent_types = ToM),)+opponents
+           # ag.TFT)
+    games = [
+        'direct',
+        'indirect',
+        'exponential indirect'
+    ]
+    trembles = [
+        0,
+        .05
+    ]
+    for t,g in product(trembles,games):
         background_params = dict(
-            experiment = compare_ssd_v_param,
+            experiment = ssd_v_param,
             direct = True,
-            games = 'direct',
+            game = g,
             RA_prior = 0.5,
             beta = 5,
             player_types = pop,
-            opponent_types = opponents,
+            #opponent_types = opponents,
             agent_types = ToM,
             tremble = t,
             pop_size = 100, 
-            plot_dir = today
+            plot_dir = today,
+            #file_name = "gradated"
         )
         
         # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
         # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        limit_param_plot("rounds", rounds = 100, s=1, file_name = 'contest_rounds_tremble=%0.2f' % t, **background_params)
+        limit_param_plot("rounds", rounds = 50, s=1,
+                         file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
+                         **background_params)
         # limit_param_plot("RA_prior", rounds = 10, s=1, file_name = 'contest_prior_tremble=%0.2f' % t, **background_params)
         # limit_param_plot("beta", rounds = 10, s=1, file_name = 'contest_beta_tremble=%0.2f' % t, **background_params)
 
@@ -116,7 +129,7 @@ def bc_rounds_contest():
                           tremble = t,
                           s = 1,
                           pop_size = 100,
-                          games = 'direct',
+                          game = 'direct',
                           direct = True,
                           experiment = compare_param_v_rounds,
                           file_name = 'bc_rounds_contest_tremble=%.2f_opp=%s' % (t, opp)
@@ -160,7 +173,7 @@ def bc_rounds_race():
                           tremble = t,
                           s = 1,
                           pop_size = 100,
-                          games = 'direct',
+                          game = 'direct',
                           direct = True,
                           experiment = param_v_rounds,
                           file_name = file_name % (ToM,beta,prior,t)
@@ -197,7 +210,7 @@ def limit_rounds_race():
     ]
 
     ToMs = [
-        ('self', AC, AD, TFT, GTFT, Pavlov)
+        ('self', AC, AD)#, TFT, GTFT, Pavlov)
     ]
 
     betas = [
@@ -215,21 +228,22 @@ def limit_rounds_race():
 
     for prior, ToM, beta in product(priors,ToMs,betas):
         RA = WeAgent(RA_prior = prior, agent_types = ToM, beta = beta)
-        everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
+        everyone = (RA, AC, AD)#, TFT, GTFT, Pavlov)
         for t in trembles:
-            limit_param_plot(param = 'rounds', player_types = everyone, max_rounds = max_rounds, tremble = t,
+            limit_param_plot(param = 'rounds', player_types = everyone, rounds = max_rounds, tremble = t,
                              plot_dir = plot_dir,
+                             #games = 'indirect',
                              file_name = file_name % (ToM,beta,prior,t),
             )
 
 
 
 if __name__ == "__main__":
-    # AllC_AllD_race()
+    AllC_AllD_race()
     # bc_rounds_contest()
     # Pavlov_gTFT_race()
-    bc_rounds_race()
-    # limit_rounds_race()
+    #bc_rounds_race()
+    #limit_rounds_race()
     assert 0
 
     MRA = ReciprocalAgent
