@@ -12,7 +12,7 @@ import math
 from inspect import getargspec
 from collections import OrderedDict
 import os
-from functools import wraps
+from functools import wraps, reduce
 from pickle import load, dump
 
 pd.set_option('precision',5)
@@ -217,3 +217,7 @@ def excluding_keys(d,*keys):
 
 def justcaps(t):
     return filter(str.isupper,t.__name__)
+
+def compose(*funcs):
+    return reduce(lambda f,g: lambda x: f(g(x)), funcs, lambda x: x)
+
