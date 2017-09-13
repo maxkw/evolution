@@ -207,11 +207,14 @@ def BinaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
     return decision
 
 @literal
-def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 5, tremble = 0):
+def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
     ratio = cost/benefit
     benefits = np.linspace(0,benefit,intervals)
     costs = benefits*ratio
-    decision = Decision(dict((str(p),p) for p in zip(endowment-costs,benefits)))
+    decision_names = [(str(p),p) for p in zip(endowment-costs,benefits)]
+    decision_names[0] = 'keep'
+    decision_names[-1] = 'give'
+    decision = Decision(dict(zip(decision_names, zip(endowment-costs,benefits))))
     decision.tremble = tremble
     #decision._name = "GradatedBinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))"
     return decision
@@ -360,7 +363,7 @@ class SymmetricMatchup(object):
         game = self.game
         for matchup in matchups:
             yield (game, list(matchup))
-            
+
 class Symmetric(SymmetricMatchup,DecisionSeq):
     pass
 
