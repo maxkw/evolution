@@ -75,6 +75,12 @@ def matchup(player_types, game, **kwargs):
         g = games.IndirectReciprocity(**kwargs)
     elif game == 'exponential indirect':
         g = games.ExponentialIndirectReciprocity(**kwargs)
+    elif game == 'ternary':
+        g = games.TernaryTournament(**kwargs)
+    elif game == 'social':
+        g = games.SocialTournament(**kwargs)
+    elif game == 'gradated':
+        g = games.GradatedTournament(**kwargs)
     elif game == 'manual':
         raise NotImplementedError
     else:
@@ -249,7 +255,8 @@ def matchup_plot(data = [],**kwargs):
             p0,p1 = names
             fitness = trials.mean()['fitness']
             try:
-                fitness /= params['games'].rounds
+                fitness /= kwargs['rounds']
+                #fitness /= params['games'].rounds
             except:
                 print Warning("matchup_matrix didn't find a round parameter in the game")
             record.append({'recipient prior':p0, 'opponent prior':p1, 'reward':fitness})
