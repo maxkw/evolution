@@ -6,6 +6,7 @@ from copy import copy, deepcopy
 import numpy as np
 from experiment_utils import fun_call_labeler
 from inspect import getargspec
+import random
 
 COST = 1
 BENEFIT = 3
@@ -216,7 +217,55 @@ def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT
     decision_names[-1] = 'give'
     decision = Decision(dict(zip(decision_names, zip(endowment-costs,benefits))))
     decision.tremble = tremble
+    
+    
     #decision._name = "GradatedBinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))"
+    return decision
+
+@literal
+def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
+    assert benefit > cost
+    cost = float(cost)
+    benefit = float(benefit)
+    max_d = benefit-cost
+    max_r = cost/benefit
+    #ratios = [n/4 for n in range(4)]
+    #ratios = [0, 1/3, 1/2]
+    ratios = np.linspace(0,max_r,intervals)
+    differences = np.linspace(0,max_d,intervals)
+    def new_cost(r,d):
+        return d/(1-r)-d
+    def new_benefit(r,d):
+        return d/(1-r)
+
+    payoffs = [(endowment-new_cost(r,d), new_benefit(r,d)) for d,r in zip(differences,ratios)]
+    print payoffs
+    assert 0
+
+    decision = Decision(dict((str(p),p) for p in payoffs))
+    decision.tremble = tremble
+    return decision
+
+SocialDictator(cost = 1, benefit = 3, intervals = 3)
+@literal
+def TernaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
+    payoffs = [
+        (endowment,0,0),
+        (endowment-cost,benefit,0),
+        (endowment-cost,0,benefit)
+    ]
+    decision = Decision(dict((str(p),p) for p in payoffs))
+    decision.tremble = tremble
+    return decision
+
+@literal
+def TernaryIgnore(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
+    payoffs = [
+        (endowment,0,0),
+        (endowment-cost,benefit,0),
+    ]
+    decision = Decision(dict((str(p),p) for p in payoffs))
+    decision.tremble = tremble
     return decision
 
 """
@@ -367,6 +416,21 @@ class SymmetricMatchup(object):
 class Symmetric(SymmetricMatchup,DecisionSeq):
     pass
 
+class SymmetricRecipients(DecisionSeq):
+    def __init__(self,game):
+        self.game = game
+        self.N_players = game.N_players
+
+    def matchups(self, participants):
+        ids = set(xrange(len(participants)))
+        matchups = []
+        for i in ids:
+            matchups.extend([(i)+p for p in permutations(ids-i)])
+        np.random.shuffle(matchups)
+        game = self.game
+        for matchup in matchups:
+            yield (game, list(matchup))
+
 class CircularMatchup(object):
     def __init__(self,game):
         self.game = game
@@ -376,7 +440,9 @@ class CircularMatchup(object):
     def matchups(self,participants):
         indices = range(len(participants))
         np.random.shuffle(indices)
-        matchups = zip(indices,indices[1:]+indices[:1])
+
+        matchups = zip(*[indices[i:]+indices[:i] for i in xrange(self.game.N_players)])
+        #matchups = zip(indices,indices[1:]+indices[:1])
 
         playable = self.game
         for matchup in matchups:
@@ -621,6 +687,17 @@ class const(object):
     def __call__(self):
         return self.val
 
+
+class RandomlyChosen(Playable):
+    def __init__(self,*playables):
+        self._playables = playables
+        self.N_players = N = playables[0].N_players
+        assert all(p.N_players == N for p in playables)
+        self.name = "RandomlyChosen(%s)" % ", ".join([p.name for p in playables])
+    def play(self, *args, **kwargs):
+        return random.choice(self._playables).play(*args,**kwargs)
+
+
 class Dynamic(Playable):
     """
     takes a playable-making function
@@ -640,6 +717,7 @@ class Dynamic(Playable):
     def play(self,participants,observers=[], tremble=0):
         playable = self.constructor(**self.arg_gen())
         return playable.play(participants, observers, tremble)
+
 
 
 def exponential(scale,gamma=1):
@@ -757,7 +835,6 @@ Randomly(GradatedBinaryDictator,
 """
 
 
-
 @implicit
 def Exponential(game,gamma=1,*args,**kwargs):
     return Randomly(game, func = exponential, gamma = gamma, *args, **kwargs)
@@ -813,16 +890,37 @@ def ExponentialIndirectReciprocity(rounds = ROUNDS, cost = COST, benefit = BENEF
     return g
 
 
+@literal
+def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
+    args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
+    game = Repeated(rounds, PubliclyObserved(Symmetric(GradatedBinaryDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    return game
+
+
+@literal
+def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
+    args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
+    game = Repeated(rounds, PubliclyObserved(Symmetric(SocialDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    return game
+
+@literal
+def TernaryTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, **kwargs):
+    args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
+    game = Repeated(rounds, PubliclyObserved(Circular(TernaryDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    return game
+
 if __name__ == "__main__":
-    from agents import ReciprocalAgent, Puppet
+    from agents import WeAgent, Puppet
+    import agents
     from params import default_genome
     
     puppets = array([Puppet("Alpha"),Puppet("Beta"),Puppet("C")])
-    agents = array([ReciprocalAgent(default_genome(),world_id = n) for n in range(3)])
-    game = RepeatedDynamicPrisoners(10)
+    
+
+    game = TernaryTournament(10)#RepeatedDynamicPrisoners(10)
     print game
     print hash(game)
-    payoff,history,records = game.play(agents)
+    payoff,history,records = game.play(puppets)
     print "Final Payoff:",payoff
     print len(list(set(g for g,a,b,c in history)))
   
