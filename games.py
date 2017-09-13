@@ -237,12 +237,14 @@ def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, interv
         return d/(1-r)
 
     payoffs = [(endowment-new_cost(r,d), new_benefit(r,d)) for d,r in zip(differences,ratios)]
-    #print payoffs
-    #assert 0
+    print payoffs
+    assert 0
 
     decision = Decision(dict((str(p),p) for p in payoffs))
     decision.tremble = tremble
     return decision
+
+SocialDictator(cost = 1, benefit = 3, intervals = 3)
 @literal
 def TernaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
     payoffs = [
