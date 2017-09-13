@@ -256,7 +256,7 @@ def indirect_simulator_from_dict(d):
     return indirect_simulator(**d)
 
 @memoized
-def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
+def sim_to_limit_rmcp(player_types, pop_size, rounds, parallelized = True, **kwargs):
     pool = Pool(8)
 
     assert player_types == sorted(player_types)
@@ -279,7 +279,10 @@ def sim_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     # the first level is ordered by partitions
     # the second layer is ordered by rounds
     # payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
-    payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
+    if parallelized == True:
+        payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
+    elif parallelized == False:
+        payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
 
 
     # Unpack the data into a giant matrix
