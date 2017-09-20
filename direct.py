@@ -13,35 +13,105 @@ from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
 from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis
+from cycler import cycler
 
 import pandas as pd
 from datetime import date
-from agents import leading_8_dict, shorthand_to_standing
 from evolve import param_v_rounds_plot, param_v_rounds, compare_param_v_rounds
 from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param
 
-def AllC_AllD_race():
-    today = "./plots/"+date.today().isoformat()+"/"
+TODAY = "./plots/"+date.today().isoformat()+"/"
+
+def ToM_indirect():
+    opponents = (ag.SelfishAgent, )
+    ToM = ('self', ) + opponents
+
+    background_params = dict(
+        rounds = 50,
+        benefit = 20,
+        direct = False,
+        game = 'indirect',
+        pop_size = 10, 
+        s = 1,
+        RA_prior = 0.5,
+        beta = 5,
+        tremble = 0,
+        # plot_dir = TODAY,
+        agent_types = ToM,
+        player_types = (WeAgent, ) + tuple(ReciprocalAgent(RA_K=k) for k in range(1)),
+        opponent_types = opponents,
+        experiment = compare_ssd_v_param,
+        file_name = 'ToM_indirect'
+    )
+
+    limit_param_plot("rounds",
+                     graph_kwargs = dict(color = 'C5', style = ['--', '-']),
+                     **background_params)
+
+
+def Compare_Old():
+    trembles = [0, 0.05]
     
-    #opponents = (AllD, AllC)
-    opponents = (ag.SelfishAgent,ag.AltruisticAgent)
+    for t in trembles:
+        classic =  (ag.AllC, ag.AllD, ag.Pavlov, ag.GTFT, ag.TFT)
+        background_params = dict(
+            rounds = 50,
+            benefit = 3,
+            tremble = t,
+            direct = True,
+            game = 'direct',
+            pop_size = 100, 
+            s = .5,
+            RA_prior = 0.5,
+            beta = 5,
+            agent_types = ('self',) + classic,
+            # plot_dir = TODAY,
+        )
+
+        # Without WeAgent
+        limit_param_plot("rounds",
+                         player_types = classic,
+                         file_name = 'Compare_Old NoWE tremble=%0.2f' % t,
+                         experiment = ssd_v_param,
+                         stacked = True,
+                         **background_params)
+
+        # With WeAgent
+        limit_param_plot("rounds",
+                         player_types = classic + (WeAgent, ),
+                         file_name = 'Compare_Old WE tremble=%0.2f' % t,
+                         experiment = ssd_v_param,
+                         stacked = True,
+                         **background_params)
+
+        # ToM Comparison
+        limit_param_plot("rounds",
+                         player_types = (WeAgent, ) + tuple(ReciprocalAgent(RA_K=k) for k in range(2)),
+                         opponent_types = classic,
+                         file_name = 'Compare_Old ToM tremble=%0.2f' % t,
+                         experiment = compare_ssd_v_param,
+                         graph_kwargs = dict(color = 'C5', style = ['--', ':', '-']),
+                         **background_params)
+        
+        
+    
+def AllC_AllD_race():
+    opponents = (AllD, AllC)
+    # opponents = (ag.SelfishAgent,ag.AltruisticAgent)
     ToM = ('self', ) + opponents
     pop = (WeAgent(agent_types = ToM),)+opponents
+    # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
            # ag.TFT)
-    games = [
-        'direct',
-        'indirect',
-        'exponential indirect'
-    ]
+
     trembles = [
         0,
         .05
     ]
-    for t,g in product(trembles,games):
+    for t in trembles:
         background_params = dict(
             experiment = ssd_v_param,
             direct = True,
-            game = g,
+            game = 'direct',
             RA_prior = 0.5,
             beta = 5,
             player_types = pop,
@@ -49,23 +119,23 @@ def AllC_AllD_race():
             agent_types = ToM,
             tremble = t,
             pop_size = 100, 
-            plot_dir = today,
+            # plot_dir = TODAY,
             #file_name = "gradated"
         )
         
         # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
         # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
         limit_param_plot("rounds", rounds = 50, s=1,
-                         file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
+                         file_name = 'contest_rounds_tremble=%0.2f' % t,
                          **background_params)
         # limit_param_plot("RA_prior", rounds = 10, s=1, file_name = 'contest_prior_tremble=%0.2f' % t, **background_params)
         # limit_param_plot("beta", rounds = 10, s=1, file_name = 'contest_beta_tremble=%0.2f' % t, **background_params)
 
 
 #a_type, proportion = max(zip(player_types,ssd), key = lambda tup: tup[1])
+        
 
 def Pavlov_gTFT_race():
-    today = "./plots/"+date.today().isoformat()+"/"
     TFT = gTFT(y=1,p=1,q=0)
     MRA = WeAgent#ReciprocalAgent
     r = 10
@@ -73,16 +143,14 @@ def Pavlov_gTFT_race():
     # Replicate Nowak early 90s
     pop = (TFT, AllC, AllD, gTFT(y=1,p=.99,q=.33), Pavlov)
     for t in [0, 0.05]:
-        limit_param_plot('s', pop, rounds = r, tremble = t, file_name = 'nowak_replicate_s_tremble=%.2f' % t, plot_dir = today)
-    sim_plotter(5000, (0,0,100,0,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1, file_name ='nowak_replicate_sim_tremble=0.05', plot_dir = today)
+        limit_param_plot('s', pop, rounds = r, tremble = t, file_name = 'nowak_replicate_s_tremble=%.2f' % t, plot_dir = TODAY)
+    sim_plotter(5000, (0,0,100,0,0), player_types = pop, rounds = r, tremble = 0.05, mu=0.05, s=1, file_name ='nowak_replicate_sim_tremble=0.05', plot_dir = TODAY)
 
     # Horse race against gTFT and Pavlov
     prior = 0.5
-    beta = 10
+    beta = 5
 
     trembles = [0, 0.05]
-    priors = [.5,.75]
-    betas = [3,5,10]
     opponents = (TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov)
 
     ToM = ('self',)+opponents
@@ -92,26 +160,26 @@ def Pavlov_gTFT_race():
     comparables = tuple(MRA(RA_prior=p, beta = b, agent_types=ToM) for p,b in product(priors,betas))
 
     for t in trembles:
-        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%0.2f' % t, plot_dir = today)
+        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_no_random_tremble=%0.2f' % t, plot_dir = TODAY)
         limit_param_plot('rounds',
                          player_types = comparables,
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_ssd_v_param,
                          file_name = 'horse_rounds_no_random_tremble=%0.2f' % t,
-                         plot_dir = today)
+                         plot_dir = TODAY)
 
     # Add Random to the ToM
     ToM = ('self', TFT, gTFT(y=1,p=.99,q=.33), AllC, AllD, Pavlov, RandomAgent)
     for t in trembles:
-        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%.2f' % t,plot_dir = today)
+        limit_param_plot('s', player_types = pop, rounds = r, tremble = t, file_name = 'horse_s_will_random_tremble=%.2f' % t,plot_dir = TODAY)
         limit_param_plot('rounds',
                          player_types = comparables,
                          opponent_types = opponents,
                          tremble = t,
                          experiment = compare_ssd_v_param,
                          file_name = 'horse_rounds_with_random_tremble=%.2f' % t,
-                         plot_dir = today)
+                         plot_dir = TODAY)
 
 def bc_rounds_contest():
     for t in [0, 0.05]:
@@ -239,9 +307,12 @@ def limit_rounds_race():
 
 
 if __name__ == "__main__":
-    AllC_AllD_race()
+    ToM_indirect()
+    # Compare_Old()
+    # AllC_AllD_race()
     # bc_rounds_contest()
     # Pavlov_gTFT_race()
+    # ToM_direct()
     #bc_rounds_race()
     #limit_rounds_race()
     assert 0

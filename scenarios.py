@@ -137,10 +137,10 @@ def first_impressions(agent_types, **kwargs):
 
     record = []
 
-    trials = ['D', 'CD', 'CCD', 'CCDD']
+    trials = ['', 'D', 'CD', 'CCD', 'CCDDD']
 
     for trial in trials:
-        observer = RationalAgent(genome=genome, world_id='B')
+        observer = ReciprocalAgent(genome=genome, world_id='B')
         h = Counter(trial)
 
         # observations = [
@@ -155,15 +155,19 @@ def first_impressions(agent_types, **kwargs):
             observer.observe([(game, 'AB', 'ABO', 'give'),
                               (game, 'BA', 'ABO', 'give')])
 
-            
+
         before = observer.belief_that('A', ReciprocalAgent)
         
         for _ in xrange(h['D']):
             observer.observe([(game, 'AB', 'ABO', 'keep')])
-            
-        after = observer.belief_that('A', ReciprocalAgent)
+        
+        # after = observer.decide_likelihood(game, 'BA', )[0]
 
-        for t, b in zip(['Before', 'After'], [before, after]):
+        after = observer.belief_that('A', ReciprocalAgent)
+        after = after - before
+        
+        # for t, b in zip(['Before', 'After'], [before, after]):
+        for t, b in zip(['After'], [after]):
             record.append({'cooperations': trial,
                            'belief': b,
                            'type': t})
@@ -174,19 +178,32 @@ def first_impressions(agent_types, **kwargs):
 def first_impressions_plot(data=[]):
     sns.set_context("poster", font_scale=1)
     fplot = sns.factorplot(data=data, x='cooperations',
-                           y='belief', bw=.1, hue='type', legend=False, aspect=1.3)
+                           y='belief',
+                           # bw=.1,
+                           kind = 'bar',
+                           hue='type', legend=False, aspect=1.3)
 
-    (fplot
-     .set(ylim=(0, 1.05),
-          ylabel='P(A = Reciprocal)',
+    fplot.set(
+         # ylim=(0, 1.05),
+          # ylabel='P(A = Reciprocal)',
+          ylabel='',
           xlabel='',
-          yticks=np.linspace(0, 1, 5),
-          yticklabels=['0', '0.25', '0.5', '0.75', '1']))
-    plt.legend(loc='best')
+          # yticks=np.linspace(0, 1, 5),
+          # yticklabels=['0', '0.25', '0.5', '0.75', '1']
+    )
+    # plt.legend(loc='best')
     plt.tight_layout()
 
 
 def main(prior = 0.75, beta = 5, **kwargs):
+    first_impressions_plot(
+        agent_types=(ReciprocalAgent, SelfishAgent),
+        RA_prior=prior,
+        beta=beta,
+        RA_K=1,
+        tremble=0.05,
+        file_name='first_impressions', **kwargs)
+
     scene_plot(
         scenario_func=reciprocal_scenarios_0,
         agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
@@ -210,14 +227,6 @@ def main(prior = 0.75, beta = 5, **kwargs):
         RA_K=MultiArg([0, 1, 2]),
         beta=beta,
         file_name='scene_false_belief', **kwargs)
-
-    first_impressions_plot(
-        agent_types=(ReciprocalAgent, SelfishAgent),
-        RA_prior=prior,
-        beta=beta,
-        RA_K=1,
-        tremble=0.05,
-        file_name='first_impressions', **kwargs)
 
 if __name__ == '__main__':
     main()

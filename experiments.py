@@ -223,12 +223,14 @@ def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
     for r in range(1, max_rounds + 1):
         data = all_data[all_data['round']==r]
         for combination in data['player_types'].unique():
+            combo = data[(data['player_types']==combination)]
             for matchup in set(permutations(combination)):
                 player,opponent = matchup
                 p,o = tuple(index[t] for t in matchup)
-                trials = data[(data['player_types']==combination) & (data['type']==player)]
+                # trials = combo[(combo['type']==player)]
                 # import pdb; pdb.set_trace()
-                payoffs[p,o] += trials.mean()['fitness']
+                # payoffs[p,o] += trials.mean()['fitness']
+                payoffs[p,o] += combo[(combo['type']==player)].mean()['fitness']
         payoffs_list.append(copy(payoffs))
 
     for r,p in enumerate(payoffs_list,start=1):

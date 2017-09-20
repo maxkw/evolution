@@ -90,10 +90,6 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
     # time. Otherwise its not true 'indirect' reciprocity.
     unique_interactions = kwargs['pop_size'] * (kwargs['pop_size'] - 1)
 
-    
-    if unique_interactions <= kwargs['rounds']:
-        raise Exception("There are more rounds than unique interactions. Raise pop_size or lower rounds.")
-
     Xs = {
         # 'RA_prior': np.linspace(0,1,21)[1:-1],
         'RA_prior': np.linspace(0, 1, 21),
@@ -149,28 +145,39 @@ def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
         dfs.append(df[df['type']==player_type.short_name("agent_types")])
     return pd.concat(dfs, ignore_index = True)
 
-@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data'])
-def limit_param_plot(param, player_types, data = [], **kwargs):
-    fig = plt.figure()
-    for hue in data['type'].unique():
-        d = data[data['type']==hue]
-        p = plt.plot(d[param], d['proportion'], label=hue)
+@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs'])
+def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwargs={}, **kwargs):
+    fig, ax = plt.subplots()
 
-    if param in ['pop_size']:
-        plt.axes().set_xscale('log',basex=2)
-    elif param == 's':
-        plt.axes().set_xscale('log')
+    # TODO: Investigate this
+    # Some weird but necessary data cleaning
+    data[data['proportion']<0] = 0
+    data = data[data['type']!=0]
+    data = data[[param, 'proportion', 'type']].pivot(columns='type', index=param, values='proportion')
+    
+    if stacked:
+        data.plot.area(stacked = True, ylim = [0, 1])
+        legend = plt.legend(frameon=True)
+        legend.get_frame().set_facecolor('white')
 
-    # if param in ["beta"]:
-        # plt.axes().set_xscale('log',basex=10)
-    # if param in ['rounds']:
-        # pass
+    else:
+        data.plot(ax=ax, ylim = [0, 1.05], **graph_kwargs)
+            
+        if param in ['pop_size']:
+            plt.axes().set_xscale('log',basex=2)
+        elif param == 's':
+            plt.axes().set_xscale('log')
+        # elif param in ["beta"]:
+        #     plt.axes().set_xscale('log',basex=10)
+        # elif if param in ['rounds']:
+        #     pass
 
+        plt.legend()
+        
     plt.xlabel(param)
-    plt.ylim([0, 1.05])
     plt.yticks([0,0.5,1])
     sns.despine()
-    plt.legend()
+    
     plt.tight_layout()
 
 def param_v_rounds(param, player_types, direct, rounds, **kwargs):
