@@ -237,8 +237,6 @@ def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, interv
         return d/(1-r)
 
     payoffs = [(endowment-new_cost(r,d), new_benefit(r,d)) for d,r in zip(differences,ratios)]
-    print payoffs
-    assert 0
 
     decision = Decision(dict((str(p),p) for p in payoffs))
     decision.tremble = tremble
@@ -655,6 +653,24 @@ class Repeated(AnnotatedDS):
             self.current_round = game_round
             yield self.game, ordering
 
+class Annotated(AnnotatedDS):
+    def annotate(self,participants,payoff,observations,record,notes):
+        note = {
+            'round':self.current_round,
+            'actions':tuple(observation[3] for observation in observations),
+            'actors':tuple(observation[1] for observation in observations),
+            'payoff': copy(payoff),
+            'games':tuple(observation[0] for observation in observations),
+            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
+            'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
+            'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
+            }
+        note.update(notes)
+        return note
+
+class AnnotatedCircular(CircularMatchup, Annotated):
+    pass
+
 class IndefiniteHorizonGame(DecisionSeq):
     def __init__(self,gamma,playable):
         self.name = self._name = "IndefiniteHorizon(%s,%s)" % (gamma,playable.name)
@@ -898,7 +914,7 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 @literal
 def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
     args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = Repeated(rounds, PubliclyObserved(Symmetric(SocialDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    game = AnnotatedCircular(rounds, PubliclyObserved(Symmetric(SocialDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
     return game
 
 @literal
@@ -906,6 +922,8 @@ def TernaryTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble =
     args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
     game = Repeated(rounds, PubliclyObserved(Circular(TernaryDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
     return game
+
+
 
 if __name__ == "__main__":
     from agents import WeAgent, Puppet
