@@ -212,8 +212,10 @@ def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT
     ratio = cost/benefit
     benefits = np.linspace(0,benefit,intervals)
     costs = benefits*ratio
-    payoffs = zip(endowment-costs,benefits)
-    decision = Decision(dict((str(p),p) for p in payoffs))
+    decision_names = [(str(p),p) for p in zip(endowment-costs,benefits)]
+    decision_names[0] = 'keep'
+    decision_names[-1] = 'give'
+    decision = Decision(dict(zip(decision_names, zip(endowment-costs,benefits))))
     decision.tremble = tremble
     
     
@@ -222,7 +224,7 @@ def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT
 
 @literal
 def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
-    assert benefit > cost
+    # assert benefit > cost
     cost = float(cost)
     benefit = float(benefit)
     max_d = benefit-cost
@@ -237,12 +239,16 @@ def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, interv
         return d/(1-r)
 
     payoffs = [(endowment-new_cost(r,d), new_benefit(r,d)) for d,r in zip(differences,ratios)]
+<<<<<<< HEAD
+=======
+    # print payoffs
+    # assert 0
+>>>>>>> d0db847108392e92668aaf3497f449bdca33508c
 
     decision = Decision(dict((str(p),p) for p in payoffs))
     decision.tremble = tremble
     return decision
 
-SocialDictator(cost = 1, benefit = 3, intervals = 3)
 @literal
 def TernaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
     payoffs = [
@@ -408,7 +414,7 @@ class SymmetricMatchup(object):
         game = self.game
         for matchup in matchups:
             yield (game, list(matchup))
-            
+
 class Symmetric(SymmetricMatchup,DecisionSeq):
     pass
 
@@ -874,7 +880,7 @@ def RepeatedSequentialBinary(rounds = ROUNDS, visibility = "private"):
 def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tremble = 0, intervals = 2, **kwargs):
     visibility = "private"
     observability = .5
-    PD = Symmetric(GradatedBinaryDictator(cost = cost, benefit = benefit, tremble = tremble))
+    PD = Symmetric(GradatedBinaryDictator(cost = cost, benefit = benefit, intervals=intervals, tremble = tremble))
 
     if visibility == "private":
         PD.tremble = kwargs.get('tremble', 0)
@@ -907,7 +913,7 @@ def ExponentialIndirectReciprocity(rounds = ROUNDS, cost = COST, benefit = BENEF
 @literal
 def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
     args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = Repeated(rounds, PubliclyObserved(Symmetric(GradatedBinaryDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    game = Repeated(rounds, PubliclyObserved(Symmetric(GradatedBinaryDictator(**args))))
     return game
 
 
@@ -915,12 +921,13 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
     args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
     game = AnnotatedCircular(rounds, PubliclyObserved(Symmetric(SocialDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+
     return game
 
 @literal
 def TernaryTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, **kwargs):
-    args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = Repeated(rounds, PubliclyObserved(Circular(TernaryDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    d = TernaryDictator(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
+    game = Repeated(rounds, PubliclyObserved(Circular(d)))
     return game
 
 
