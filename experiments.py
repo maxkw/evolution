@@ -145,6 +145,42 @@ def matchup(player_types, game, **kwargs):
                                    'fitness' : p})
     return record
 
+def avg_payoff_per_type_from_sim(sim_data):
+    running_fitness = 0
+    fitness_per_round = []
+    pop_size = max(sim_data['id'].unique())+1
+
+    print sim_data
+    assert 0
+    print data.unique('type')
+    for r, r_d in sim_data.groupby('round'):
+        fitness = []
+        for i, (t, t_d) in enumerate(r_d.groupby('type')):
+            fitness.append(t_d['fitness'].mean())
+
+        running_fitness += np.array(fitness)
+        fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
+
+    return fitness_per_round[1:]
+
+@experiment(unpack = 'record', memoize=False)
+def fitness_per_round(player_types,**kwargs):
+    types = zip(*player_types)[0]
+    sim_data = matchup(player_types = player_types, per_round = True, trials = [1], **kwargs)
+    payoffs = avg_payoff_per_type_from_sim(sim_data)
+    record = []
+    for r, payoff in enumerate(payoffs,start=1):
+        for p,t in zip(payoff, types):
+            record.append({'round':r,'payoffs':p,'type':t.short_name('agent_types')})
+    print record
+    return record
+
+@plotter(fitness_per_round)
+def payoff_plot(player_types, data = [], **kwargs):
+    #data = fitness_per_round(player_types, matchup(player_types,**kwargs))
+    sns.factorplot(data = data, x = 'round', y = 'payoffs', hue = 'type')
+
+
 def beliefs(believer, opponent_types, believed_types, **kwargs):
     dfs = []
     b_name = repr(believer)#.short_name('agent_types')
