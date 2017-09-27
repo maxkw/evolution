@@ -318,36 +318,37 @@ def test():
     today = "./plots/"+date.today().isoformat()+"/"
     
     #opponents = (AllD, AllC)
-    opponents = (ag.SelfishAgent, ag.AltruisticAgent)
+    opponents = (ag.SelfishAgent,)
+                 # ag.AltruisticAgent)
     ToM = ('self', ) + opponents
     pop = (WeAgent(agent_types = ToM),)+ opponents
            # ag.TFT)
     games = [
         #'direct',
-        #'indirect',
+        # 'indirect',
         #'exponential indirect'
         #'ternary'
-        #'social',
-        'gradated',
+        'social',
+        # 'gradated',
     ]
     trembles = [
-        #0,
-        .05
+        0,
+        # .05
     ]
 
     intervals_list = [
         2,
-        3,
-        10
+        # 3,
+        # 10
     ]
     for t,g,i in product(trembles,games,intervals_list):
         background_params = dict(
-            #experiment = ssd_v_param,
+            experiment = ssd_v_param,
             direct = False,
             game = g,
             RA_prior = 0.5,
             beta = 5,
-            player_types = zip(pop,(3,3,3)),
+            player_types = pop,
             #opponent_types = opponents,
             agent_types = ToM,
             tremble = t,
@@ -355,17 +356,17 @@ def test():
             plot_dir = today,
             intervals = i,
             benefit = 10,
-            #parallelized = False,
+            parallelized = False,
             #file_name = "social binary"
         )
         
         # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
         # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        ex.payoff_plot(rounds = 100, #s=1,
+        limit_param_plot('rounds', rounds = 20,
+                         s=1,
                      #file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
                          #file_name = "gradated = %s" % i,
                          file_name = "game = %s, actions= %s" % (g,i),
-                         extension = ".png",
                          #file_name = "binary"
                        **background_params)
     #limit_param_plot('bc',everyone)

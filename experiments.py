@@ -61,12 +61,12 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
 def matchup(player_types, game, **kwargs):
 
     try:
-        player_types,pop = zip(*player_types)
+        types, pop = zip(*player_types)
     except TypeError:
         #print Warning("player_types is not a zipped list")
         pop = tuple(1 for t in player_types)
 
-    condition = dict(player_types = player_types,**kwargs)
+    condition = dict(player_types = types, **kwargs)
     params = default_params(**condition)
 
     if game == 'direct':
@@ -89,7 +89,10 @@ def matchup(player_types, game, **kwargs):
 
     params['games'] = g
 
-    player_types = sum([[t]*p for t,p in zip(player_types,pop)],[])
+    player_types = []
+    for t, p in zip(types, pop):
+        player_types.extend([t]*p)
+    
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
 
     world = World(params,genomes)
@@ -104,45 +107,42 @@ def matchup(player_types, game, **kwargs):
 
 
     record = []
-    if not kwargs.get('per_round',False):
-        for t,f,b in zip(player_types,fitness,beliefs):
-            record.append({"type":t,"fitness":f,'belief':b})
-    else:
-        ids = [a.world_id for a in world.agents]
-        for event in history:
-            r = event['round']
-            for t, a_id, p, b, l, n_l in zip(player_types, ids, event['payoff'], event['beliefs'], event['likelihoods'], event['new_likelihoods']):
-                if kwargs.get('unpack_beliefs', False):
-                    atypes = genomes[a_id]['agent_types']
-                    if b:
-                        o_id = (a_id+1)%2
-                        l = np.exp(l[o_id])
-                        n_l = np.exp(n_l[o_id])
-                        b = b[o_id]
-                        for believed_type in kwargs['believed_types']:
-                            bt_index = atypes.index(believed_type)
-                            try:
-                                attr_to_val = {
-                                    'belief' : b[bt_index],
-                                    'likelihood': normalized(l[bt_index]),
-                                    'new_likelihood': n_l[bt_index]
-                                }
-                            except:
-                                print n_l
-                                raise
-                            for attr,val in attr_to_val.iteritems():
-                                record.append({'type' : repr(t),
-                                               'id' : a_id,
-                                               'round' : r,
-                                               'attribute' : attr,
-                                               'value' : val,
-                                               'believed_type':repr(believed_type),
-                                               'fitness' : p})
-                else:
-                    record.append({'type' : t,
-                                   'id' : a_id,
-                                   'round' : r,
-                                   'fitness' : p})
+
+    ids = [a.world_id for a in world.agents]
+    for event in history:
+        r = event['round']
+        for t, a_id, p, b, l, n_l in zip(player_types, ids, event['payoff'], event['beliefs'], event['likelihoods'], event['new_likelihoods']):
+            if kwargs.get('unpack_beliefs', False):
+                atypes = genomes[a_id]['agent_types']
+                if b:
+                    o_id = (a_id+1)%2
+                    l = np.exp(l[o_id])
+                    n_l = np.exp(n_l[o_id])
+                    b = b[o_id]
+                    for believed_type in kwargs['believed_types']:
+                        bt_index = atypes.index(believed_type)
+                        try:
+                            attr_to_val = {
+                                'belief' : b[bt_index],
+                                'likelihood': normalized(l[bt_index]),
+                                'new_likelihood': n_l[bt_index]
+                            }
+                        except:
+                            print n_l
+                            raise
+                        for attr,val in attr_to_val.iteritems():
+                            record.append({'type' : repr(t),
+                                           'id' : a_id,
+                                           'round' : r,
+                                           'attribute' : attr,
+                                           'value' : val,
+                                           'believed_type':repr(believed_type),
+                                           'fitness' : p})
+            else:
+                record.append({'type' : t,
+                               'id' : a_id,
+                               'round' : r,
+                               'fitness' : p})
     return record
 
 def avg_payoff_per_type_from_sim(sim_data):

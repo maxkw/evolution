@@ -476,6 +476,7 @@ class EveryoneDecidesMatchup(object):
         playable = self.playable
         for matchup in matchups:
             yield (playable, list(matchup))
+            
 class EveryoneDecides(EveryoneDecidesMatchup,DecisionSeq):
     pass
 
@@ -675,12 +676,15 @@ class Annotated(AnnotatedDS):
             'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
             'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
             }
+
         note.update(notes)
         return note
+    
     def matchups(self,participants):
-        for game_round, thing in zip(xrange(1,self.rounds+1),cycle(self.game.matchups(participants))):
+        for game_round, thing in zip(xrange(1,self.rounds+1), cycle(self.game.matchups(participants))):
             self.current_round = game_round
             yield thing
+            
 @literal
 def AnnotatedCircular(game):
     return Annotated(Circular(game))
@@ -927,8 +931,12 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 
 @literal
 def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
-    args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = Annotated(rounds,Circular(PrivatelyObserved(SocialDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    # args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
+
+    bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
+    game = Annotated(rounds, Circular(PubliclyObserved(bd)))
+    
+    #(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
 
     return game
 

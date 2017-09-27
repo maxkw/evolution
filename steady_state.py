@@ -238,12 +238,18 @@ def avg_payoff_per_type_from_sim(sim_data):
 
     for r, r_d in sim_data.groupby('round'):
         fitness = []
+
         for i, (t, t_d) in enumerate(r_d.groupby('type')):
             fitness.append(t_d['fitness'].mean())
 
         running_fitness += np.array(fitness)
-        fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
 
+        # # Depending on whether an interaction is a round or entire play through a Circular is a round will depend on how these should be normalized. It should always normalize by the total number of interactions. 
+
+        # fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
+        fitness_per_round.append(np.array(running_fitness/r))
+
+    # Parse out the zeroth round since there is no action in that round. 
     return fitness_per_round[1:]
 
 @memoized
@@ -283,7 +289,6 @@ def sim_to_limit_rmcp(player_types, pop_size, rounds, parallelized = True, **kwa
         payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
     elif parallelized == False:
         payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
-
 
     # Unpack the data into a giant matrix
     rmcp = np.zeros((rounds, len(matchups), len(populations), 2))
@@ -356,7 +361,6 @@ def limit_analysis(player_types, s, direct = False, **kwargs):
 
     rmcp = np.exp(s * rmcp)
     ssds = []
-
     for mcp in rmcp:
         ssds.append(steady_state(mcp_to_invasion(mcp, len(player_types))))
 
