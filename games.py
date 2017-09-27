@@ -1,6 +1,6 @@
 from __future__ import division
 from utils import flip
-from itertools import product, combinations, permutations
+from itertools import product, combinations, permutations,cycle
 from numpy import array
 from copy import copy, deepcopy
 import numpy as np
@@ -212,10 +212,11 @@ def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT
     ratio = cost/benefit
     benefits = np.linspace(0,benefit,intervals)
     costs = benefits*ratio
-    decision_names = [(str(p),p) for p in zip(endowment-costs,benefits)]
+    decision_names = [str(p) for p in zip(endowment-costs,benefits)]
     decision_names[0] = 'keep'
     decision_names[-1] = 'give'
-    decision = Decision(dict(zip(decision_names, zip(endowment-costs,benefits))))
+    decision_dict = dict(zip(decision_names, zip(endowment-costs,benefits)))
+    decision = Decision(decision_dict)
     decision.tremble = tremble
     
     
@@ -656,6 +657,13 @@ class Repeated(AnnotatedDS):
             yield self.game, ordering
 
 class Annotated(AnnotatedDS):
+    def __init__(self,rounds, game):
+        self.rounds = rounds
+        self.name = self._name= "Annotated("+game.name+")"
+        self.game = game
+        self.N_players = game.N_players
+        self.current_round = 0
+
     def annotate(self,participants,payoff,observations,record,notes):
         note = {
             'round':self.current_round,
@@ -669,9 +677,13 @@ class Annotated(AnnotatedDS):
             }
         note.update(notes)
         return note
-
-class AnnotatedCircular(CircularMatchup, Annotated):
-    pass
+    def matchups(self,participants):
+        for game_round, thing in zip(xrange(1,self.rounds+1),cycle(self.game.matchups(participants))):
+            self.current_round = game_round
+            yield thing
+@literal
+def AnnotatedCircular(game):
+    return Annotated(Circular(game))
 
 class IndefiniteHorizonGame(DecisionSeq):
     def __init__(self,gamma,playable):
@@ -916,7 +928,7 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 @literal
 def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
     args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = AnnotatedCircular(rounds, PubliclyObserved(SocialDictator(**args)))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    game = Annotated(rounds,Circular(PrivatelyObserved(SocialDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
 
     return game
 
