@@ -20,6 +20,8 @@ from datetime import date
 from evolve import param_v_rounds_plot, param_v_rounds, compare_param_v_rounds
 from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param
 
+import experiments as ex
+
 TODAY = "./plots/"+date.today().isoformat()+"/"
 
 def ToM_indirect():
@@ -311,8 +313,68 @@ def limit_rounds_race():
 
 
 
+
+def test():
+    today = "./plots/"+date.today().isoformat()+"/"
+    
+    #opponents = (AllD, AllC)
+    opponents = (ag.SelfishAgent, ag.AltruisticAgent)
+    ToM = ('self', ) + opponents
+    pop = (WeAgent(agent_types = ToM),)+ opponents
+           # ag.TFT)
+    games = [
+        #'direct',
+        #'indirect',
+        #'exponential indirect'
+        #'ternary'
+        #'social',
+        'gradated',
+    ]
+    trembles = [
+        #0,
+        .05
+    ]
+
+    intervals_list = [
+        2,
+        3,
+        10
+    ]
+    for t,g,i in product(trembles,games,intervals_list):
+        background_params = dict(
+            #experiment = ssd_v_param,
+            direct = False,
+            game = g,
+            RA_prior = 0.5,
+            beta = 5,
+            player_types = zip(pop,(3,3,3)),
+            #opponent_types = opponents,
+            agent_types = ToM,
+            tremble = t,
+            pop_size = 10, 
+            plot_dir = today,
+            intervals = i,
+            benefit = 10,
+            #parallelized = False,
+            #file_name = "social binary"
+        )
+        
+        # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
+        # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
+        ex.payoff_plot(rounds = 100, #s=1,
+                     #file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
+                         #file_name = "gradated = %s" % i,
+                         file_name = "game = %s, actions= %s" % (g,i),
+                         extension = ".png",
+                         #file_name = "binary"
+                       **background_params)
+    #limit_param_plot('bc',everyone)
+    #limit_param_plot('rounds', everyone)
+
+
 if __name__ == "__main__":
-    ToM_indirect()
+    test()
+    #ToM_indirect()
     # Compare_Old()
     # AllC_AllD_race()
     # bc_rounds_contest()
@@ -355,61 +417,3 @@ if __name__ == "__main__":
     everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
     for t in trembles:
         bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t)
-
-    assert 0
-
-def test():
-    today = "./plots/"+date.today().isoformat()+"/"
-    
-    #opponents = (AllD, AllC)
-    opponents = (ag.SelfishAgent, ag.AltruisticAgent)
-    ToM = ('self', ) + opponents
-    pop = (WeAgent(agent_types = ToM),)+ opponents
-           # ag.TFT)
-    games = [
-        #'direct',
-        #'indirect',
-        #'exponential indirect'
-        #'ternary'
-        'social',
-        'gradated',
-    ]
-    trembles = [
-        #0,
-        .05
-    ]
-
-    intervals_list = [
-        2,
-        3,
-        10
-    ]
-    for t,g,i in product(trembles,games,intervals_list):
-        background_params = dict(
-            #experiment = ssd_v_param,
-            direct = True,
-            game = g,
-            RA_prior = 0.5,
-            beta = 10,
-            player_types = pop,
-            #opponent_types = opponents,
-            agent_types = ToM,
-            tremble = t,
-            pop_size = 10, 
-            plot_dir = today,
-            intervals = i,
-            #parallelized = False,
-            #file_name = "social binary"
-        )
-        
-        # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
-        # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        limit_param_plot("rounds", rounds = 20, s=1,
-                     #file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
-                         #file_name = "gradated = %s" % i,
-                         file_name = "game = %s, actions= %s" % (g,i),
-                         extension = ".png",
-                         #file_name = "binary"
-                     **background_params)
-    #limit_param_plot('bc',everyone)
-    #limit_param_plot('rounds', everyone)

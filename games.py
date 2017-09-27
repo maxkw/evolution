@@ -239,11 +239,7 @@ def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, interv
         return d/(1-r)
 
     payoffs = [(endowment-new_cost(r,d), new_benefit(r,d)) for d,r in zip(differences,ratios)]
-<<<<<<< HEAD
-=======
-    # print payoffs
-    # assert 0
->>>>>>> d0db847108392e92668aaf3497f449bdca33508c
+
 
     decision = Decision(dict((str(p),p) for p in payoffs))
     decision.tremble = tremble
@@ -920,7 +916,7 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 @literal
 def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
     args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = AnnotatedCircular(rounds, PubliclyObserved(Symmetric(SocialDictator(**args))))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    game = AnnotatedCircular(rounds, PubliclyObserved(SocialDictator(**args)))#(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
 
     return game
 
