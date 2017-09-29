@@ -111,6 +111,10 @@ def matchup(player_types, game, **kwargs):
     ids = [a.world_id for a in world.agents]
     for event in history:
         r = event['round']
+        try:
+            assert len(player_types) == len(ids) and len(player_types)== len(event['payoff'])
+        except AssertionError:
+            raise Warning("There are %s players but the number of payoffs is %s" % (len(player_types),len(event['payoff'])))
         for t, a_id, p, b, l, n_l in zip(player_types, ids, event['payoff'], event['beliefs'], event['likelihoods'], event['new_likelihoods']):
             if kwargs.get('unpack_beliefs', False):
                 atypes = genomes[a_id]['agent_types']
