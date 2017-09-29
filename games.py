@@ -613,8 +613,10 @@ class AnnotatedDS(DecisionSeq):
 
         for game,ordering in self.matchups(participants):
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
-            payoffs[ordering] += pay
-            extend_rec(annotate(participants,payoffs,obs,rec,notes))
+            new_payoffs = np.zeros(len(participants))
+            new_payoffs[ordering] += pay
+            payoffs += new_payoffs
+            extend_rec(annotate(participants,new_payoffs,obs,rec,notes))
             extend_obs(obs)
 
         assert len(payoffs)==len(participants)
