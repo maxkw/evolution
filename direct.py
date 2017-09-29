@@ -370,7 +370,6 @@ def test():
             extension = '.png',
             trials = 100,
             observability = o,
-            stacked = True,
             #file_name = "social binary"
         )
         
