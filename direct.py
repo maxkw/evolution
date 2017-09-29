@@ -318,8 +318,10 @@ def test():
     today = "./plots/"+date.today().isoformat()+"/"
     
     #opponents = (AllD, AllC)
-    opponents = (ag.SelfishAgent,)
-                 # ag.AltruisticAgent)
+    opponents = (
+        ag.SelfishAgent,
+        ag.AltruisticAgent
+    )
     ToM = ('self', ) + opponents
     pop = (WeAgent(agent_types = ToM),)+ opponents
            # ag.TFT)
@@ -339,9 +341,17 @@ def test():
     intervals_list = [
         2,
         # 3,
-        # 10
+        #10
     ]
-    for t,g,i in product(trembles,games,intervals_list):
+    observability_list = [
+        0,
+        .1,
+        .25,
+        #.5,
+        #.75,
+        1,
+    ]
+    for t,g,i,o in product(trembles,games,intervals_list,observability_list):
         background_params = dict(
             experiment = ssd_v_param,
             direct = False,
@@ -356,18 +366,21 @@ def test():
             plot_dir = today,
             intervals = i,
             benefit = 10,
-            parallelized = False,
-            extension = '.png'
+            parallelized = True,
+            extension = '.png',
+            trials = 100,
+            observability = o,
+            stacked = True,
             #file_name = "social binary"
         )
         
         # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
         # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        limit_param_plot('rounds', rounds = 60,
+        limit_param_plot('rounds', rounds = 100,
                          s=1,
                      #file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
                          #file_name = "gradated = %s" % i,
-                         file_name = "game = %s, actions= %s" % (g,i),
+                         file_name = "game = %s, actions= %s, observability = %s" % (g,i,o),
                          #file_name = "binary"
                        **background_params)
     #limit_param_plot('bc',everyone)
