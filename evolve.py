@@ -70,7 +70,7 @@ def sim_plotter(generations, pop, player_types, data =[]):
 
     plt.legend()
 
-@experiment(unpack = 'record', memoize = False, verbose = 3)
+#@experiment(unpack = 'record', memoize = False, verbose = 3)
 def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
     """
     This should be optimized to reflect the fact that
@@ -112,7 +112,7 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
                     'proportion': p
                 })
                 
-        return record
+        return pd.DataFrame.from_records(record)
 
     elif param in Xs:
         for x in Xs[param]:
@@ -133,7 +133,7 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
                         'proportion': p
                     })
 
-        return record
+        return pd.DataFrame.from_records(record)
 
     else:
         raise Exception('Param %s is not implemented. Add the range to Xs' % param)
