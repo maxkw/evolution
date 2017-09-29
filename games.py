@@ -437,15 +437,16 @@ class CircularMatchup(object):
         self.N_players = game.N_players
 
     def matchups(self,participants):
-        indices = range(len(participants))
-        np.random.shuffle(indices)
+        while True:
+            indices = range(len(participants))
+            np.random.shuffle(indices)
+            
+            matchups = zip(*[indices[i:]+indices[:i] for i in xrange(self.game.N_players)])
+            #matchups = zip(indices,indices[1:]+indices[:1])
 
-        matchups = zip(*[indices[i:]+indices[:i] for i in xrange(self.game.N_players)])
-        #matchups = zip(indices,indices[1:]+indices[:1])
-
-        playable = self.game
-        for matchup in matchups:
-            yield (playable, list(matchup))
+            playable = self.game
+            for matchup in matchups:
+                yield (playable, list(matchup))
 
 class Circular(CircularMatchup, DecisionSeq):
     pass
@@ -587,6 +588,7 @@ class AnnotatedDS(DecisionSeq):
     def play(self,participants,observers=None,tremble=0,notes={}):
         if observers is None:
             observers = participants
+        
 
         #initialize accumulators
         observations = []
@@ -606,14 +608,16 @@ class AnnotatedDS(DecisionSeq):
         extend_rec = record.append
         annotate = self.annotate
 
+        
         extend_rec(annotate(participants,payoffs,[],[], notes))
 
         for game,ordering in self.matchups(participants):
             pay,obs,rec = game.play(participants[ordering],observers,tremble)
             payoffs[ordering] += pay
-            extend_rec(annotate(participants,pay,obs,rec,notes))
+            extend_rec(annotate(participants,payoffs,obs,rec,notes))
             extend_obs(obs)
 
+        assert len(payoffs)==len(participants)
         return payoffs,observations,record
 
     _play = play
