@@ -936,11 +936,11 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 
 
 @literal
-def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
+def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, **kwargs):
     # args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
 
     bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-    game = Annotated(rounds, Circular(PubliclyObserved(bd)))
+    game = Annotated(rounds, Circular(RandomlyObserved(observability,bd)))
     
     #(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
 
