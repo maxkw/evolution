@@ -357,12 +357,13 @@ def test():
             intervals = i,
             benefit = 10,
             parallelized = False,
+            extension = '.png'
             #file_name = "social binary"
         )
         
         # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
         # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        limit_param_plot('rounds', rounds = 20,
+        limit_param_plot('rounds', rounds = 60,
                          s=1,
                      #file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
                          #file_name = "gradated = %s" % i,
