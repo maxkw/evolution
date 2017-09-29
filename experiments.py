@@ -60,6 +60,7 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
 @experiment(unpack = 'record', trials = 100, verbose = 3)
 def matchup(player_types, game, **kwargs):
 
+    #print trials
     try:
         types, pop = zip(*player_types)
     except TypeError:
@@ -167,17 +168,17 @@ def avg_payoff_per_type_from_sim(sim_data):
 
     return fitness_per_round[1:]
 
-@experiment(unpack = 'record', memoize=False)
+#@experiment(unpack = 'record', memoize=False)
 def fitness_per_round(player_types,**kwargs):
     types = zip(*player_types)[0]
-    sim_data = matchup(player_types = player_types, per_round = True, trials = [1], **kwargs)
+    sim_data = matchup(player_types = player_types, per_round = True, **kwargs)
     payoffs = avg_payoff_per_type_from_sim(sim_data)
     record = []
     for r, payoff in enumerate(payoffs,start=1):
         for p,t in zip(payoff, types):
             record.append({'round':r,'payoffs':p,'type':t.short_name('agent_types')})
-    print record
-    return record
+    #print record
+    return pd.Dataframe.from_records(record)
 
 @plotter(fitness_per_round)
 def payoff_plot(player_types, data = [], **kwargs):
