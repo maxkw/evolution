@@ -156,6 +156,28 @@ class PubliclyObserved(RandomlyObserved):
         super(PubliclyObserved, self).__init__(1, playable)
         self.name = "PubliclyObserved(%s)" % playable.name
 
+class ObservedByFollowers(Playable):
+    def __init__(self,observability, playable):
+        self.name = "ObservedByFollowers(%s,%s)" % (observability, playable.name)
+        self.playable = playable
+        self.N_players = playable.N_players
+        self.observability = observability
+        self.followers = dict()
+   
+    def play(self, participants, observers = [], tremble = 0):
+        a_id = participants[0].world_id
+        if a_id in self.followers:
+            observers = self.followers[a_id]
+        else:
+            observers = np.random.choice(observers,size=int(len(observers)*self.observability),replace=False)
+            self.followers[a_id] = observers
+        payoffs, observations, notes = self.playable.play(participants, observers, tremble)
+
+        for observer in set(list(observers)+list(participants)):
+            observer.observe(observations)
+
+        return payoffs, observations, notes
+
 
 """
 Decisions
@@ -565,6 +587,7 @@ Annotated Decision Sequences
 these are used to collect data about the games mid-way
 """
 
+
 class AnnotatedDS(DecisionSeq):
     """
     must define a method self.annotate that takes participants, payoffs,observations, and records
@@ -749,7 +772,11 @@ class Dynamic(Playable):
         playable = self.constructor(**self.arg_gen())
         return playable.play(participants, observers, tremble)
 
-
+class OrGame(Playable):
+    def __init__(self,*games):
+        self.games = games
+    def play(self, participants, observers = [], tremble=0):
+         pass
 
 def exponential(scale,gamma=1):
     return np.random.exponential(gamma)*scale
@@ -933,7 +960,7 @@ def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 
     # args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
 
     bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-    game = Annotated(rounds, Circular(RandomlyObserved(observability,bd)))
+    game = Annotated(rounds, Circular(ObservedByFollowers(observability,bd)))
     
     #(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
 

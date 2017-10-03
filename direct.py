@@ -311,7 +311,7 @@ def test():
     #opponents = (AllD, AllC)
     opponents = (
         ag.SelfishAgent,
-        ag.AltruisticAgent
+        #ag.AltruisticAgent
     )
     ToM = ('self', ) + opponents
     pop = (WeAgent(agent_types = ToM),)+ opponents
@@ -336,10 +336,10 @@ def test():
     ]
     observability_list = [
         0,
-        .1,
+        #.1,
         .25,
-        #.5,
-        #.75,
+        .5,
+        .75,
         1,
     ]
     for t,g,i,o in product(trembles,games,intervals_list,observability_list):
@@ -357,7 +357,7 @@ def test():
             plot_dir = today,
             intervals = i,
             benefit = 10,
-            parallelized = True,
+            #parallelized = False,
             extension = '.png',
             trials = 100,
             observability = o,
