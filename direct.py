@@ -335,12 +335,12 @@ def test():
         #10
     ]
     observability_list = [
-        0,
+        # 0,
         #.1,
         # .25,
         # .5,
         # .75,
-        # 1,
+        1,
     ]
     for t,g,i,o in product(trembles,games,intervals_list,observability_list):
         background_params = dict(

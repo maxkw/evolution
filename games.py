@@ -467,7 +467,7 @@ class CircularMatchup(object):
 class RandomMatching(DecisionSeq):
     def __init__(self,game):
         self.game = game
-        self.name = self._name = "RandomlyMatching("+game.name+")"
+        self.name = self._name = "RandomMatching("+game.name+")"
 
     def matchups(self,participants):
         indices = range(len(participants))
@@ -989,9 +989,9 @@ def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 
     bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
     
     if followers:
-        game = Annotated(rounds, Circular(ObservedByFollowers(observability,bd)))
+        game = Annotated(rounds, RandomMatching(ObservedByFollowers(observability,bd)))
     else:
-        game = Annotated(rounds, Circular(RandomlyObserved(observability,bd)))
+        game = Annotated(rounds, RandomMatching(RandomlyObserved(observability,bd)))
 
     return game
 
