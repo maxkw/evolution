@@ -115,12 +115,8 @@ Keep this in mind when using observations on more complex playables:
 PubliclyObserved(Combinatorial(PrisonersDilemma)) is a playable where observations happen only after all combinations of participants have played.
 
 Combinatorial(PubliclyObserved(PrisonersDilemma)) is a playable where every pair of participants plays and then immediately observes the game.
-
-TO DO:
-Distinguish Observability vs Observation
-These modules force observation. What about when I want to change the observer list
-at the bottom level, but no actually observe?
 """
+
 class RandomlyObserved(Playable):
     """
     randomly selects a specified percent of the provided observers
@@ -225,13 +221,10 @@ def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT
 
 @literal
 def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
-    # assert benefit > cost
     cost = float(cost)
     benefit = float(benefit)
     max_d = benefit-cost
     max_r = cost/benefit
-    #ratios = [n/4 for n in range(4)]
-    #ratios = [0, 1/3, 1/2]
     ratios = np.linspace(0,max_r,intervals)
     differences = np.linspace(0,max_d,intervals)
     def new_cost(r,d):

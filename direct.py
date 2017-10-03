@@ -20,8 +20,6 @@ from datetime import date
 from evolve import param_v_rounds_plot, param_v_rounds, compare_param_v_rounds
 from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param
 
-import experiments as ex
-
 TODAY = "./plots/"+date.today().isoformat()+"/"
 
 def ToM_indirect():
@@ -255,14 +253,7 @@ def bc_rounds_race():
             )
             
             param_v_rounds_plot(**params)
-
-
             
-            # bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t,
-            #                plot_dir = plot_dir,
-            #                file_name = 
-            # )
-
 def limit_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
     plot_dir = "./plots/limit_rounds_race/"
@@ -406,28 +397,5 @@ if __name__ == "__main__":
     TFT = gTFT(y=1,p=1,q=0)
     GTFT = gTFT(y=1,p=.99,q=.33)
 
-    prior = 0.5
-    Ks = [0,1]
-    trembles = [0, 0.05]
-    max_rounds = 20
-    beta = 1
-    
-    #for t in trembles:
-    #    bc_rounds_plot(
-    #        max_rounds = max_rounds,
-    #        experiment = compare_bc_v_rounds,
-    #        player_types = tuple(MRA(RA_prior = prior, RA_K = k, agent_types = ('self', AC, AD)) for k in Ks) + (TFT, GTFT, Pavlov),
-    #        opponent_types = (AC, AD),
-    #        tremble = t,
-    #        beta = beta,
-    #        file_name = 'heat_tremble=%0.2f' % t)
-
-    # assert 0
-
     
     
-    everyone_ToM = ('self', AC, AD, TFT, GTFT, Pavlov, RandomAgent)
-    RA = WeAgent(RA_prior = prior, agent_types = everyone_ToM, beta = beta)
-    everyone = (RA, AC, AD, TFT, GTFT, Pavlov)
-    for t in trembles:
-        bc_rounds_plot(everyone, max_rounds = max_rounds, tremble = t)
