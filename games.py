@@ -101,6 +101,8 @@ class Playable(object):
         
         observations = [(decision,participant_ids,observer_ids,action)]
         return payoffs, observations, None
+    def next_game(self):
+        return self
     def __repr__(self):
         return self.name
     def __hash__(self):
@@ -167,7 +169,7 @@ class ObservedByFollowers(Playable):
         self.N_players = playable.N_players
         self.observability = observability
         self.followers = dict()
-   
+    
     def play(self, participants, observers = [], tremble = 0):
         a_id = participants[0].world_id
         if a_id in self.followers:
@@ -470,6 +472,19 @@ class CircularMatchup(object):
             for matchup in matchups:
                 yield (playable, list(matchup))
 
+class RandomMatching(DecisionSeq):
+    def __init__(self,game):
+        self.game = game
+        self.name = self._name = "RandomlyMatching("+game.name+")"
+
+    def matchups(self,participants):
+        indices = range(len(participants))
+        while True:
+            game = self.game.next_game()
+            N_players = game.N_players
+            np.random.choice(indices, size=N_players,replace=False)
+            yield game, np.random.choice(indices, size=N_players, replace=False)
+
 class Circular(CircularMatchup, DecisionSeq):
     pass
 
@@ -691,7 +706,7 @@ class Annotated(AnnotatedDS):
         self.rounds = rounds
         self.name = self._name= "Annotated("+game.name+")"
         self.game = game
-        self.N_players = game.N_players
+        #self.N_players = game.N_players
         self.current_round = 0
 
     def annotate(self,participants,payoff,observations,record,notes):
@@ -734,7 +749,7 @@ class IndefiniteHorizonGame(DecisionSeq):
         ordering = range(len(participants))
         yield game,ordering
         while flip(gamma):
-            yield game,ordering
+            yield game, ordering
 
 class thunk(object):
     def __init__(self,fun,*args,**kwargs):
@@ -771,19 +786,34 @@ class Dynamic(Playable):
         self.arg_gen = gen
         instance = playable_constructor(**gen())
         self.N_players = instance.N_players
+        self.shuffle_game()
 
     def new(self):
         return self.constructor(**self.arg_gen())
 
+    def shuffle_game(self):
+        self.current_version = self.constructor(**self.arg_gen())
+        return self.current_version
+
     def play(self,participants,observers=[], tremble=0):
         playable = self.constructor(**self.arg_gen())
+        self.shuffle_game()
         return playable.play(participants, observers, tremble)
 
 class OrGame(Playable):
     def __init__(self,*games):
+        self.name = "OrGame(%s)" % ", ".join(g.name for g in sorted(games))
         self.games = games
+        self.next()
+
+    def next_game(self):
+        g = self.current_game = np.random.choice(self.games)
+        return g
+
     def play(self, participants, observers = [], tremble=0):
-         pass
+        playable = self.current_game
+        self.next_game()
+        return playable.play(participants, observers, tremble)
 
 def exponential(scale,gamma=1):
     return np.random.exponential(gamma)*scale
@@ -967,7 +997,7 @@ def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 
     # args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
 
     bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-    game = Annotated(rounds, Circular(ObservedByFollowers(observability,bd)))
+    game = Annotated(rounds, RandomMatching(ObservedByFollowers(observability,bd)))
     
     #(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
 
