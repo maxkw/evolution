@@ -1,6 +1,6 @@
 from __future__ import division
 from utils import flip
-from itertools import product, combinations, permutations,cycle
+from itertools import product, combinations, permutations,cycle,izip
 from numpy import array
 from copy import copy, deepcopy
 import numpy as np
@@ -161,10 +161,15 @@ class PubliclyObserved(RandomlyObserved):
 class ObservedByFollowers(Playable):
     def __init__(self,observability, playable):
         self.name = "ObservedByFollowers(%s,%s)" % (observability, playable.name)
-        self.playable = playable
-        self.N_players = playable.N_players
         self.observability = observability
         self.followers = dict()
+        self.playable = playable
+        self.next_game()
+
+    def next_game(self):
+        g = self.playable.next_game()
+        self.N_players = g.N_players
+        return g
     
     def play(self, participants, observers = [], tremble = 0):
         a_id = participants[0].world_id
@@ -472,10 +477,14 @@ class RandomMatching(DecisionSeq):
     def matchups(self,participants):
         indices = range(len(participants))
         while True:
-            game = self.game.next_game()
-            N_players = game.N_players
+            #underlying = self.game.next_game()
+            self.game.next_game()
+            N_players = self.game.N_players
             np.random.choice(indices, size=N_players,replace=False)
-            yield game, np.random.choice(indices, size=N_players, replace=False)
+            #print "Matchups"
+            #print self.game.playable.current_game
+            #print N_players
+            yield self.game, np.random.choice(indices, size = N_players, replace = False)
 
 class Circular(CircularMatchup, DecisionSeq):
     pass
@@ -717,7 +726,7 @@ class Annotated(AnnotatedDS):
         return note
     
     def matchups(self,participants):
-        for game_round, thing in zip(xrange(1,self.rounds+1), cycle(self.game.matchups(participants))):
+        for game_round, thing in izip(xrange(1,self.rounds+1), cycle(self.game.matchups(participants))):
             self.current_round = game_round
             yield thing
             
@@ -796,15 +805,15 @@ class OrGame(Playable):
     def __init__(self,*games):
         self.name = "OrGame(%s)" % ", ".join(g.name for g in sorted(games))
         self.games = games
-        self.next()
+        self.next_game()
 
     def next_game(self):
         g = self.current_game = np.random.choice(self.games)
+        self.N_players = g.N_players
         return g
 
     def play(self, participants, observers = [], tremble=0):
         playable = self.current_game
-        self.next_game()
         return playable.play(participants, observers, tremble)
 
 def exponential(scale,gamma=1):
@@ -986,12 +995,19 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 
 @literal
 def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, followers = True, **kwargs):
-    bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-    
+    args = dict(cost = cost, benefit = benefit, tremble = tremble)
+    #bd = SocialDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
+    bd = OrGame(
+       SocialDictator(intervals = intervals, **args),
+       TernaryDictator(**args)
+    )
+    #bd = TernaryDictator(**args)
+    #bd = SocialDictator(intervals = intervals, **args)
     if followers:
         game = Annotated(rounds, RandomMatching(ObservedByFollowers(observability,bd)))
     else:
-        game = Annotated(rounds, RandomMatching(RandomlyObserved(observability,bd)))
+        raise Exception
+        #game = Annotated(rounds, RandomMatching(RandomlyObserved(observability,bd)))
 
     return game
 
