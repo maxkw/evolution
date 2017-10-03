@@ -166,18 +166,17 @@ class ObservedByFollowers(Playable):
    
     def play(self, participants, observers = [], tremble = 0):
         a_id = participants[0].world_id
-        if a_id in self.followers:
-            observers = self.followers[a_id]
-        else:
-            observers = np.random.choice(observers,size=int(len(observers)*self.observability),replace=False)
-            self.followers[a_id] = observers
+        
+        if a_id not in self.followers:
+            self.followers[a_id] = np.random.choice(observers,size=int(len(observers)*self.observability),replace=False)
+        observers = self.followers[a_id]
+
         payoffs, observations, notes = self.playable.play(participants, observers, tremble)
 
         for observer in set(list(observers)+list(participants)):
             observer.observe(observations)
 
         return payoffs, observations, notes
-
 
 """
 Decisions
@@ -956,23 +955,15 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 
 
 @literal
-def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, **kwargs):
-    # args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-
+def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, followers = True, **kwargs):
     bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-    game = Annotated(rounds, Circular(ObservedByFollowers(observability,bd)))
     
-    #(RandomlyChosen(TernaryDictator(**args),TernaryIgnore(**args)))))
+    if followers:
+        game = Annotated(rounds, Circular(ObservedByFollowers(observability,bd)))
+    else:
+        game = Annotated(rounds, Circular(RandomlyObserved(observability,bd)))
 
     return game
-
-@literal
-def TernaryTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, **kwargs):
-    d = TernaryDictator(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = Repeated(rounds, PubliclyObserved(Circular(d)))
-    return game
-
-
 
 if __name__ == "__main__":
     from agents import WeAgent, Puppet
