@@ -17,8 +17,8 @@ from cycler import cycler
 
 import pandas as pd
 from datetime import date
-from evolve import param_v_rounds_plot, param_v_rounds, compare_param_v_rounds
-from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param
+from evolve import param_v_rounds_heat, param_v_rounds, compare_param_v_rounds
+from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param, param_v_rounds_plot
 
 TODAY = "./plots/"+date.today().isoformat()+"/"
 
@@ -208,7 +208,7 @@ def bc_rounds_contest():
                           file_name = 'bc_rounds_contest_tremble=%.2f_opp=%s' % (t, opp)
             )
             
-            param_v_rounds_plot(**params)
+            param_v_rounds_heat(**params)
 
 def bc_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
@@ -252,7 +252,7 @@ def bc_rounds_race():
                           file_name = file_name % (ToM,beta,prior,t)
             )
             
-            param_v_rounds_plot(**params)
+            param_v_rounds_heat(**params)
             
 def limit_rounds_race():
     file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
@@ -337,14 +337,14 @@ def test():
     observability_list = [
         0,
         #.1,
-        .25,
-        .5,
-        .75,
-        1,
+        # .25,
+        # .5,
+        # .75,
+        # 1,
     ]
     for t,g,i,o in product(trembles,games,intervals_list,observability_list):
         background_params = dict(
-            experiment = ssd_v_param,
+            experiment = param_v_rounds,
             direct = False,
             game = g,
             RA_prior = 0.5,
@@ -358,7 +358,6 @@ def test():
             intervals = i,
             benefit = 10,
             #parallelized = False,
-            extension = '.png',
             trials = 100,
             observability = o,
             #file_name = "social binary"
@@ -366,7 +365,7 @@ def test():
         
         # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
         # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        limit_param_plot('rounds', rounds = 100,
+        param_v_rounds_plot('observability', rounds = 100,
                          s=1,
                      #file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
                          #file_name = "gradated = %s" % i,

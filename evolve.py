@@ -97,7 +97,7 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
         'beta': np.linspace(1, 11, 6),
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
-        'observability': [0, 0.25, .5, 1],
+        'observability': [0, 0.25, .5, .75, 1],
         'tremble': np.linspace(0,.25,6),
     }
     record = []
@@ -191,10 +191,9 @@ def compare_param_v_rounds(param, player_types, opponent_types, direct, rounds, 
     return pd.concat(dfs,ignore_index = True)
 
 @plotter(param_v_rounds)
-def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[], **kwargs):
+def param_v_rounds_heat(param, player_types, experiment=param_v_rounds, data=[], **kwargs):
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop('data')
-        import pdb; pdb.set_trace()
         d = data.pivot(index=args[1], columns=args[0], values=args[2])
         sns.heatmap(d, **kwargs)
         
@@ -205,3 +204,10 @@ def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[],
                     # vmax=data['frequency'].max(),
                     cmap=plt.cm.gray_r,
                     linewidths=.5)
+
+@plotter(param_v_rounds)
+def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[], **kwargs):
+    g = sns.FacetGrid(data = data, col = 'type', hue=param)
+    g.map(plt.plot, 'rounds', 'proportion')
+    plt.legend()
+    
