@@ -66,6 +66,7 @@ def matchup(player_types, game, **kwargs):
     except TypeError:
         #print Warning("player_types is not a zipped list")
         pop = tuple(1 for t in player_types)
+        types = player_types
 
     condition = dict(player_types = types, **kwargs)
     params = default_params(**condition)
