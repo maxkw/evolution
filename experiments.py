@@ -3,7 +3,7 @@ import pandas as pd
 import seaborn as sns
 from experiment_utils import multi_call,experiment,plotter,MultiArg, memoize, apply_to_args
 import numpy as np
-from params import default_params,generate_proportional_genomes,default_genome
+from params import default_params, default_genome
 from world import World
 from agents import ReciprocalAgent, SelfishAgent, AltruisticAgent, RationalAgent, WeAgent
 from agents import gTFT, GTFT, TFT, AllC, AllD, Pavlov, RandomAgent, leading_8_dict, shorthand_to_standing

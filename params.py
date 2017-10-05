@@ -166,20 +166,3 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .5, **extr
             genome[key] = extra_args[key]
 
     return genome
-
-def generate_random_genomes(N_agents, agent_types_world, **kwargs):
-    return [default_genome(agent_type = np.random.choice(agent_types_world),**kwargs) for _ in range(N_agents)]
-
-def generate_proportional_genomes(pop_size, agent_proportions, **extra_args):
-    if not agent_proportions:
-        try:
-            return generate_random_genomes(**extra_args)
-        except:
-            print "did you not provide proportions or N_agents+agent_types_world as parameters? bad move."
-            raise
-
-    agent_list = []
-    for agent_type in sorted(agent_proportions.keys()):
-        number = int(math.ceil(pop_size*agent_proportions[agent_type]))
-        agent_list.extend([default_genome(agent_type,**extra_args) for _ in xrange(number)])
-    return agent_list
