@@ -1,11 +1,12 @@
 from __future__ import division
+import scipy as sp
 from collections import defaultdict, OrderedDict, Counter
 import seaborn as sns
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
 from params import default_params, default_genome
-from agents import ReciprocalAgent, SelfishAgent, AltruisticAgent, RationalAgent, gTFT, AllC, AllD, Pavlov
-from games import BinaryDictator
+from agents import ReciprocalAgent, SelfishAgent, AltruisticAgent, RationalAgent, gTFT, AllC, AllD, Pavlov, WeAgent, RandomAgent
+from games import BinaryDictator, GradatedBinaryDictator, SocialDictator
 import matplotlib.pyplot as plt
 
 agent_to_label = {ReciprocalAgent: 'Reciprocal',
@@ -173,7 +174,6 @@ def first_impressions(agent_types, **kwargs):
                            'type': t})
     return record
 
-
 @plotter(first_impressions)
 def first_impressions_plot(data=[]):
     sns.set_context("poster", font_scale=1)
@@ -192,6 +192,90 @@ def first_impressions_plot(data=[]):
           # yticklabels=['0', '0.25', '0.5', '0.75', '1']
     )
     # plt.legend(loc='best')
+    plt.tight_layout()
+
+@multi_call()
+@experiment(unordered=['agent_types'], unpack='record', memoize=False)
+def n_action_info(agent_types, **kwargs):
+    condition = dict(locals(), **kwargs)
+    genome = default_genome(agent_type=WeAgent, **condition)
+
+    SA = SelfishAgent(genome)
+    AA = AltruisticAgent(genome)
+
+    N = 16
+        # for i in [1, 4, 8, 16]:
+            # removed = game.actions.pop()
+            # del game.action_lookup[removed]
+            # del game.payoffs[removed]
+
+
+    record = []
+    for args in [
+            # dict(cost = 5, benefit = 15, tremble = 0),
+            dict(cost = 15, benefit = 45, tremble = 0),
+            dict(cost = 15, benefit = 45, tremble = 0.1),
+    ]:
+        
+        for i in range(2, N+1, 1):
+            
+            for game in [SocialDictator(intervals = i, **args), GradatedBinaryDictator(intervals = i, **args)]:
+                for t in agent_types:
+                    if t == 'self':
+                        actor = WeAgent(genome=genome, world_id='O')
+                    else:
+                        actor = t(genome=genome)
+                        continue 
+
+                    E_KL = 0
+                    for a_id, likelihood in enumerate(actor.decide_likelihood(game, 'AB')):
+                        observer = WeAgent(genome=genome, world_id='O')
+                        q = observer.belief['A']
+                        observer.observe([(game, 'AB', 'ABO', game.actions[a_id])])
+                        p = observer.belief['A']
+                        E_KL += likelihood * sp.stats.entropy(p, q, base = 2)
+
+                    record.append({
+                        '# Actions': int(i),
+                        'bits': E_KL,
+                        'args': 'Tremble=%0.2f C=%d B=%d' % (args['tremble'], args['cost'], args['benefit']),
+                        'game': 'Social' in str(game.name)
+                    })
+                # print i, t, E_KL
+            #     E_KLs.append(E_KL)
+            # E_KLs = np.array(E_KLs)
+            # print i, E_KLs.mean()
+            # print
+        # record = []
+
+    # for t, b in zip(['After'], [after]):
+    #     record.append({'cooperations': trial,
+    #                    'belief': b,
+    #                    'type': t})
+
+    return record
+
+@plotter(n_action_info)
+def n_action_plot(data=[]):
+    sns.set_context("poster", font_scale=1)
+    fplot = sns.factorplot(data=data,
+                           x='# Actions',
+                           y='bits',
+                           hue = 'args',
+                           # bw=.1,
+                           kind = 'point',
+                           col = 'game', 
+                           legend=False, aspect=1.3)
+
+    fplot.set(
+         # ylim=(0, 1.05),
+          # ylabel='P(A = Reciprocal)',
+          ylabel='',
+          xlabel='',
+          # yticks=np.linspace(0, 1, 5),
+          # yticklabels=['0', '0.25', '0.5', '0.75', '1']
+    )
+    plt.legend(loc='best')
     plt.tight_layout()
 
 
@@ -229,4 +313,8 @@ def main(prior = 0.75, beta = 5, **kwargs):
         file_name='scene_false_belief', **kwargs)
 
 if __name__ == '__main__':
-    main()
+    n_action_plot(
+        agent_types= ('self', SelfishAgent, AltruisticAgent),
+        beta = 5
+    )
+    # main()

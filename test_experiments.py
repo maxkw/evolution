@@ -5,6 +5,7 @@ import scenarios
 from experiments import plot_coop_prob
 import evolve
 import direct
+import indirect
 
 if __name__ == '__main__':
     plot_dir = './figures/'
@@ -14,10 +15,10 @@ if __name__ == '__main__':
         plot_dir = plot_dir
     )
 
+    direct.Compare_Old(**params)
     plot_coop_prob(file_name = 'coop_prob', **params)
     scenarios.main(**params)
-    direct.ToM_indirect(**params)
-    direct.Compare_Old(**params)
+    indirect.ToM_indirect(**params)
 
 # # Currently broken
 # evolve.AllC_AllD_race()

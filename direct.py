@@ -22,38 +22,11 @@ from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param, param_v_r
 
 TODAY = "./plots/"+date.today().isoformat()+"/"
 
-def ToM_indirect():
-    opponents = (ag.SelfishAgent, )
-    ToM = ('self', ) + opponents
-
-    background_params = dict(
-        rounds = 50,
-        benefit = 20,
-        direct = False,
-        game = 'indirect',
-        pop_size = 10, 
-        s = 1,
-        RA_prior = 0.5,
-        beta = 5,
-        tremble = 0,
-        # plot_dir = TODAY,
-        agent_types = ToM,
-        player_types = (WeAgent, ) + tuple(ReciprocalAgent(RA_K=k) for k in range(1)),
-        opponent_types = opponents,
-        experiment = compare_ssd_v_param,
-        file_name = 'ToM_indirect'
-    )
-
-    limit_param_plot("rounds",
-                     graph_kwargs = dict(color = 'C5', style = ['--', '-']),
-                     **background_params)
-
-
-def Compare_Old():
+def Compare_Old(**kwargs):
     trembles = [0, 0.05]
     
     for t in trembles:
-        classic =  (ag.AllC, ag.AllD, ag.Pavlov, ag.GTFT, ag.TFT)
+        classic = (ag.AllC, ag.AllD, ag.Pavlov, ag.GTFT, ag.TFT)
         background_params = dict(
             rounds = 50,
             benefit = 3,
@@ -64,13 +37,14 @@ def Compare_Old():
             s = .5,
             RA_prior = 0.5,
             beta = 5,
-            agent_types = ('self',) + classic,
-            # plot_dir = TODAY,
         )
 
+        background_params.update(kwargs)
+        
         # Without WeAgent
         limit_param_plot("rounds",
                          player_types = classic,
+                         agent_types = ('self',) + classic,
                          file_name = 'Compare_Old NoWE tremble=%0.2f' % t,
                          experiment = ssd_v_param,
                          stacked = True,
@@ -79,7 +53,17 @@ def Compare_Old():
         # With WeAgent
         limit_param_plot("rounds",
                          player_types = classic + (WeAgent, ),
+                         agent_types = ('self',) + classic,
                          file_name = 'Compare_Old WE tremble=%0.2f' % t,
+                         experiment = ssd_v_param,
+                         stacked = True,
+                         **background_params)
+
+        # With WeAgent but noToM
+        limit_param_plot("rounds",
+                         player_types = classic + (WeAgent, ),
+                         agent_types = ('self', SelfishAgent, AltruisticAgent, RandomAgent),
+                         file_name = 'Compare_Old WE RandomToM tremble=%0.2f' % t,
                          experiment = ssd_v_param,
                          stacked = True,
                          **background_params)
@@ -87,15 +71,16 @@ def Compare_Old():
         # ToM Comparison
         limit_param_plot("rounds",
                          player_types = (WeAgent, ) + tuple(ReciprocalAgent(RA_K=k) for k in range(2)),
+                         agent_types = ('self',) + classic,
                          opponent_types = classic,
                          file_name = 'Compare_Old ToM tremble=%0.2f' % t,
                          experiment = compare_ssd_v_param,
-                         graph_kwargs = dict(color = 'C5', style = ['--', ':', '-']),
+                         graph_kwargs = dict(color = ['C5'], style = ['--', ':', '-']),
                          **background_params)
-        
-        
-    
 
+
+
+        
 def AllC_AllD_race():
     opponents = (AllD, AllC)
     # opponents = (ag.SelfishAgent,ag.AltruisticAgent)
@@ -377,13 +362,12 @@ def test():
 
 
 if __name__ == "__main__":
-    test()
-    #ToM_indirect()
-    # Compare_Old()
+    ToM_indirect()
+    Compare_Old()
+    # test()
     # AllC_AllD_race()
     # bc_rounds_contest()
     # Pavlov_gTFT_race()
-    # ToM_direct()
     #bc_rounds_race()
     #limit_rounds_race()
     assert 0

@@ -1,4 +1,5 @@
 from __future__ import division
+from collections import OrderedDict
 from utils import flip
 from itertools import product, combinations, permutations,cycle,izip
 from numpy import array
@@ -67,7 +68,7 @@ class Playable(object):
     the idea is that the name perfectly specifies how the object came to be and how
     to recreate it.
     """
-    def play(decision,participants,observers=[],tremble=0):
+    def play(decision, participants, observers=[], tremble=0):
         """
         returns a dict containing
         the decision
@@ -79,9 +80,11 @@ class Playable(object):
         NOTE:
         participants are always added to observer list (with no doubling)
         """
+
         participant_ids = [participant.world_id for participant in participants]
         decider = participants[0]
-        intention = decider.decide(decision,participant_ids)
+
+        intention = decider.decide(decision, participant_ids)
 
         if flip(decision.tremble):
             action = np.random.choice(decision.actions)
@@ -101,6 +104,7 @@ class Playable(object):
         
         observations = [(decision,participant_ids,observer_ids,action)]
         return payoffs, observations, None
+    
     def next_game(self):
         return self
     def __repr__(self):
@@ -203,7 +207,7 @@ class Decision(Playable):
     the nth payoff then corresponds to the nth agent in the provided list
     """
     name = _name = "Decision"
-    def __init__(self,payoffDict):
+    def __init__(self, payoffDict):
         actions = payoffDict.keys()
         self.N_players = len(payoffDict.values()[0])
         self.actions = actions
@@ -251,19 +255,26 @@ def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT
 def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
     cost = float(cost)
     benefit = float(benefit)
-    max_d = benefit-cost
-    max_r = cost/benefit
-    ratios = np.linspace(0,max_r,intervals)
-    differences = np.linspace(0,max_d,intervals)
+    max_d = benefit - cost
+    max_r = cost / benefit
+
+    # np.random.uniform(0, cost)
+    
+    ratios = np.linspace(0, max_r, intervals)
+    differences = np.linspace(0, max_d, intervals)
+    
     def new_cost(r,d):
         return d/(1-r)-d
     def new_benefit(r,d):
         return d/(1-r)
 
     payoffs = [(endowment-new_cost(r,d), new_benefit(r,d)) for d,r in zip(differences,ratios)]
+    
+    if intervals == 2:
+        decision = Decision({'keep' : payoffs[0], 'give' : payoffs[1]})
+    else:
+        decision = Decision(OrderedDict((str(p),p) for p in payoffs))
 
-
-    decision = Decision(dict((str(p),p) for p in payoffs))
     decision.tremble = tremble
     return decision
 
@@ -996,13 +1007,15 @@ def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble 
 @literal
 def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, followers = True, **kwargs):
     args = dict(cost = cost, benefit = benefit, tremble = tremble)
-    #bd = SocialDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-    bd = OrGame(
-       SocialDictator(intervals = intervals, **args),
-       TernaryDictator(**args)
-    )
+    bd = SocialDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
+
+    # bd = OrGame(
+    #    SocialDictator(intervals = intervals, **args),
+    #    TernaryDictator(**args)
+    # )
     #bd = TernaryDictator(**args)
     #bd = SocialDictator(intervals = intervals, **args)
+
     if followers:
         game = Annotated(rounds, RandomMatching(ObservedByFollowers(observability,bd)))
     else:

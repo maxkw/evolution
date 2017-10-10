@@ -86,6 +86,9 @@ def avg_payoff_per_type_from_sim(sim_data):
     pop_size = max(sim_data['id'].unique())+1
 
     for r, r_d in sim_data.groupby('round'):
+        # Skip the zeroth round since there is no action in that round.
+        if r == 0: continue
+        
         fitness = []
 
         for i, (t, t_d) in enumerate(r_d.groupby('type')):
@@ -98,8 +101,7 @@ def avg_payoff_per_type_from_sim(sim_data):
         # fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
         fitness_per_round.append(np.array(running_fitness / r))
 
-    # Parse out the zeroth round since there is no action in that round. 
-    return fitness_per_round[1:]
+    return fitness_per_round
 
 @memoized
 def indirect_simulator(player_types, *args, **kwargs):

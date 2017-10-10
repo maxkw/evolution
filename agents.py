@@ -454,7 +454,7 @@ class Standing(Agent):
     def decide_likelihood(self, game, agents = None, tremble = 0):
         action_dict = self.action_dict
         image = self.image
-        [decider,recipient] = agents
+        [decider, recipient] = agents
         action = action_dict[(image[decider], image[recipient])]
         return add_tremble(np.array([1 if a == action else 0 for a in game.actions]),tremble)
 

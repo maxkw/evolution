@@ -44,14 +44,16 @@ def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 
     given_values = locals()
     given_values.update(kwargs)
     
-    if games == 'direct':
-        games = RepeatedPrisonersTournament(rounds, tremble = tremble, **kwargs)
-    elif games == 'indirect':
-        games = IndirectReciprocity(rounds = rounds, tremble = tremble, **kwargs)
-    
+    # if games == 'direct':
+    #     games = RepeatedPrisonersTournament(rounds, tremble = tremble, **kwargs)
+    # elif games == 'indirect':
+    #     games = IndirectReciprocity(rounds = rounds, tremble = tremble, **kwargs)
+    # else:
+        # assert 0
+        
     values =  {
         'N_agents' : N_agents,
-        'games': games,
+        # 'games': games,
         'agent_types' : agent_types,
         'moran_beta' : .1,
         'tremble' : tremble,
