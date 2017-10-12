@@ -16,9 +16,10 @@ if __name__ == '__main__':
     )
 
     direct.Compare_Old(**params)
-    plot_coop_prob(file_name = 'coop_prob', **params)
-    scenarios.main(**params)
-    indirect.ToM_indirect(**params)
+    # plot_coop_prob(file_name = 'coop_prob', **params)
+    # scenarios.main(**params)
+    # indirect.ToM_indirect(**params)
+    
 
 # # Currently broken
 # evolve.AllC_AllD_race()

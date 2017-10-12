@@ -99,6 +99,7 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
         's': logspace(start = .001, stop = 1, samples = 100),
         'observability': [0, 0.25, .5, .75, 1],
         'tremble': np.linspace(0,.25,6),
+        'intervals' : [2, 4, 8]
     }
     record = []
     
@@ -209,5 +210,6 @@ def param_v_rounds_heat(param, player_types, experiment=param_v_rounds, data=[],
 def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[], **kwargs):
     g = sns.FacetGrid(data = data, col = 'type', hue=param)
     g.map(plt.plot, 'rounds', 'proportion')
-    plt.legend()
+    g.set_titles("{col_name}")
+    g.axes[0][0].legend(title=param, loc='best')
     

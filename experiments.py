@@ -57,7 +57,7 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
             'p1_fitness':fitness[0]}
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
-@experiment(unpack = 'record', trials = 100, verbose = 3)
+@experiment(unpack = 'record', trials = 1000, verbose = 3)
 def matchup(player_types, game, **kwargs):
 
     #print trials
@@ -83,6 +83,8 @@ def matchup(player_types, game, **kwargs):
         g = games.SocialTournament(**kwargs)
     elif game == 'gradated':
         g = games.GradatedTournament(**kwargs)
+    elif game == 'orgame':
+        g = games.OrTournament(**kwargs)
     elif game == 'manual':
         raise NotImplementedError
     else:

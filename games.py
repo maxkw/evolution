@@ -269,7 +269,7 @@ def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, interv
         return d/(1-r)
 
     payoffs = [(endowment-new_cost(r,d), new_benefit(r,d)) for d,r in zip(differences,ratios)]
-    
+
     if intervals == 2:
         decision = Decision({'keep' : payoffs[0], 'give' : payoffs[1]})
     else:
@@ -279,11 +279,11 @@ def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, interv
     return decision
 
 @literal
-def TernaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
+def TernaryDictator(endowment = 0, cost = COST, benefit1 = BENEFIT, benefit2 = BENEFIT, tremble = 0):
     payoffs = [
         (endowment,0,0),
-        (endowment-cost,benefit,0),
-        (endowment-cost,0,benefit)
+        (endowment-cost,benefit1,0),
+        (endowment-cost,0,benefit2)
     ]
     decision = Decision(dict((str(p),p) for p in payoffs))
     decision.tremble = tremble
@@ -965,19 +965,15 @@ def RepeatedSequentialBinary(rounds = ROUNDS, visibility = "private"):
 
 @literal
 def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tremble = 0, intervals = 2, **kwargs):
-    visibility = "private"
-    observability = .5
     PD = Symmetric(GradatedBinaryDictator(cost = cost, benefit = benefit, intervals=intervals, tremble = tremble))
+    # PD = Symmetric(SocialDictator(cost = cost, benefit = benefit, intervals=intervals, tremble = tremble))
 
-    if visibility == "private":
-        PD.tremble = kwargs.get('tremble', 0)
-        g =  Repeated(rounds, PrivatelyObserved(PD))
-        g.tremble = kwargs.get('tremble', 0)
-        return g
-    if visibility == "random":
-        return Repeated(rounds, PubliclyObserved(Combinatorial(RandomlyObservable(observability,PD))))
-    if visibility == "public":
-        return Repeated(rounds, PubliclyObserved(PD))
+    PD.tremble = kwargs.get('tremble', 0)
+    g =  Repeated(rounds, PrivatelyObserved(PD))
+    g.tremble = kwargs.get('tremble', 0)
+
+    return g
+    
 
 
 @literal
@@ -1021,6 +1017,43 @@ def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 
     else:
         raise Exception
         #game = Annotated(rounds, RandomMatching(RandomlyObserved(observability,bd)))
+
+    return game
+
+@literal
+def OrTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, followers = True, **kwargs):
+    import random
+    bd = OrGame(Randomly(SocialDictator,
+                         cost = dict(func = np.random.gamma, shape = 1, scale = cost),
+                         benefit = dict(func = np.random.gamma, shape = 1, scale = benefit),
+                         intervals = dict(func = np.random.randint, low = 2, high = 9),
+                         tremble = tremble),
+                Randomly(SocialDictator,
+                         cost = dict(func = np.random.gamma, shape = 1, scale = cost),
+                         benefit = dict(func = np.random.gamma, shape = 1, scale = benefit),
+                         intervals = dict(func = np.random.randint, low = 2, high = 9),
+                         tremble = tremble),
+                Randomly(SocialDictator,
+                         cost = dict(func = np.random.gamma, shape = 1, scale = cost),
+                         benefit = dict(func = np.random.gamma, shape = 1, scale = benefit),
+                         intervals = dict(func = np.random.randint, low = 2, high = 9),
+                         tremble = tremble),
+                Randomly(TernaryDictator,
+                         cost = 0,
+                         benefit1 = dict(func = np.random.gamma, shape = 1, scale = benefit),
+                         benefit2 = dict(func = np.random.gamma, shape = 1, scale = benefit),
+                         tremble = tremble))
+    
+    # bd = OrGame(
+        # SocialDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble),
+        # TernaryDictator(cost = cost, benefit1 = benefit, benefit2 = benefit, tremble = tremble)
+        # )
+    
+    if followers:
+        game = Annotated(rounds, RandomMatching(ObservedByFollowers(observability,bd)))
+    else:
+        raise Exception
+
 
     return game
 

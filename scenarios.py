@@ -127,21 +127,19 @@ def false_belief_scenarios():
 
     return scenario_dict
 
-
 @multi_call()
 @experiment(unordered=['agent_types'], unpack='record', memoize=False)
-def first_impressions(agent_types, **kwargs):
+def forgive(agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
-    genome = default_genome(agent_type=RationalAgent, **condition)
-    genome['RA_K'] = 10
+    genome = default_genome(agent_type=WeAgent, **condition)
     game = BinaryDictator()
 
     record = []
 
-    trials = ['', 'D', 'CD', 'CCD', 'CCDDD']
+    trials = ['D', 'CD', 'CCD', 'CCDDD']
 
     for trial in trials:
-        observer = ReciprocalAgent(genome=genome, world_id='B')
+        observer = WeAgent(genome=genome, world_id='B')
         h = Counter(trial)
 
         # observations = [
@@ -156,23 +154,95 @@ def first_impressions(agent_types, **kwargs):
             observer.observe([(game, 'AB', 'ABO', 'give'),
                               (game, 'BA', 'ABO', 'give')])
 
-
-        before = observer.belief_that('A', ReciprocalAgent)
+        before = observer.belief_that('A', WeAgent)
         
         for _ in xrange(h['D']):
             observer.observe([(game, 'AB', 'ABO', 'keep')])
         
-        # after = observer.decide_likelihood(game, 'BA', )[0]
+        after = observer.decide_likelihood(game, 'BA', )[0]
 
-        after = observer.belief_that('A', ReciprocalAgent)
-        after = after - before
+        # after = observer.belief_that('A', WeAgent)
+        # after = after - before
         
         # for t, b in zip(['Before', 'After'], [before, after]):
         for t, b in zip(['After'], [after]):
             record.append({'cooperations': trial,
                            'belief': b,
                            'type': t})
+
+        print record
     return record
+
+
+
+
+@multi_call()
+@experiment(unordered=['agent_types'], unpack='record', memoize=False)
+def first_impressions(agent_types, **kwargs):
+    condition = dict(locals(), **kwargs)
+    genome = default_genome(agent_type=WeAgent, **condition)
+    game = BinaryDictator()
+
+    record = []
+
+    trials = ['', 'D', 'CD', 'CCD', 'CCDDD']
+
+    for trial in trials:
+        observer = WeAgent(genome=genome, world_id='B')
+        h = Counter(trial)
+
+        # observations = [
+        #     [(game, 'AB', 'ABO', 'give'),
+        #      (game, 'BA', 'ABO', 'give')
+        #     ]] * h['C']
+
+        # for observation in observations:
+        #     observer.observe(observation)
+
+        for _ in xrange(h['C']):
+            observer.observe([(game, 'AB', 'ABO', 'give'),
+                              (game, 'BA', 'ABO', 'give')])
+
+        before = observer.belief_that('A', WeAgent)
+        
+        for _ in xrange(h['D']):
+            observer.observe([(game, 'AB', 'ABO', 'keep')])
+        
+        # after = observer.decide_likelihood(game, 'BA', )[0]
+
+        after = observer.belief_that('A', WeAgent)
+        # after = after - before
+        
+        # for t, b in zip(['Before', 'After'], [before, after]):
+        for t, b in zip(['After'], [after]):
+            record.append({'cooperations': trial,
+                           'belief': b,
+                           'type': t})
+
+        print record
+    return record
+
+@plotter(first_impressions)
+def forgive_plot(data=[]):
+    sns.set_context("poster", font_scale=1)
+    fplot = sns.factorplot(data=data, x='cooperations',
+                           y='belief',
+                           # bw=.1,
+                           kind = 'bar',
+                           hue='type', legend=False, aspect=1.3)
+
+    fplot.axes[0][0].axhline(.33, 0, 2, color='black')
+    fplot.set(
+         # ylim=(0, 1.05),
+          # ylabel='P(A = Reciprocal)',
+          ylabel='P(Cooperate)',
+          xlabel='',
+          # yticks=np.linspace(0, 1, 5),
+          # yticklabels=['0', '0.25', '0.5', '0.75', '1']
+    )
+    # plt.legend(loc='best')
+    plt.tight_layout()
+
 
 @plotter(first_impressions)
 def first_impressions_plot(data=[]):
@@ -185,8 +255,8 @@ def first_impressions_plot(data=[]):
 
     fplot.set(
          # ylim=(0, 1.05),
-          # ylabel='P(A = Reciprocal)',
-          ylabel='',
+          ylabel='P(A = Reciprocal)',
+          # ylabel='',
           xlabel='',
           # yticks=np.linspace(0, 1, 5),
           # yticklabels=['0', '0.25', '0.5', '0.75', '1']
@@ -200,83 +270,69 @@ def n_action_info(agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
     genome = default_genome(agent_type=WeAgent, **condition)
 
-    SA = SelfishAgent(genome)
-    AA = AltruisticAgent(genome)
-
-    N = 16
-        # for i in [1, 4, 8, 16]:
-            # removed = game.actions.pop()
-            # del game.action_lookup[removed]
-            # del game.payoffs[removed]
-
-
     record = []
     for args in [
-            # dict(cost = 5, benefit = 15, tremble = 0),
-            dict(cost = 15, benefit = 45, tremble = 0),
-            dict(cost = 15, benefit = 45, tremble = 0.1),
+            dict(cost = 5, benefit = 15, tremble = 0),
     ]:
         
-        for i in range(2, N+1, 1):
+        for i in [2, 4, 8]:
             
-            for game in [SocialDictator(intervals = i, **args), GradatedBinaryDictator(intervals = i, **args)]:
+            for game in [
+                    SocialDictator(intervals = i, **args),
+                    # GradatedBinaryDictator(intervals = i, **args)
+            ]:
                 for t in agent_types:
+                    E_KL = 0
                     if t == 'self':
                         actor = WeAgent(genome=genome, world_id='O')
                     else:
                         actor = t(genome=genome)
-                        continue 
+                        # continue 
 
-                    E_KL = 0
                     for a_id, likelihood in enumerate(actor.decide_likelihood(game, 'AB')):
                         observer = WeAgent(genome=genome, world_id='O')
                         q = observer.belief['A']
                         observer.observe([(game, 'AB', 'ABO', game.actions[a_id])])
                         p = observer.belief['A']
                         E_KL += likelihood * sp.stats.entropy(p, q, base = 2)
-
+                        
+                    # import pdb; pdb.set_trace()
+                    
                     record.append({
                         '# Actions': int(i),
                         'bits': E_KL,
-                        'args': 'Tremble=%0.2f C=%d B=%d' % (args['tremble'], args['cost'], args['benefit']),
-                        'game': 'Social' in str(game.name)
+                        # 'args': 'Tremble=%0.2f C=%d B=%d' % (args['tremble'], args['cost'], args['benefit']),
+                        'args': 'C=%d B=%d' % (args['cost'], args['benefit']),
+                        # 'args': '%0.2f' % (args['tremble']),
+                        'game':  'Social' in str(game.name),
+                        'actor': str(actor.__class__)
                     })
-                # print i, t, E_KL
-            #     E_KLs.append(E_KL)
-            # E_KLs = np.array(E_KLs)
-            # print i, E_KLs.mean()
-            # print
-        # record = []
-
-    # for t, b in zip(['After'], [after]):
-    #     record.append({'cooperations': trial,
-    #                    'belief': b,
-    #                    'type': t})
 
     return record
 
 @plotter(n_action_info)
 def n_action_plot(data=[]):
+    data['# Actions'] = data['# Actions'].astype(int)
     sns.set_context("poster", font_scale=1)
     fplot = sns.factorplot(data=data,
                            x='# Actions',
                            y='bits',
-                           hue = 'args',
+                           # hue = 'args',
+                           hue = 'actor',
                            # bw=.1,
-                           kind = 'point',
-                           col = 'game', 
-                           legend=False, aspect=1.3)
+                           kind = 'bar',
+                           # col = 'actor', 
+                           aspect=1.3).set_titles("{col_name}")
+
+    
 
     fplot.set(
-         # ylim=(0, 1.05),
-          # ylabel='P(A = Reciprocal)',
-          ylabel='',
-          xlabel='',
-          # yticks=np.linspace(0, 1, 5),
-          # yticklabels=['0', '0.25', '0.5', '0.75', '1']
+         # ylim=(0, 2),
+          ylabel='bits',
+          xlabel='# Actions',
     )
-    plt.legend(loc='best')
-    plt.tight_layout()
+    # plt.legend(loc='best')
+    # plt.tight_layout()
 
 
 def main(prior = 0.75, beta = 5, **kwargs):
@@ -313,8 +369,13 @@ def main(prior = 0.75, beta = 5, **kwargs):
         file_name='scene_false_belief', **kwargs)
 
 if __name__ == '__main__':
-    n_action_plot(
-        agent_types= ('self', SelfishAgent, AltruisticAgent),
-        beta = 5
-    )
+    
+    forgive_plot(agent_types = (SelfishAgent, AltruisticAgent, 'self'))
+    first_impressions_plot(agent_types = (SelfishAgent, AltruisticAgent, 'self'))
+    
+    # n_action_plot(
+    #     agent_types= ('self', SelfishAgent, AltruisticAgent),
+    #     beta = 5,
+    #     RA_prior = 0.5
+    # )
     # main()

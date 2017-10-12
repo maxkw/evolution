@@ -238,132 +238,37 @@ def bc_rounds_race():
             )
             
             param_v_rounds_heat(**params)
-            
-def limit_rounds_race():
-    file_name = "ToM = %s, beta = %s, prior = %s, tremble = %s"
-    plot_dir = "./plots/limit_rounds_race/"
 
-    MRA = ReciprocalAgent
-    SA = SelfishAgent
-    AA = AltruisticAgent
-    AC = AllC
-    AD = AllD
-    TFT = gTFT(y=1,p=1,q=0)
-    GTFT = gTFT(y=1,p=.99,q=.33)
+def interval_direct(**kwargs):
+    opponents = (ag.SelfishAgent, ag.AltruisticAgent)
 
-    max_rounds = 50
-
-    priors = [
-        #.1,
-        .5,
-        #.75
-        #.99
-    ]
-
-    ToMs = [
-        ('self', AC, AD)#, TFT, GTFT, Pavlov)
-    ]
-
-    betas = [
-        #.5,
-        #1,
-        #3,
-        5,
-        # 10,
-    ]
-
-    trembles = [
-        0,
-        0.05
-    ]
-
-    for prior, ToM, beta in product(priors,ToMs,betas):
-        RA = WeAgent(RA_prior = prior, agent_types = ToM, beta = beta)
-        everyone = (RA, AC, AD)#, TFT, GTFT, Pavlov)
-        for t in trembles:
-            limit_param_plot(param = 'rounds', player_types = everyone, rounds = max_rounds, tremble = t,
-                             plot_dir = plot_dir,
-                             #games = 'indirect',
-                             file_name = file_name % (ToM,beta,prior,t),
-            )
-
-
-
-
-def test():
-    today = "./plots/"+date.today().isoformat()+"/"
-    
-    #opponents = (AllD, AllC)
-    opponents = (
-        ag.SelfishAgent,
-        #ag.AltruisticAgent
+    background_params = dict(
+        rounds = 10,
+        benefit = 15,
+        cost = 5,
+        tremble = 0,
+        direct = True,
+        game = 'direct',
+        pop_size = 100, 
+        s = .5,
+        RA_prior = 0.5,
+        beta = 5,
+        agent_types = ('self', ) + opponents,
+        player_types = (WeAgent, ) + opponents, 
+        file_name = 'Intervals direct opp=%s' % str(opponents),
     )
-    ToM = ('self', ) + opponents
-    pop = (WeAgent(agent_types = ToM),)+ opponents
-           # ag.TFT)
-    games = [
-        #'direct',
-        # 'indirect',
-        #'exponential indirect'
-        #'ternary'
-        'social',
-        # 'gradated',
-    ]
-    trembles = [
-        0,
-        # .05
-    ]
 
-    intervals_list = [
-        2,
-        # 3,
-        #10
-    ]
-    observability_list = [
-        # 0,
-        #.1,
-        # .25,
-        # .5,
-        # .75,
-        1,
-    ]
-    for t,g,i,o in product(trembles,games,intervals_list,observability_list):
-        background_params = dict(
-            experiment = param_v_rounds,
-            direct = False,
-            game = g,
-            RA_prior = 0.5,
-            beta = 5,
-            player_types = pop,
-            #opponent_types = opponents,
-            agent_types = ToM,
-            tremble = t,
-            pop_size = 10, 
-            plot_dir = today,
-            intervals = i,
-            benefit = 10,
-            #parallelized = False,
-            trials = 100,
-            observability = o,
-            #file_name = "social binary"
-        )
-        
-        # limit_param_plot('s', rounds = 100, file_name = 'contest_s_rounds=100_tremble=%0.2f' % t, **background_params)
-        # limit_param_plot('s', rounds = 10, file_name = 'contest_s_rounds=10_tremble=%0.2f' % t, **background_params)
-        param_v_rounds_plot('observability', rounds = 100,
-                         s=1,
-                     #file_name = 'contest_rounds_tremble=%0.2f, game = %s' % (t,g),
-                         #file_name = "gradated = %s" % i,
-                         file_name = "game = %s, actions= %s, observability = %s" % (g,i,o),
-                         #file_name = "binary"
-                       **background_params)
-    #limit_param_plot('bc',everyone)
-    #limit_param_plot('rounds', everyone)
+    background_params.update(kwargs)
 
+    param_v_rounds_plot("intervals",
+                        **background_params)
+
+            
 
 if __name__ == "__main__":
-    ToM_indirect()
-    Compare_Old()
+    interval_direct()
+    # ToM_indirect()
+    # Compare_Old()
     # test()
     # AllC_AllD_race()
     # bc_rounds_contest()
