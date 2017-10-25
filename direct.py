@@ -104,7 +104,8 @@ def AllC_AllD_race():
             beta = 10,
             player_types = pop,
             #opponent_types = opponents,
-            agent_types = ToM,            tremble = t,
+            agent_types = ToM,
+            tremble = t,
 
             pop_size = 100, 
             # plot_dir = TODAY,
@@ -263,10 +264,57 @@ def interval_direct(**kwargs):
     param_v_rounds_plot("intervals",
                         **background_params)
 
-            
+def AllC_AllD_race_test():
+    opponents = (
+        AllD,
+        #AllC
+    )
+    # opponents = (ag.SelfishAgent,ag.AltruisticAgent)
+    ToM = ('self', ) + opponents #+(AllC,)
+    
+    pop = (WeAgent(agent_types = ToM, beta = 10, RA_prior = 0.5),)+opponents
+    # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
+           # ag.TFT)
+
+
+    trembles = [
+        #0,
+        .05
+    ]
+
+    for t in trembles:
+
+
+        background_params = dict(
+            #experiment = ssd_v_param,
+            direct = True,
+            game = 'direct',
+            #parallelized = False,
+            analysis_type = 'complete',
+            #RA_prior = 0.5,
+            #beta = 10,
+            player_types = pop,
+            #opponent_types = opponents,
+            #agent_types = ToM,
+            tremble = t,
+            pop_size = 50,
+            plot_dir = TODAY,
+            extension = '.png',
+            mu = .01,
+            #file_name = "gradated"
+        )
+        file_name = 'type=%s, game=%s, analytic=%s, pop_size=%s' % (
+            background_params['analysis_type'],
+            background_params['game'],
+            background_params['direct'],
+            background_params['pop_size'],
+        )
+        limit_param_plot("rounds", rounds = 100, s=1,
+                         file_name = file_name,
+                         **background_params)
 
 if __name__ == "__main__":
-    interval_direct()
+    AllC_AllD_race_test()
     # ToM_indirect()
     # Compare_Old()
     # test()
