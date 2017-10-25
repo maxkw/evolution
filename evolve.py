@@ -12,7 +12,7 @@ from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,ma
 from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis
+from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis, evo_analysis
 import pandas as pd
 from datetime import date
 from agents import leading_8_dict, shorthand_to_standing
@@ -71,7 +71,7 @@ def sim_plotter(generations, pop, player_types, data =[]):
     plt.legend()
 
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
-def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
+def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
     """
     This should be optimized to reflect the fact that
     in terms of complexity
@@ -88,7 +88,6 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
     """
     # Test to make sure each agent interacts with a new agent each
     # time. Otherwise its not true 'indirect' reciprocity.
-    unique_interactions = kwargs['pop_size'] * (kwargs['pop_size'] - 1)
 
     Xs = {
         # 'RA_prior': np.linspace(0,1,21)[1:-1],
@@ -104,7 +103,7 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
     record = []
     
     if param == "rounds":
-        expected_pop_per_round = limit_analysis(player_types = player_types, direct = direct, **kwargs)
+        expected_pop_per_round = evo_analysis(player_types = player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start = 1):
             for t, p in zip(player_types, pop):
                 record.append({
@@ -117,7 +116,7 @@ def ssd_v_param(param, player_types, direct, return_rounds=False, **kwargs):
 
     elif param in Xs:
         for x in Xs[param]:
-            expected_pop_per_round = limit_analysis(player_types = player_types, direct = direct, **dict(kwargs,**{param:x}))
+            expected_pop_per_round = evo_analysis(player_types = player_types, **dict(kwargs,**{param:x}))
 
 
             if return_rounds:
@@ -155,6 +154,8 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
     data[data['proportion']<0] = 0
     data = data[data['type']!=0]
     data = data[[param, 'proportion', 'type']].pivot(columns='type', index=param, values='proportion')
+    type_order = dict(map(reversed,enumerate([t.short_name('agent_types') for t in player_types])))
+    data.reindex_axis(sorted(data.columns, key = lambda t:type_order[t]), 1)
     
     if stacked:
         data.plot.area(stacked = True, ylim = [0, 1])
@@ -181,8 +182,8 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
     
     plt.tight_layout()
 
-def param_v_rounds(param, player_types, direct, rounds, **kwargs):
-    return ssd_v_param(param, player_types, direct, return_rounds=True, rounds=rounds, **kwargs)
+def param_v_rounds(param, player_types, rounds, **kwargs):
+    return ssd_v_param(param, player_types, return_rounds=True, rounds=rounds, **kwargs)
 
 def compare_param_v_rounds(param, player_types, opponent_types, direct, rounds, **kwargs):
     dfs = []
