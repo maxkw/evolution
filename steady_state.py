@@ -10,6 +10,7 @@ from functools import partial
 from utils import memoized
 from multiprocessing import Pool
 from experiments import matchup,matchup_matrix_per_round
+from complete import all_partitions
 
 
 def steady_state(matrix):
@@ -46,7 +47,14 @@ def steady_state(matrix):
         
     except Exception as e:
         print Warning("Multiple Steady States")
-        return steady_states[0][1]
+        #print "matrix"
+        #for m in matrix:
+        #    print m
+        #print "ssds"
+        #for i in steady_states:
+        #    print i
+        #print ""
+        return np.array(normalized([n.real for n in steady_states[0][1]]))
         raise e
 
     return np.array(normalized([n.real for n in steady_states]))
@@ -70,7 +78,6 @@ def mm_to_limit_mcp(payoff,pop_size):
     for types in type_indices_matchups:
         payoffs = []
         type_indices = np.array([True if i in tuple(types) else False for i in range(type_count)])
-        
         for counts in liminal_pops:
             pay = np.array([np.dot(counts-I[t][type_indices],payoff[t][type_indices])/(pop_size-1) for t in types])
             payoffs.append(pay)
@@ -105,6 +112,7 @@ def avg_payoff_per_type_from_sim(sim_data):
 
 @memoized
 def indirect_simulator(player_types, *args, **kwargs):
+    print player_types;assert 0
     sim_data = matchup(per_round = True, player_types = player_types, *args, **kwargs)
     fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
     return fitness_per_round
@@ -195,21 +203,18 @@ def mcp_to_invasion(mcp, type_count):
     return transition
 
 def limit_analysis(player_types, s, direct = False, **kwargs):
-    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
-    original_order = np.array([type_to_index[t] for t in player_types])
-    player_types = sorted(player_types)
-
     if direct:
         rmcp = ana_to_limit_rmcp(player_types, **kwargs)
     else:
-        rmcp = sim_to_limit_rmcp(player_types, **kwargs)
+        #rmcp = sim_to_limit_rmcp(player_types, **kwargs)
+        rmcp = sim_to_rmcp(player_types,analysis_type = 'limit', **kwargs)
 
     rmcp = np.exp(s * rmcp)
     ssds = []
     for mcp in rmcp:
         ssds.append(steady_state(mcp_to_invasion(mcp, len(player_types))))
 
-    return np.array(ssds)[:, original_order]
+    return ssds
 
 
 ####
@@ -224,9 +229,227 @@ def test_complete_limit():
         limit_analysis(matrix, N, s),
         rtol = 0.001, atol=0.001)
 
+@memoized
+def evo_analysis(player_types, analysis_type = 'limit', *args, **kwargs):
+    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
+    original_order = np.array([type_to_index[t] for t in player_types])
+    player_types = sorted(player_types)
 
+    if analysis_type == 'complete':
+        ssds = complete_analysis(player_types = player_types, *args,**kwargs)
+    elif analysis_type == 'limit':
+        ssds = limit_analysis(player_types = player_types, *args,**kwargs)
+
+    return np.array(ssds)[:,original_order]
+
+
+def matchups_and_populations(player_types, pop_size, analysis_type):
+    """
+    adding a matchups/populations pair to this function makes 'sim_to_rmcp' work automagically
+    matchups are combinations of player_types,
+    populations are permutations of integers that add up to pop_size,
+    the number of these summands must be equal to the number of player_types in a combination
+    """
+
+    type_count = len(player_types)
+    if analysis_type == 'limit':
+        # all the pairings of two player_types, note these are combinations
+        matchups = list(combinations(player_types, 2))
+       
+        # produce all elements along the edges of the population simplex
+        # does not include the homogeneous populations at the vertices
+        # ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
+        # note that the case (0,n) and (n,0) are not considered in the limit
+        populations = [(i, pop_size-i) for i in range(1, pop_size)]
+
+    if analysis_type == 'complete':
+        # in the complete analysis there is only a single matchup, which is everyone
+        matchups = [player_types]
+
+        # the populations for the complete case are literally every partitioning
+        # of 'pop_size' into 'type_count' numbers that add up to it including 0s
+        #
+        # NOTE:
+        # it seems 'all_partitions' returns some repeats, so we use 'set' to fix it
+        # we use 'sorted' to guarantee an ordering from set
+        populations = list(sorted(set(all_partitions(pop_size,type_count))))
+    return matchups, populations
+
+
+@memoized
+def simulation(player_types, *args, **kwargs):
+    
+    original_type_count = len(player_types)
+    counted_players = [p[1] != 0 for p in player_types]
+    new_player_types = [p for p in player_types if p[1] != 0]
+    #print new_player_types
+    sim_data = matchup(per_round = True, player_types = new_player_types, *args, **kwargs)
+    raw_fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
+
+    expanded_fitness_per_round = []
+    for fitness in raw_fitness_per_round:
+        new_fitness = np.zeros(original_type_count)
+        new_fitness[counted_players] = fitness
+        expanded_fitness_per_round.append(new_fitness)
+    return expanded_fitness_per_round
+
+
+def simulation_from_dict(d):
+    return simulation(**d)
+
+@memoized
+def sim_to_rmcp(player_types, pop_size, rounds, analysis_type = 'limit', parallelized = True, **kwargs):
+    assert player_types == sorted(player_types)
+    matchups, populations = matchups_and_populations(player_types, pop_size, analysis_type)
+    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), rounds = rounds, **kwargs) for pop_pair in product(matchups, populations)]
+
+    # make a mapping from matchup to list of lists of payoffs
+    # the first level is ordered by partitions
+    # the second layer is ordered by rounds
+    # payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
+    if parallelized == True:
+        pool = Pool(8)
+        payoffs = pool.map(simulation_from_dict, matchup_pop_dicts)
+    elif parallelized == False:
+        payoffs = map(simulation_from_dict, matchup_pop_dicts)
+
+
+    assert not (analysis_type == 'limit') or (len(payoffs[0][0]) == 2)
+
+    # Unpack the data into a giant matrix
+    rmcp = np.zeros((rounds, len(matchups), len(populations), len(payoffs[0][0])))
+    for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
+        rmcp[:, m, c, :] = np.array(p)
+
+    return rmcp
+
+
+def cp_to_transition(cp, partitions, pop_size,  mu = None, **kwargs):
+    if mu == None:
+        mu = .00000001
+    testing = np.array(cp)
+    testing.flatten()
+    try:
+        assert (testing>=0).all()
+    except AssertionError:
+        print "cp has negative"
+        print testing
+        print cp
+        raise
+    type_count = len(cp[0])
+    I = np.identity(type_count)
+    part_to_id = dict(map(reversed,enumerate(partitions)))
+    partition_count = len(part_to_id)
+    transition = np.zeros((partition_count,)*2)
+
+    birth_death_pairs = list(permutations(xrange(type_count),2))
+    for i,(payoff, pop) in enumerate(zip(cp, partitions)):
+        node = np.array(pop)
+        for b,d in birth_death_pairs:
+            if pop[d] != 0:
+                neighbor = pop + I[b] - I[d]
+                death_odds = pop[d] / pop_size
+                birth_odds = payoff[b] * (1-mu) + mu * (1 / type_count)
+                transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
+
+    for i in xrange(partition_count):
+        rest = sum(transition[:,i])
+        if rest>1:
+            print transition[:,i]
+            raise Warning('sum of outgoing weights is more than 1')
+        transition[i,i] = 1-rest
+
+    return transition
+
+
+def ssd_to_expected_pop(ssd, partitions):
+    type_count = len(partitions[0])
+    pop_size = sum(partitions[0])
+    pop_sum = np.zeros(type_count)
+
+    for p,partition in zip(ssd, partitions):
+        pop_sum += np.array(partition) * p
+
+    return pop_sum / pop_size
+
+
+def duels_to_rcp(duels, partitions, **kwargs):
+    rcp = []
+    type_count = len(duels[0][1][0])
+    I = np.identity(type_count)
+    for r, duel in duels:
+        pop_to_payoff = []
+        for pop in partitions:
+            payoff = [np.dot(pop-I[t],duel[t]) for t in range(type_count)]
+            #payoff = softmax(payoff,s)
+            #payoff = [f if p!=0 else 0 for p,f in zip(pop,payoff)]
+            pop_to_payoff.append(payoff)
+        rcp.append(pop_to_payoff)
+    return np.array(rcp)
+
+def old_complete(payoff, pop_size, s, **kwargs):
+    """
+    calculates the steady state distribution over population compositions
+    """
+    type_count = len(payoff)
+    transition = pop_transition_matrix(payoff, pop_size, s, **kwargs)
+    ssd = steady_state(transition)
+
+    pop_sum = np.zeros(type_count)
+    for p,partition in zip(ssd, sorted(set(all_partitions(pop_size, type_count)))):
+        pop_sum += np.array(partition) * p
+
+    return pop_sum / pop_size
+
+def complete_payoffs(player_types, rounds, pop_size, **kwargs):
+    return matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
+
+def complete_softmax(rcp,populations,s):
+    ###
+    ### convert payoffs into fitnesses
+    ###
+    # first make a mask with the same dimensions as the rcp
+    # it is 'True' wherever 'populations' is 0
+    rounds = len(rcp)
+    non_players = np.array((np.array(populations) == 0,)*rounds)
+    # exponentiate the rcp
+    expd = np.exp(s*rcp)
+    expd[non_players] = 0
+    sumd = np.sum(expd,axis = 2)
+    ret = expd/sumd[:,:,None]
+
+
+
+    # zero out the non-player entries
+    # this is necessary, because non-players have fitness = 0
+
+    return ret
+
+def complete_analysis(player_types, s, direct = False, mu = None, **kwargs):
+
+    pop_size = kwargs['pop_size']
+    _, populations = matchups_and_populations(player_types, pop_size, analysis_type = 'complete')
+
+    if direct:
+        duels = complete_payoffs(player_types, **kwargs)
+        rcp = duels_to_rcp(duels, populations, **kwargs)
+
+    else:
+        rmcp = sim_to_rmcp(player_types, analysis_type = 'complete', **kwargs)
+        rcp = np.array([mcp[0] for mcp in rmcp])
+
+
+    softmax_rcp = complete_softmax(rcp,populations,s)
+
+
+    transitions = [cp_to_transition(cp, populations, **kwargs) for cp in softmax_rcp]
+
+    expected_pops = []
+    for transition in transitions:
+        ssd = steady_state(transition)
+        expected_pops.append(ssd_to_expected_pop(ssd, populations))
+
+    return expected_pops
 
 if __name__ == "__main__":
     pass
-
-
