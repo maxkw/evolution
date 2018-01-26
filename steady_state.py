@@ -89,6 +89,7 @@ def mm_to_limit_mcp(payoff,pop_size):
 
 def avg_payoff_per_type_from_sim(sim_data):
     running_fitness = 0
+    running_interactions = 0
     fitness_per_round = []
     pop_size = max(sim_data['id'].unique())+1
 
@@ -446,7 +447,7 @@ def complete_analysis(player_types, s, direct = False, mu = None, **kwargs):
     softmax_rcp = complete_softmax(rcp,populations,s)
 
 
-    transitions = [cp_to_transition(cp, populations, **kwargs) for cp in softmax_rcp]
+    transitions = [cp_to_transition(cp, populations, mu = mu, **kwargs) for cp in softmax_rcp]
 
     expected_pops = []
     for transition in transitions:
