@@ -8,6 +8,7 @@ import numpy as np
 from experiment_utils import fun_call_labeler
 from inspect import getargspec
 import random
+import itertools
 
 COST = 1
 BENEFIT = 3
@@ -106,7 +107,13 @@ class Playable(object):
         return payoffs, observations, None
     
     def next_game(self):
-        return self
+        try:
+            g = self.playable.next_game()
+            self.N_players = g.N_players
+            return self
+        except:
+            return self
+
     def __repr__(self):
         return self.name
     def __hash__(self):
@@ -169,11 +176,6 @@ class ObservedByFollowers(Playable):
         self.followers = dict()
         self.playable = playable
         self.next_game()
-
-    def next_game(self):
-        g = self.playable.next_game()
-        self.N_players = g.N_players
-        return g
     
     def play(self, participants, observers = [], tremble = 0):
         a_id = participants[0].world_id
@@ -189,13 +191,46 @@ class ObservedByFollowers(Playable):
 
         return payoffs, observations, notes
 
+class AllNoneObserve(Playable):
+    """
+    randomly selects a specified percent of the provided observers
+    percent is determined by self.observability, which must be set beforehand
+    these observers are passed down into _play
+    selected observers and all participants observe
+    """
+    def __init__(self,observability, playable):
+        self.name = "AllNoneObserve(%s,%s)" % (observability, playable.name)
+        self.observability = observability
+        self.N_players = playable.N_players
+        self.playable=playable
+
+    def next_game(self):
+        g = self.playable.next_game()
+        self.N_players = g.N_players
+        return self
+
+    def play(self, participants, observers = [], tremble=0):
+        if flip(self.observability):
+            observers = observers
+        else:
+            observers = []
+        #try:
+        #    payoffs, observations, notes = self.playable.current_game.play(participants, observers, tremble)
+        #except:
+        payoffs, observations, notes = self.playable.play(participants, observers, tremble)
+        
+        for observer in set(list(observers)+list(participants)):
+            observer.observe(observations)
+            
+        return payoffs, observations, notes
+
 """
 Decisions
 These are the only things Agents actually know how to deal with
 every other class here orchestrates different ways to get a pool of
 agents to actually play a decision. 
 """
-    
+
 class Decision(Playable):
     """
     A decision is defined by a payoffDict
@@ -713,6 +748,9 @@ class Repeated(AnnotatedDS):
             self.current_round = game_round
             yield self.game, ordering
 
+
+
+
 class Annotated(AnnotatedDS):
     def __init__(self,rounds, game):
         self.rounds = rounds
@@ -740,7 +778,165 @@ class Annotated(AnnotatedDS):
         for game_round, thing in izip(xrange(1,self.rounds+1), cycle(self.game.matchups(participants))):
             self.current_round = game_round
             yield thing
-            
+
+
+class AnnotatedGame(AnnotatedDS):
+    """
+    meant to replace AnnotatedDS
+    treats every matchup produced by the wrapped game's "matchup" method
+    as a "round"
+    """
+    def __init__(self, game):
+        self.name = self._name= "AnnotatedGame("+game.name+")"
+        self.game = game
+        self.current_round = 0
+
+    def play(self, participants, observers=None, tremble=0, notes={}):
+        if observers is None:
+            observers = participants
+
+        #initialize accumulators
+        observations = []
+        payoffs = np.zeros(len(participants))
+        record = []
+
+        #cache the dot references
+        extend_obs = observations.extend
+        extend_rec = record.append
+        annotate = self.annotate
+
+        #record basic info for round 0
+        extend_rec(annotate(participants, payoffs, [], [], notes))
+
+        for game, ordering in self.matchups(participants):
+            new_payoffs = np.zeros(len(participants))
+            pay, obs, rec = game.play(participants[ordering], observers, tremble)
+            new_payoffs[ordering] += pay
+            payoffs += new_payoffs
+            extend_rec(annotate(participants, new_payoffs, obs, rec, notes))
+            extend_obs(obs)
+
+        assert len(payoffs)==len(participants)
+        return payoffs, observations, record
+
+    _play = play
+
+    def annotate(self,participants,payoff,observations,record,notes):
+        note = {
+            'round':self.current_round,
+            'actions':tuple(observation[3] for observation in observations),
+            'actors':tuple(observation[1] for observation in observations),
+            'payoff': copy(payoff),
+            'games':tuple(observation[0] for observation in observations),
+            'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
+            'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
+            'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
+            }
+
+        note.update(notes)
+        return note
+
+    def matchups(self,participants):
+        for game_round, game_ordering_pair in izip(itertools.count(1), self.game.matchups(participants)):
+            self.current_round = game_round
+            yield game_ordering_pair
+
+class IndefiniteHorizon(DecisionSeq):
+    def __init__(self, gamma, game):
+        self.name = self._name= "IndefiniteHorizon("+str(gamma)+", "+game.name+")"
+        self.game = game
+        self.gamma = gamma
+        self.N_players = game.N_players
+
+    def matchups(self, participants):
+        ordering = range(len(participants))
+        player_count = self.game.N_players
+        potential_matchups = combinations(ordering, player_count)
+        #generate a list of lists of matchup. each sublist is the same matchup repeated some number of times, as determined by gamma.
+        matchup_repetitions = [[np.array(matchup)]*np.random.geometric(1-self.gamma) for matchup in potential_matchups]
+        #the function below zips lists, filling any shorter lists with 'None' until it is as long as the longest list
+        zipped = list(utils.apply_izip_longest(matchup_repetitions))
+        #each of these matchup_lists corresponds to one round
+        for matchup_list in zipped:
+            #here we serve up a Decision where all the matchups are played out, but first we filter out the "None"s
+            yield (DecisionSeq([(self.game, m) for m in matchup_list if m is not None]), ordering)
+
+class FiniteHorizon(DecisionSeq):
+    """
+    repeats the underlying game a number of times
+    if wrapped with "AnnotatedGame" it reproduces the functions of "repeated"
+    """
+    def __init__(self, rounds, game):
+        self.name = self._name= "FiniteHorizon("+str(rounds)+", "+game.name+")"
+        self.game = game
+        self.rounds = rounds
+        self.N_players = game.N_players
+
+    def matchups(self, participants):
+        ordering = range(len(participants))
+        for r in xrange(self.rounds):
+            yield self.game,ordering
+
+
+class IndefiniteMatchup(DecisionSeq):
+    def __init__(self,gamma,game):
+        self.gamma = gamma
+        self.game = game
+        self.attempts = 1
+        self.name = self._name = "IndefiniteMatching("+str(gamma)+", "+game.name+")"
+
+    def matchups(self, participants):
+        """
+        TODO: make 'sums' be the sum of nonzero other dudes
+        TODO: phase out 'failures' but only when a mask over all viable players is made
+        """
+        player_count = len(participants)
+        indices = np.arange(player_count)
+        counts = np.zeros(shape=(player_count, player_count))
+        sums = np.zeros(player_count)
+        for i,j in combinations(range(player_count),2):
+            counts[i,j] = counts[j,i] = np.random.geometric(1-self.gamma)
+
+        for i,row in enumerate(counts):
+            sums[i] = sum(row)
+
+        attempts = self.attempts
+        failures = 0
+        while len(sums[sums>1]):
+            if failures > attempts:
+                yield
+
+            game = self.game.next_game()
+            N_players = game.N_players
+            #sums MUST be changed to sum of non-zeros
+            decider_pool = indices[sums>=N_players-1]
+            decider_pool_size = len(decider_pool)
+
+            if 0 == decider_pool_size:
+                failures += 1
+                continue
+            else:
+                decider = decider_pool[np.random.choice(decider_pool_size)]
+
+                participant_mask = counts[decider]>0
+                participant_pool = indices[participant_mask]
+                participant_pool_size = len(participant_pool)
+
+                if participant_pool_size < N_players-1:
+                    failures += 1
+                    continue
+                else:
+                    participants = participant_pool[np.random.choice(participant_pool_size, N_players-1, replace=False)]
+
+                    for participant in participants:
+                        counts[decider, participant] -= 1
+                        counts[participant, decider] -= 1
+
+                    for i,row in enumerate(counts):
+                        sums[i] = sum(row)
+                    failures = 0
+                    yield (game,[decider]+list(participants))
+
 @literal
 def AnnotatedCircular(game):
     return Annotated(Circular(game))
@@ -796,9 +992,10 @@ class Dynamic(Playable):
     def __init__(self,playable_constructor,gen):
         self.constructor = playable_constructor
         self.arg_gen = gen
-        instance = playable_constructor(**gen())
-        self.N_players = instance.N_players
-        self.shuffle_game()
+        #instance = playable_constructor(**gen())
+        #self.N_players = instance.N_players
+        #self.shuffle_game()
+        self.next_game()
 
     def new(self):
         return self.constructor(**self.arg_gen())
@@ -807,10 +1004,50 @@ class Dynamic(Playable):
         self.current_version = self.constructor(**self.arg_gen())
         return self.current_version
 
+    def next_game(self):
+        try:
+            g = self.current_game = self.constructor(**self.arg_gen())
+        except TypeError:
+            g = self.current_game = apply(self.constructor,self.arg_gen())
+
+        self.N_players = g.N_players
+        return g
+
     def play(self,participants,observers=[], tremble=0):
-        playable = self.constructor(**self.arg_gen())
-        self.shuffle_game()
-        return playable.play(participants, observers, tremble)
+        to_play = self.current_game.play
+        self.next_game()
+        return to_play(participants, observers, tremble)
+
+def SocialGameGen(N_players_gen, N_actions_gen, c_gen, w_gen, e_gen, tremble_gen):
+    N_actions = N_actions_gen()
+    N_players = N_players_gen()
+
+    # initialize set of choices with the zero-action
+    choices = [np.zeros(N_players)]
+    for n in range(N_actions):
+        c, w, e = c_gen(), w_gen(), e_gen()
+        for p in xrange(1,N_players):
+            choice = np.zeros(N_players)
+            choice[0]= -c
+            choice[p] = c * w + e
+            choices.append(copy(choice))
+
+    
+    d = Decision(OrderedDict((str(p),p) for p in choices))
+    d.tremble = tremble_gen()
+
+    return d
+
+@literal
+def SocialGame():
+    N_players_gen = lambda:2
+    N_actions_gen = lambda:1
+    c_gen = lambda:1
+    w_gen = lambda:3
+    e_gen = lambda:0
+    tremble_gen = lambda:0
+
+    return Dynamic(SocialGameGen,lambda:(N_players_gen, N_actions_gen, c_gen, w_gen, e_gen, tremble_gen))
 
 class OrGame(Playable):
     def __init__(self,*games):
@@ -1055,6 +1292,23 @@ def OrTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, o
         raise Exception
 
 
+    return game
+
+@literal
+def dynamic(gamma,observability,**kwargs):
+    dictator = SocialGame()
+    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
+    return game
+
+@literal
+def manual(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, intervals = 2, followers = True, **kwargs):
+    gamma = 1-1/rounds
+    #dictator = SocialDictator(cost = cost, benefit = benefit, tremble = tremble, intervals = intervals)
+    dictator = SocialGame()
+    #game = AnnotatedGame(FiniteHorizon(rounds, PrivatelyObserved(Symmetric(dictator))))
+    #game = AnnotatedGame(IndefiniteHorizon(gamma, PrivatelyObserved(Symmetric(dictator))))
+    #game = AnnotatedGame(IndefiniteHorizon(gamma, AllNoneObserve(observability, Symmetric(dictator))))
+    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
     return game
 
 if __name__ == "__main__":
