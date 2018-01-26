@@ -5,7 +5,7 @@ import scenarios
 from experiments import plot_coop_prob
 import evolve
 import direct
-import indirect
+
 
 if __name__ == '__main__':
     plot_dir = './figures/'

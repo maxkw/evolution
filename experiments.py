@@ -57,7 +57,7 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
             'p1_fitness':fitness[0]}
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
-@experiment(unpack = 'record', trials = 1000, verbose = 3)
+@experiment(unpack = 'record', trials = 100, verbose = 3)
 def matchup(player_types, game, **kwargs):
 
     #print trials
@@ -86,7 +86,9 @@ def matchup(player_types, game, **kwargs):
     elif game == 'orgame':
         g = games.OrTournament(**kwargs)
     elif game == 'manual':
-        raise NotImplementedError
+        g = games.manual(**kwargs)
+    elif game == 'dynamic':
+        g = games.dynamic(**kwargs)
     else:
         raise Exception("Game must be specified for 'matchup'")
 
@@ -119,6 +121,13 @@ def matchup(player_types, game, **kwargs):
             assert len(player_types) == len(ids) and len(player_types)== len(event['payoff'])
         except AssertionError:
             raise Warning("There are %s players but the number of payoffs is %s" % (len(player_types),len(event['payoff'])))
+
+        interactions = np.zeros(len(player_types))
+        decisions = np.zeros(len(player_types))
+        for actors in event['actors']:
+            interactions[np.array(actors)] += 1
+            decisions[actors[0]] += 1
+
         for t, a_id, p, b, l, n_l in zip(player_types, ids, event['payoff'], event['beliefs'], event['likelihoods'], event['new_likelihoods']):
             if kwargs.get('unpack_beliefs', False):
                 atypes = genomes[a_id]['agent_types']
@@ -147,10 +156,14 @@ def matchup(player_types, game, **kwargs):
                                            'believed_type':repr(believed_type),
                                            'fitness' : p})
             else:
-                record.append({'type' : t,
-                               'id' : a_id,
-                               'round' : r,
-                               'fitness' : p})
+                record.append({
+                    'type' : t,
+                    'id' : a_id,
+                    'round' : r,
+                    'interactions': interactions[a_id],
+                    'decisions': decisions[a_id],
+                    'fitness' : p
+                })
     return record
 
 def avg_payoff_per_type_from_sim(sim_data):
@@ -163,12 +176,15 @@ def avg_payoff_per_type_from_sim(sim_data):
     print data.unique('type')
     for r, r_d in sim_data.groupby('round'):
         fitness = []
+        interactions = []
         for i, (t, t_d) in enumerate(r_d.groupby('type')):
             fitness.append(t_d['fitness'].mean())
+            interactions.append(t_d['interactions'].mean())
 
         running_fitness += np.array(fitness)
-        fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
-
+        running_interactions += np.array(interactions)
+        #fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
+        
     return fitness_per_round[1:]
 
 #@experiment(unpack = 'record', memoize=False)

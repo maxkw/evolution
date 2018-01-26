@@ -97,16 +97,19 @@ def avg_payoff_per_type_from_sim(sim_data):
         if r == 0: continue
         
         fitness = []
-
+        interactions = []
         for i, (t, t_d) in enumerate(r_d.groupby('type')):
             fitness.append(t_d['fitness'].mean())
+            interactions.append(t_d['interactions'].mean())
 
         running_fitness += np.array(fitness)
+        running_interactions += np.array(interactions)
 
         # # Depending on whether an interaction is a round or entire play through a Circular is a round will depend on how these should be normalized. It should always normalize by the total number of interactions. 
 
         # fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
-        fitness_per_round.append(np.array(running_fitness / r))
+        #fitness_per_round.append(np.array(running_fitness / r))
+        fitness_per_round.append(running_fitness/running_interactions)
 
     return fitness_per_round
 
@@ -298,10 +301,10 @@ def simulation_from_dict(d):
     return simulation(**d)
 
 @memoized
-def sim_to_rmcp(player_types, pop_size, rounds, analysis_type = 'limit', parallelized = True, **kwargs):
+def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = True, **kwargs):
     assert player_types == sorted(player_types)
     matchups, populations = matchups_and_populations(player_types, pop_size, analysis_type)
-    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), rounds = rounds, **kwargs) for pop_pair in product(matchups, populations)]
+    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), **kwargs) for pop_pair in product(matchups, populations)]
 
     # make a mapping from matchup to list of lists of payoffs
     # the first level is ordered by partitions
@@ -317,7 +320,8 @@ def sim_to_rmcp(player_types, pop_size, rounds, analysis_type = 'limit', paralle
     assert not (analysis_type == 'limit') or (len(payoffs[0][0]) == 2)
 
     # Unpack the data into a giant matrix
-    rmcp = np.zeros((rounds, len(matchups), len(populations), len(payoffs[0][0])))
+    true_rounds = max(map(len,payoffs))
+    rmcp = np.zeros((true_rounds, len(matchups), len(populations), len(payoffs[0][0])))
     for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
         rmcp[:, m, c, :] = np.array(p)
 
