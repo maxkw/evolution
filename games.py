@@ -1019,20 +1019,19 @@ class Dynamic(Playable):
         self.next_game()
         return to_play(participants, observers, tremble)
 
-def SocialGameGen(N_players_gen, N_actions_gen, c_gen, w_gen, e_gen, tremble_gen):
+def SocialGameGen(N_players_gen, N_actions_gen, cwe, tremble_gen):
     N_actions = N_actions_gen()
     N_players = N_players_gen()
 
     # initialize set of choices with the zero-action
     choices = [np.zeros(N_players)]
     for n in range(N_actions):
-        c, w, e = c_gen(), w_gen(), e_gen()
+        c, w, e = cwe()
         for p in xrange(1,N_players):
             choice = np.zeros(N_players)
             choice[0]= -c
             choice[p] = c * w + e
             choices.append(copy(choice))
-
     
     d = Decision(OrderedDict((str(p),p) for p in choices))
     d.tremble = tremble_gen()
@@ -1041,14 +1040,18 @@ def SocialGameGen(N_players_gen, N_actions_gen, c_gen, w_gen, e_gen, tremble_gen
 
 @literal
 def SocialGame():
-    N_players_gen = lambda:2
-    N_actions_gen = lambda:1
-    c_gen = lambda:1
-    w_gen = lambda:3
-    e_gen = lambda:0
-    tremble_gen = lambda:0
+    N_players_gen = lambda: np.random.choice([2,3])
+    N_actions_gen = lambda: 1 + np.random.poisson(1)
+    tremble_gen = lambda: np.random.beta(.1, 10)
 
-    return Dynamic(SocialGameGen,lambda:(N_players_gen, N_actions_gen, c_gen, w_gen, e_gen, tremble_gen))
+    def cwe():
+        c = np.random.poisson(1)
+        w = np.random.exponential(5)
+        e = np.random.exponential(5)
+
+        return c, w, e
+
+    return Dynamic(SocialGameGen,lambda:(N_players_gen, N_actions_gen, cwe, tremble_gen))
 
 class OrGame(Playable):
     def __init__(self,*games):
