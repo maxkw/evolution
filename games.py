@@ -904,7 +904,7 @@ class IndefiniteMatchup(DecisionSeq):
         failures = 0
         while len(sums[sums>1]):
             if failures > attempts:
-                yield
+                return
 
             game = self.game.next_game()
             N_players = game.N_players
@@ -1029,7 +1029,7 @@ def SocialGameGen(N_players_gen, N_actions_gen, cwe, tremble_gen):
         c, w, e = cwe()
         for p in xrange(1,N_players):
             choice = np.zeros(N_players)
-            choice[0]= -c
+            choice[0] = -c
             choice[p] = c * w + e
             choices.append(copy(choice))
     
@@ -1051,7 +1051,7 @@ def SocialGame():
 
         return c, w, e
 
-    return Dynamic(SocialGameGen,lambda:(N_players_gen, N_actions_gen, cwe, tremble_gen))
+    return Dynamic(SocialGameGen, lambda:(N_players_gen, N_actions_gen, cwe, tremble_gen))
 
 class OrGame(Playable):
     def __init__(self,*games):
