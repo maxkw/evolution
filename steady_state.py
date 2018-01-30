@@ -110,51 +110,12 @@ def avg_payoff_per_type_from_sim(sim_data):
 
         # fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
         #fitness_per_round.append(np.array(running_fitness / r))
-        fitness_per_round.append(running_fitness/running_interactions)
+        r = running_fitness/running_interactions
+        r[running_interactions==0] = 0
+        fitness_per_round.append(r)
+        
 
     return fitness_per_round
-
-@memoized
-def indirect_simulator(player_types, *args, **kwargs):
-    print player_types;assert 0
-    sim_data = matchup(per_round = True, player_types = player_types, *args, **kwargs)
-    fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
-    return fitness_per_round
-
-def indirect_simulator_from_dict(d):
-    return indirect_simulator(**d)
-
-@memoized
-def sim_to_limit_rmcp(player_types, pop_size, rounds, parallelized = True, **kwargs):
-    pool = Pool(8)
-
-    assert player_types == sorted(player_types)
-
-    # produce all elements along the edges of the population simplex
-    # does not include the homogeneous populations at the vertices
-    # ordered populations, going from (1,pop_size-1) to (pop_size-1,1)
-    populations = [(i, pop_size-i) for i in range(1, pop_size)]
-
-    # all the pairings of two player_types, note these are combinations
-    matchups = list(combinations(player_types, 2))
-
-    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), rounds = rounds, **kwargs) for pop_pair in product(matchups, populations)]
-
-    # make a mapping from matchup to list of lists of payoffs
-    # the first level is ordered by partitions
-    # the second layer is ordered by rounds
-    # payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
-    if parallelized == True:
-        payoffs = pool.map(indirect_simulator_from_dict, matchup_pop_dicts)
-    elif parallelized == False:
-        payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
-
-    # Unpack the data into a giant matrix
-    rmcp = np.zeros((rounds, len(matchups), len(populations), 2))
-    for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
-        rmcp[:, m, c, :] = np.array(p)
-
-    return rmcp
 
 @memoized
 def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
@@ -288,7 +249,9 @@ def simulation(player_types, *args, **kwargs):
     new_player_types = [p for p in player_types if p[1] != 0]
     #print new_player_types
     sim_data = matchup(per_round = True, player_types = new_player_types, *args, **kwargs)
+    #print "hash of cache",hash(hash(r) for r in c.sort_values(by='trial'))
     raw_fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
+    #print "rfpr", hash(tuple(map(tuple,raw_fitness_per_round)))
     
 
     expanded_fitness_per_round = []
@@ -296,6 +259,7 @@ def simulation(player_types, *args, **kwargs):
         new_fitness = np.zeros(original_type_count)
         new_fitness[counted_players] = fitness
         expanded_fitness_per_round.append(new_fitness)
+    #print "efpr", hash(tuple(map(tuple,expanded_fitness_per_round)))
     return expanded_fitness_per_round
 
 
@@ -329,8 +293,8 @@ def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = 
     for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
         rmcp[:, m, c, :] = np.array(p)
 
-    print "player_types hash",hash(tuple(player_types))
-    print "RMCP hash", hash(tuple(tuple(tuple(tuple(c) for c in p) for p in m) for m in rmcp))
+    #print "player_types hash",hash(tuple(player_types))
+    #print "RMCP hash", hash(tuple(tuple(tuple(tuple(c) for c in p) for p in m) for m in rmcp))
 
     return rmcp
 
