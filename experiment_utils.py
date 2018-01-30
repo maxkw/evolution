@@ -103,9 +103,12 @@ class MultiArg(list):
 
 def unordered(maybe_seq):
     try:
-        return tuple(sorted(maybe_seq))
-    except TypeError:
-        return maybe_seq
+        return tuple(sorted(maybe_seq,key = lambda x: tuple(map(repr,x))))
+    except:
+        try:
+            return tuple(sorted(maybe_seq))
+        except TypeError:
+            return maybe_seq
 
 def twinned(maybe_pair):
     try:
@@ -170,7 +173,7 @@ def transform_inputs(*functions):
         return transform_args
     return transformer
 
-experiment_transformer = transform_inputs(unordered,twinned)
+experiment_transformer = transform_inputs(tuple,unordered,twinned)
 def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, verbose = 0,**kwargs):
     data_dir = './memo_cache/'
     default_trials = trials
