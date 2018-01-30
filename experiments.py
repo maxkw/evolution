@@ -157,7 +157,7 @@ def matchup(player_types, game, **kwargs):
                                            'fitness' : p})
             else:
                 record.append({
-                    'type' : t,
+                    'type' : repr(t),
                     'id' : a_id,
                     'round' : r,
                     'interactions': interactions[a_id],
