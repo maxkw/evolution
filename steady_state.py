@@ -280,7 +280,7 @@ def matchups_and_populations(player_types, pop_size, analysis_type):
     return matchups, populations
 
 
-@memoized
+#@memoized
 def simulation(player_types, *args, **kwargs):
     
     original_type_count = len(player_types)
@@ -289,6 +289,7 @@ def simulation(player_types, *args, **kwargs):
     #print new_player_types
     sim_data = matchup(per_round = True, player_types = new_player_types, *args, **kwargs)
     raw_fitness_per_round = avg_payoff_per_type_from_sim(sim_data)
+    
 
     expanded_fitness_per_round = []
     for fitness in raw_fitness_per_round:
@@ -301,12 +302,12 @@ def simulation(player_types, *args, **kwargs):
 def simulation_from_dict(d):
     return simulation(**d)
 
-@memoized
 def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = True, **kwargs):
     assert player_types == sorted(player_types)
     matchups, populations = matchups_and_populations(player_types, pop_size, analysis_type)
     matchup_pop_dicts = [dict(player_types = zip(*pop_pair), **kwargs) for pop_pair in product(matchups, populations)]
 
+   
     # make a mapping from matchup to list of lists of payoffs
     # the first level is ordered by partitions
     # the second layer is ordered by rounds
@@ -315,16 +316,21 @@ def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = 
         pool = Pool(8)
         payoffs = pool.map(simulation_from_dict, matchup_pop_dicts)
     elif parallelized == False:
+        #print matchup_pop_dicts
+        #import pdb; pdb.set_trace()
         payoffs = map(simulation_from_dict, matchup_pop_dicts)
 
-
     assert not (analysis_type == 'limit') or (len(payoffs[0][0]) == 2)
+
 
     # Unpack the data into a giant matrix
     true_rounds = max(map(len,payoffs))
     rmcp = np.zeros((true_rounds, len(matchups), len(populations), len(payoffs[0][0])))
     for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
         rmcp[:, m, c, :] = np.array(p)
+
+    print "player_types hash",hash(tuple(player_types))
+    print "RMCP hash", hash(tuple(tuple(tuple(tuple(c) for c in p) for p in m) for m in rmcp))
 
     return rmcp
 
