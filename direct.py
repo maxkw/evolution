@@ -266,13 +266,14 @@ def interval_direct(**kwargs):
 
 def AllC_AllD_race_test():
     opponents = (
-        SelfishAgent,
+        #SelfishAgent,
+        SelfishAgent(beta = 10),
         #AllC
     )
     # opponents = (ag.SelfishAgent,ag.AltruisticAgent)
     ToM = ('self', ) + opponents #+(AllC,)
     
-    pop = (WeAgent(agent_types = ToM, beta = 5, RA_prior = 0.5),)+opponents
+    pop = (WeAgent(agent_types = ToM, beta = 10, RA_prior = 0.5),)+opponents
     # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
            # ag.TFT)
 
@@ -290,8 +291,8 @@ def AllC_AllD_race_test():
             direct = False,
             game = 'dynamic',
             #parallelized = False,
-            analysis_type = 'complete',
-            #analysis_type = 'limit',
+            #analysis_type = 'complete',
+            analysis_type = 'limit',
             #RA_prior = 0.5,
             #beta = 10,
             player_types = pop,
@@ -305,7 +306,7 @@ def AllC_AllD_race_test():
             extension = '.png',
             trials = 20,
             #mu = .01,
-            beta = 5,
+            #beta = 5,
             gamma = .9,
             #file_name = "gradated"
         )
