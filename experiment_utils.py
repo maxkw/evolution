@@ -186,15 +186,15 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                     del kwargs[k]
             call_data = fun_call_labeler(function,args,kwargs)
             return_keys = call_data['args'].get('return_keys', None)
+            original_call = copy(call_data)
             try:
                 del call_data['args']['return_keys']
                 call_data = fun_call_labeler(function,[],call_data['args'])
             except:
                 pass
             arg_dict = call_data['args']
-            if verbose >=1:
-                print "\nExperiment",call_data['call']
-
+            
+                
             try:
                 trials = range(arg_dict['trials'])
             except TypeError:
@@ -217,6 +217,8 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                     arg_hash = dict_hash(dict(args,**{'return_keys':return_keys}))
                 else:
                     arg_hash = dict_hash(args)
+                if verbose >=1:
+                    print "\nExperiment "+str(call_data['call'])+"\n"+str(arg_hash)
             except TypeError as te:
                 print "these are the provided args\n",args
                 raise te
@@ -224,18 +226,18 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             if memoize and not os.path.exists(data_dir):
                 os.makedirs(data_dir)
 
+            
             cache_file =data_dir+str(arg_hash)+".pkl"
             #
             try:
                 assert memoized and not overwrite
                 print "Loading cache..."
                 cache = pd.read_pickle(cache_file)
-                cached_trials = list(cache['trial'])
+                cached_trials = list(cache['trial'].unique())
                 uncached_trials = [trial for trial in trials if trial not in cached_trials]
                 #print "...cache loaded! Entries:%s, New Entries:%s" % (len(cache),len(uncached_trials))
 
             except Exception as e:
-            
                 print "No cache loaded."
                 if 'trial' in args.keys():
                     cols = args.keys()
@@ -244,14 +246,18 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                 cache = pd.DataFrame(columns = cols)
                 uncached_trials = trials
 
+            #print arg_hash
+            #print cached_trials
+            #print uncached_trials
+            #assert 0
+
             results = []
             total_calls = float(len(uncached_trials))
             landmark = step = .1
             total_ticks = 63
             if verbose == 3:
                 pass
-                #print ""
-            for n,trial in enumerate(uncached_trials,start = 1):
+            for n,trial in enumerate(uncached_trials):
                 np.random.seed(trial)
                 result = function(**copy(args))
                 args['trial'] = trial
