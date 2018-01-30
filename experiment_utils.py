@@ -218,7 +218,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                 else:
                     arg_hash = dict_hash(args)
                 if verbose >=1:
-                    print "\nExperiment "+str(call_data['call'])+"\n"+str(arg_hash)
+                    print "\nExperiment "+str(call_data['call'])#+"\n"+str(arg_hash)
             except TypeError as te:
                 print "these are the provided args\n",args
                 raise te
