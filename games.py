@@ -7,7 +7,7 @@ from copy import copy, deepcopy
 import numpy as np
 from experiment_utils import fun_call_labeler
 from inspect import getargspec
-import random
+#import random
 import itertools
 
 COST = 1
@@ -979,6 +979,7 @@ class RandomlyChosen(Playable):
         assert all(p.N_players == N for p in playables)
         self.name = "RandomlyChosen(%s)" % ", ".join([p.name for p in playables])
     def play(self, *args, **kwargs):
+        assert 0
         return random.choice(self._playables).play(*args,**kwargs)
 
 
@@ -1259,7 +1260,6 @@ def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 
 
 @literal
 def OrTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, followers = True, **kwargs):
-    import random
     bd = OrGame(Randomly(SocialDictator,
                          cost = dict(func = np.random.gamma, shape = 1, scale = cost),
                          benefit = dict(func = np.random.gamma, shape = 1, scale = benefit),
@@ -1301,10 +1301,10 @@ def dynamic(gamma,observability,**kwargs):
     return game
 
 @literal
-def manual(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, intervals = 2, followers = True, **kwargs):
-    gamma = 1-1/rounds
-    #dictator = SocialDictator(cost = cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    dictator = SocialGame()
+def manual(gamma, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, intervals = 2, followers = True, **kwargs):
+    #gamma = 1-1/rounds
+    dictator = SocialDictator(cost = cost, benefit = benefit, tremble = tremble, intervals = intervals)
+    #dictator = SocialGame()
     #game = AnnotatedGame(FiniteHorizon(rounds, PrivatelyObserved(Symmetric(dictator))))
     #game = AnnotatedGame(IndefiniteHorizon(gamma, PrivatelyObserved(Symmetric(dictator))))
     #game = AnnotatedGame(IndefiniteHorizon(gamma, AllNoneObserve(observability, Symmetric(dictator))))
