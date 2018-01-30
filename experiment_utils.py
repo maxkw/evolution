@@ -276,13 +276,13 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                             results.append(dict(args,**d))
 
                 if verbose == 3:
-                    ticks = int(total_ticks*n/total_calls)
+                    ticks = int(total_ticks*(n+1)/total_calls)
                     bar = 'trial progress ['+'='*ticks+' '*(total_ticks-ticks)+']'
                     sys.stdout.write("\r%s"%bar)
                     sys.stdout.flush()
                 if n/total_calls >= landmark:
                     if verbose ==2:
-                        print "%s/%s trials completed" % (n,int(total_calls))
+                        print "%s/%s trials completed" % (n, int(total_calls))
             if verbose == 3:
                 if len(uncached_trials)==0:
                     print "Trials loaded from cache!"
@@ -292,7 +292,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             cache = pd.concat([cache,pd.DataFrame(results)])
             if memoized:
                 cache.to_pickle(cache_file)
-
+            
             #return only those trials that were asked for
             return cache.query('trial in %s' % trials)
         experiment_call._decorator = 'experiment'
