@@ -115,7 +115,7 @@ def avg_payoff_per_type_from_sim(sim_data):
         fitness_per_round.append(r)
         
 
-    return fitness_per_round
+    return fitness_per_round[1:]
 
 @memoized
 def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
@@ -288,10 +288,10 @@ def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = 
 
 
     # Unpack the data into a giant matrix
-    true_rounds = max(map(len,payoffs))
-    rmcp = np.zeros((true_rounds, len(matchups), len(populations), len(payoffs[0][0])))
+    max_rounds = max(map(len,payoffs))
+    rmcp = np.zeros((max_rounds, len(matchups), len(populations), len(payoffs[0][0])))
     for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
-        rmcp[:, m, c, :] = np.array(p)
+        rmcp[:, m, c, :] = np.array(p+[p[-1]]*(max_rounds-len(p)))
 
     #print "player_types hash",hash(tuple(player_types))
     #print "RMCP hash", hash(tuple(tuple(tuple(tuple(c) for c in p) for p in m) for m in rmcp))
