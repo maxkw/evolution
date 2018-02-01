@@ -97,8 +97,10 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
         'observability': [0, 0.25, .5, .75, 1],
-        'tremble': np.linspace(0,.25,6),
-        'intervals' : [2, 4, 8]
+        'tremble': np.linspace(0, 0.4, 41),
+        # 'tremble': np.linspace(0, 0.05, 6),
+        'intervals' : [2, 4, 8],
+        'gamma' : [0, .5, .8, .90]
     }
     record = []
     
@@ -156,11 +158,27 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
     data = data[[param, 'proportion', 'type']].pivot(columns='type', index=param, values='proportion')
     type_order = dict(map(reversed,enumerate([t.short_name('agent_types') for t in player_types])))
     data.reindex_axis(sorted(data.columns, key = lambda t:type_order[t]), 1)
-    
+
     if stacked:
-        data.plot.area(stacked = True, ylim = [0, 1])
-        legend = plt.legend(frameon=True)
-        legend.get_frame().set_facecolor('white')
+        data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
+        if 'legend' not in graph_kwargs or graph_kwargs['legend']:
+            legend = plt.legend(frameon=True)
+            for texts in legend.get_texts():
+                if texts.get_text() == 'WeAgent':
+                    texts.set_text('Reciprocal')
+                elif texts.get_text() == 'SelfishAgent':
+                    texts.set_text('Selfish')
+                elif texts.get_text() == 'AltruisticAgent':
+                    texts.set_text('Altruistic')
+                    
+        if param == 'rounds':
+            plt.xlabel('Expected Repetitions\n' r'$1/(1-\gamma)$')
+            # plt.xticks([1, 10, 20, 30, 40, 50])
+        elif param == 'tremble':
+            plt.xlabel(r'Noise Probability ($\epsilon$)')
+        else:
+            plt.xlabel(param)
+
 
     else:
         data.plot(ax=ax, ylim = [0, 1.05], **graph_kwargs)
@@ -169,17 +187,19 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
             plt.axes().set_xscale('log',basex=2)
         elif param == 's':
             plt.axes().set_xscale('log')
+
         # elif param in ["beta"]:
         #     plt.axes().set_xscale('log',basex=10)
         # elif if param in ['rounds']:
         #     pass
 
+        plt.xlabel(param)
         plt.legend()
         
-    plt.xlabel(param)
     plt.yticks([0,0.5,1])
+    plt.ylabel('Frequency')
+        
     sns.despine()
-    
     plt.tight_layout()
 
 def param_v_rounds(param, player_types, rounds, **kwargs):
