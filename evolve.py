@@ -13,6 +13,7 @@ from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
 from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis, evo_analysis
+from steady_state import cp_to_transition, complete_softmax, matchups_and_populations, sim_to_rmcp
 import pandas as pd
 from datetime import date
 from agents import leading_8_dict, shorthand_to_standing
@@ -45,6 +46,8 @@ def agent_sim(payoff, pop, s, mu):
         (b,d) = actions[action_index]
         pop = pop + I[b]-I[d]
 
+
+
 @experiment(unpack = 'record', memoize = False)
 def agent_simulation(generations, pop, player_types, **kwargs):
     payoffs = matchup_matrix(player_types = player_types, **excluding_keys(kwargs, 's', 'mu'))
@@ -63,8 +66,59 @@ def agent_simulation(generations, pop, player_types, **kwargs):
     return record
 
 
+
 @plotter(agent_simulation,plot_exclusive_args = ['data'])
 def sim_plotter(generations, pop, player_types, data =[]):
+    for hue in data['type'].unique():
+        plt.plot(data[data['type']==hue]['generation'], data[data['type']==hue]['population'], label=hue)
+
+    plt.legend()
+
+def complete_agent_sim(player_types, s, **kwargs):
+    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
+    original_order = np.array([type_to_index[t] for t in player_types])
+    player_types = sorted(player_types)
+    types, initial_pop = zip(*player_types)
+    print types
+    print sorted(types)
+    pop_size = sum(initial_pop)
+
+    rmcp = sim_to_rmcp(types, pop_size = pop_size, analysis_type = 'complete', **kwargs)
+    rcp = np.array([mcp[0] for mcp in rmcp])
+    _, populations = matchups_and_populations(player_types, pop_size, analysis_type = 'complete')
+
+    softmax_rcp = complete_softmax(rcp,populations,s)
+    transition = cp_to_transition(softmax_rcp[-1], populations, pop_size = pop_size, **kwargs).T
+
+    pop_ids = np.array(range(len(populations)))
+    pop_to_id = dict(map(reversed,enumerate(populations)))
+    id_to_pop = dict(enumerate(populations))
+
+    pop_id = pop_to_id[initial_pop]
+    while True:
+        yield np.array(id_to_pop[pop_id])[original_order]
+        t = transition[pop_id]
+        neighbors = pop_ids[t!=0]
+        trans_probs = t[t!=0]
+        pop_id = np.random.choice(neighbors, p=trans_probs)
+
+@experiment(unpack = 'record', memoize = False)
+def complete_agent_simulation(generations, player_types, s, seed = 0, **kwargs):
+    populations = complete_agent_sim(player_types, s, trials = [seed], **kwargs)
+    record = []
+
+    types,_ = zip(*player_types)
+    # Populations is an infinite iterator so need to combine it with a
+    # finite iterator which sets the number of generations to look at.
+    for n, pop in izip(xrange(generations), populations):
+        for t, p in zip(types, pop):
+            record.append({'generation' : n,
+                           'type' : t.short_name('agent_types'),
+                           'population' : p})
+    return record
+
+@plotter(complete_agent_simulation,plot_exclusive_args = ['data'])
+def complete_sim_plot(generations, player_types, data =[], **kwargs):
     for hue in data['type'].unique():
         plt.plot(data[data['type']==hue]['generation'], data[data['type']==hue]['population'], label=hue)
 
@@ -213,4 +267,25 @@ def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[],
     g.map(plt.plot, 'rounds', 'proportion')
     g.set_titles("{col_name}")
     g.axes[0][0].legend(title=param, loc='best')
-    
+
+if __name__ == "__main__":
+
+    import agents
+    opponents = (
+        agents.SelfishAgent,
+        agents.AltruisticAgent,
+    )
+
+    ToM = ('self', ) + opponents #+(AllC,)
+    pop = (WeAgent(agent_types = ToM, beta = 5, RA_prior = 0.5),)+opponents
+    for n in range(20):
+        complete_sim_plot(generations = 1000,
+                          player_types = zip(pop,[1,9]),
+                          game = 'dynamic',
+                          plot_dir = "./plots/agent_sims/",
+                          gamma = 1-1/20,
+                          s = 1,
+                          mu= .05
+                          observability = 0,
+                          seed = n
+        )
