@@ -67,12 +67,18 @@ def agent_simulation(generations, pop, player_types, **kwargs):
 
 
 
-@plotter(agent_simulation,plot_exclusive_args = ['data'])
-def sim_plotter(generations, pop, player_types, data =[]):
-    for hue in data['type'].unique():
-        plt.plot(data[data['type']==hue]['generation'], data[data['type']==hue]['population'], label=hue)
+# @plotter(agent_simulation,plot_exclusive_args = ['data'])
+# def sim_plotter(generations, pop, player_types, data =[]):
+#     for hue in data['type'].unique():
+#         plt.plot(data[data['type']==hue]['generation'],
+#                  data[data['type']==hue]['population'].astype(int),
+#                  label=hue)
 
-    plt.legend()
+#     plt.legend()
+#     plt.xlabel(r'Time $\leftarrow$')
+#     plt.ylabel('Count')
+#     sns.despine()
+#     plt.tight_layout()
 
 def complete_agent_sim(player_types, s, **kwargs):
     type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
@@ -119,10 +125,19 @@ def complete_agent_simulation(generations, player_types, s, seed = 0, **kwargs):
 
 @plotter(complete_agent_simulation,plot_exclusive_args = ['data'])
 def complete_sim_plot(generations, player_types, data =[], **kwargs):
+    plt.figure(figsize = (3.5,3))
     for hue in data['type'].unique():
-        plt.plot(data[data['type']==hue]['generation'], data[data['type']==hue]['population'], label=hue)
+        plt.plot(data[data['type']==hue]['generation'],
+                 data[data['type']==hue]['population'].astype(int),
+                 label=hue)
 
-    plt.legend()
+    make_legend()
+    plt.xlabel(r'Time $\rightarrow$')
+    
+    plt.ylabel('Count')
+    sns.despine()
+    plt.tight_layout()
+
 
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
 def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
@@ -154,7 +169,7 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
         'tremble': np.linspace(0, 0.4, 41),
         # 'tremble': np.linspace(0, 0.05, 6),
         'intervals' : [2, 4, 8],
-        'gamma' : [0, .5, .8, .90]
+        'gamma' : [0, .5, .8, .9]
     }
     record = []
     
@@ -201,6 +216,19 @@ def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
         dfs.append(df[df['type']==player_type.short_name("agent_types")])
     return pd.concat(dfs, ignore_index = True)
 
+def make_legend():
+    legend = plt.legend(frameon=True)
+    for texts in legend.get_texts():
+        if texts.get_text() == 'WeAgent':
+            texts.set_text('Reciprocal')
+        elif texts.get_text() == 'SelfishAgent':
+            texts.set_text('Selfish')
+        elif texts.get_text() == 'AltruisticAgent':
+            texts.set_text('Altruistic')
+
+    return legend
+    
+
 @plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs'])
 def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwargs={}, **kwargs):
     fig, ax = plt.subplots()
@@ -216,14 +244,14 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
     if stacked:
         data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
-            legend = plt.legend(frameon=True)
-            for texts in legend.get_texts():
-                if texts.get_text() == 'WeAgent':
-                    texts.set_text('Reciprocal')
-                elif texts.get_text() == 'SelfishAgent':
-                    texts.set_text('Selfish')
-                elif texts.get_text() == 'AltruisticAgent':
-                    texts.set_text('Altruistic')
+            legend = make_legend()
+            # for texts in legend.get_texts():
+            #     if texts.get_text() == 'WeAgent':
+            #         texts.set_text('Reciprocal')
+            #     elif texts.get_text() == 'SelfishAgent':
+            #         texts.set_text('Selfish')
+            #     elif texts.get_text() == 'AltruisticAgent':
+            #         texts.set_text('Altruistic')
                     
         if param == 'rounds':
             plt.xlabel('Expected Repetitions\n' r'$1/(1-\gamma)$')
@@ -289,23 +317,29 @@ def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[],
     g.axes[0][0].legend(title=param, loc='best')
 
 if __name__ == "__main__":
-
-    import agents
     opponents = (
-        agents.SelfishAgent,
-        agents.AltruisticAgent,
+        ag.AltruisticAgent,
+        ag.SelfishAgent,
     )
 
-    ToM = ('self', ) + opponents #+(AllC,)
-    pop = (WeAgent(agent_types = ToM, beta = 5, RA_prior = 0.5),)+opponents
-    for n in range(20):
-        complete_sim_plot(generations = 1000,
-                          player_types = zip(pop,[1,9]),
-                          game = 'dynamic',
-                          plot_dir = "./plots/agent_sims/",
-                          gamma = 1-1/20,
-                          s = 1,
-                          mu= .05
-                          observability = 0,
-                          seed = n
-        )
+    ToM = ('self', ) + opponents
+    # pop = opponents + (WeAgent,)
+    pop = opponents 
+    # for n in range(20):
+    complete_sim_plot(generations = 1000,
+                      rounds = 10,
+                      player_types = zip(pop,[20,0]),
+                      game = 'direct',
+                      direct = True,
+                      agent_types = ToM,
+                      beta = 5,
+                      RA_prior = 0.5,
+                      plot_dir = './writing/evo_cogsci18/figures/',
+                      file_name = 'agentsim',
+                      # gamma = .9,
+                      # rounds = 100,
+                      s = 1,
+                      mu= .01,
+                      observability = 0,
+                      seed = 0
+    )
