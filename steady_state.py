@@ -172,7 +172,7 @@ def limit_analysis(player_types, s, direct = False, **kwargs):
         rmcp = ana_to_limit_rmcp(player_types, **kwargs)
     else:
         #rmcp = sim_to_limit_rmcp(player_types, **kwargs)
-        rmcp = sim_to_rmcp(player_types,analysis_type = 'limit', **kwargs)
+        rmcp = sim_to_rmcp(player_types, analysis_type = 'limit', **kwargs)
 
     rmcp = np.exp(s * rmcp)
     ssds = []
@@ -267,7 +267,7 @@ def simulation_from_dict(d):
     return simulation(**d)
 
 def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = True, **kwargs):
-    assert player_types == sorted(player_types)
+    assert list(player_types) == sorted(player_types)
     matchups, populations = matchups_and_populations(player_types, pop_size, analysis_type)
     matchup_pop_dicts = [dict(player_types = zip(*pop_pair), **kwargs) for pop_pair in product(matchups, populations)]
 
