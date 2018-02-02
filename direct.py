@@ -23,60 +23,88 @@ from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param, param_v_r
 TODAY = "./plots/"+date.today().isoformat()+"/"
 
 def Compare_Old(**kwargs):
-    trembles = [0, 0.05]
+    classic = (ag.AllC, ag.AllD, ag.WSLS, ag.GTFT, ag.TFT)
+    background_params = dict(
+        benefit = 3,
+        tremble = 0,
+        direct = True,
+        game = 'direct',
+        pop_size = 100, 
+        s = .50,
+        RA_prior = 0.5,
+        beta = 5,
+    )
+
+    background_params.update(kwargs)
+
+    # r = 10
+    # # Without WeAgent
+    # limit_param_plot("tremble",
+    #                  trials = 200,
+    #                  rounds = r,
+    #                  player_types = classic,
+    #                  agent_types = ('self',) + classic,
+    #                  file_name = 'Compare_Old_NoWE_tremble',
+    #                  experiment = ssd_v_param,
+    #                  stacked = True,
+    #                  graph_kwargs={'legend' : False},
+    #                  **background_params)
+
+    # # With WeAgent
+    # limit_param_plot("tremble",
+    #                  trials = 200,
+    #                  rounds = r,
+    #                  player_types = classic + (WeAgent, ),
+    #                  agent_types = ('self',) + classic,
+    #                  file_name = 'Compare_Old_WE_tremble',
+    #                  experiment = ssd_v_param,
+    #                  stacked = True,
+    #                  graph_kwargs={'legend' : False},
+    #                  **background_params)
+
+
+    # r = 50
+    # # Without WeAgent
+    # limit_param_plot("rounds",
+    #                  rounds = r,
+    #                  player_types = classic,
+    #                  agent_types = ('self',) + classic,
+    #                  file_name = 'Compare_Old_NoWE_rounds_tremble_0',
+    #                  experiment = ssd_v_param,
+    #                  stacked = True,
+    #                  graph_kwargs={'legend' : False},
+    #                  **background_params)
+
+    # # With WeAgent
+    # limit_param_plot("rounds",
+    #                  rounds = r,
+    #                  player_types = classic + (WeAgent, ),
+    #                  agent_types = ('self',) + classic,
+    #                  file_name = 'Compare_Old_WE_rounds_tremble_0',
+    #                  experiment = ssd_v_param,
+    #                  stacked = True,
+    #                  graph_kwargs={'legend' : True},
+    #                  **background_params)
     
-    for t in trembles:
-        classic = (ag.AllC, ag.AllD, ag.Pavlov, ag.GTFT, ag.TFT)
-        background_params = dict(
-            rounds = 50,
-            benefit = 3,
-            tremble = t,
-            direct = True,
-            game = 'direct',
-            pop_size = 100, 
-            s = .5,
-            RA_prior = 0.5,
-            beta = 5,
-        )
 
-        background_params.update(kwargs)
-        
-        # Without WeAgent
-        limit_param_plot("rounds",
-                         player_types = classic,
-                         agent_types = ('self',) + classic,
-                         file_name = 'Compare_Old NoWE tremble=%0.2f' % t,
-                         experiment = ssd_v_param,
-                         stacked = True,
-                         **background_params)
+        # # With WeAgent but noToM
+        # limit_param_plot("rounds",
+        #                  player_types = classic + (WeAgent, ),
+        #                  agent_types = ('self', SelfishAgent, AltruisticAgent, RandomAgent),
+        #                  file_name = 'Compare_Old WE RandomToM tremble=%0.2f' % t,
+        #                  experiment = ssd_v_param,
+        #                  stacked = True,
+        #                  **background_params)
 
-        # With WeAgent
-        limit_param_plot("rounds",
-                         player_types = classic + (WeAgent, ),
-                         agent_types = ('self',) + classic,
-                         file_name = 'Compare_Old WE tremble=%0.2f' % t,
-                         experiment = ssd_v_param,
-                         stacked = True,
-                         **background_params)
-
-        # With WeAgent but noToM
-        limit_param_plot("rounds",
-                         player_types = classic + (WeAgent, ),
-                         agent_types = ('self', SelfishAgent, AltruisticAgent, RandomAgent),
-                         file_name = 'Compare_Old WE RandomToM tremble=%0.2f' % t,
-                         experiment = ssd_v_param,
-                         stacked = True,
-                         **background_params)
-
-        # ToM Comparison
-        limit_param_plot("rounds",
-                         player_types = (WeAgent, ) + tuple(ReciprocalAgent(RA_K=k) for k in range(2)),
-                         agent_types = ('self',) + classic,
-                         opponent_types = classic,
-                         file_name = 'Compare_Old ToM tremble=%0.2f' % t,
-                         experiment = compare_ssd_v_param,
-                         graph_kwargs = dict(color = ['C5'], style = ['--', ':', '-']),
-                         **background_params)
+        # # ToM Comparison
+        # limit_param_plot("rounds",
+        #                  player_types = (WeAgent, ) + tuple(ReciprocalAgent(RA_K=k) for k in range(2)),
+        #                  agent_types = ('self',) + classic,
+        #                  opponent_types = classic,
+        #                  file_name = 'Compare_Old ToM tremble=%0.2f' % t,
+        #                  experiment = compare_ssd_v_param,
+        #                  graph_kwargs = dict(color = ['C5'], style = ['--', ':', '-']),
+        #                  **background_params)
 
 
 
@@ -266,59 +294,52 @@ def interval_direct(**kwargs):
 
 def AllC_AllD_race_test():
     opponents = (
-        #SelfishAgent,
-        SelfishAgent(beta = 10),
-        #AllC
+        AltruisticAgent,
+        SelfishAgent,
     )
-    # opponents = (ag.SelfishAgent,ag.AltruisticAgent)
     ToM = ('self', ) + opponents #+(AllC,)
     
-    pop = (WeAgent(agent_types = ToM, beta = 10, RA_prior = 0.5),)+opponents
+    # pop = opponents
+    pop = (WeAgent,)+opponents
     # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
-           # ag.TFT)
+    # )
 
+    background_params = dict(
+        trials = 20,
+        experiment = ssd_v_param,
+        direct = False,
+        game = 'direct',
+        benefit = 3,
+        tremble = 0,
+        rounds = 10,
+        # gamma = 0.9,
+        # parallelized = False,
+        
+        player_types = pop,
+        agent_types = ToM,
+        analysis_type = 'limit',
+        # analysis_type = 'complete',
+        
+        RA_prior = 0.5,
+        beta = 5,
 
-    trembles = [
-        #0,
-        .05
-    ]
-
-    for t in trembles:
-
-
-        background_params = dict(
-            #experiment = ssd_v_param,
-            direct = False,
-            game = 'dynamic',
-            # parallelized = False,
-            #analysis_type = 'complete',
-            analysis_type = 'limit',
-            #RA_prior = 0.5,
-            #beta = 10,
-            player_types = pop,
-            #opponent_types = opponents,
-            #agent_types = ToM,
-            # tremble = t,
-            pop_size = 10,
-            plot_dir = TODAY,
-            s = 1,
-            observability = 0,
-            extension = '.png',
-            trials = 20,
-            #mu = .01,
-            #beta = 5,
-            gamma = .9,
-            #file_name = "gradated"
-        )
-        file_name = 'type=%s, game=%s, analytic=%s, pop_size=%s' % (
-            background_params['analysis_type'],
-            background_params['game'],
-            background_params['direct'],
-            background_params['pop_size'],
-        )
-        limit_param_plot("rounds",
-                         file_name = file_name,
-                         **background_params)
+        # tremble = t,
+        pop_size = 10,
+        plot_dir = './writing/evo_cogsci18/figures/',
+        s = 1,
+        # observability = 0,
+        # mu = .01,
+    )
+    
+    file_name = 'flex_evo_%s_%d' % (
+        background_params['analysis_type'],
+        background_params['pop_size'],
+        # background_params['observability'],
+    )
+    limit_param_plot("rounds",
+                     file_name = file_name,
+                     stacked = True,
+                     **background_params)
 
 if __name__ == "__main__":
     AllC_AllD_race_test()

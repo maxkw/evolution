@@ -8,7 +8,7 @@ import direct
 
 
 if __name__ == '__main__':
-    plot_dir = './figures/'
+    plot_dir = './writing/evo_cogsci18/figures/'
 
     params = dict(
         beta = 5,

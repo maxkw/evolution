@@ -534,7 +534,8 @@ class Pavlov(ClassicAgent):
     def decide_likelihood(self, game, agents=None, tremble=None):
         return add_tremble(np.array([self.strats[self.strat_index][action] for action in game.actions]), tremble)
 
-
+WSLS = Pavlov(subtype_name = "WSLS")
+    
 class gTFT(ClassicAgent):
     def __init__(self, genome, world_id=None):
         self.world_id = world_id
