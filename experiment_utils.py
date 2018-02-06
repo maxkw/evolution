@@ -91,8 +91,8 @@ def fun_call_labeler(method,args,kwargs,intolerant = True):
         "keywords":keywords,
         "default_values":default_values,
         "defined_call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in defined_args.iteritems()]),
-        "call": method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in known_args.iteritems()]),
-        "make_call_str" : lambda d: method.__name__+"(%s)" % ",".join(["%s=%s" % (key,val) for key,val in d.iteritems()])
+        "call": method.__name__+"(%s)" % ", ".join(["%s=%s" % (key,val) for key,val in known_args.iteritems()]),
+        "make_call_str" : lambda d: method.__name__+"(%s)" % ", ".join(["%s=%s" % (key,val) for key,val in d.iteritems()])
     }
     return call_data
 
@@ -103,7 +103,7 @@ class MultiArg(list):
 
 def unordered(maybe_seq):
     try:
-        return tuple(sorted(maybe_seq,key = lambda x: tuple(map(repr,x))))
+        return tuple(sorted(maybe_seq))#,key = lambda x: tuple(map(repr,x))))
     except:
         try:
             return tuple(sorted(maybe_seq))
