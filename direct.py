@@ -299,8 +299,8 @@ def AllC_AllD_race_test():
     )
     ToM = ('self', ) + opponents #+(AllC,)
     
-    # pop = opponents
-    pop = (WeAgent,)+opponents
+    pop = opponents
+    # pop = (WeAgent,)+opponents
     # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
     # )
 
@@ -325,7 +325,7 @@ def AllC_AllD_race_test():
 
         # tremble = t,
         pop_size = 10,
-        plot_dir = './writing/evo_cogsci18/figures/',
+        plot_dir = './plots/',
         s = 1,
         # observability = 0,
         # mu = .01,
