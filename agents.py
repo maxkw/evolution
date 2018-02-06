@@ -382,12 +382,13 @@ class PrefabAgent(Agent):
     def __call__(self, genome, world_id=None):
         try:
             tom = self.genome['agent_types']
-            self.genome['agent_types'] = tuple(t if t != 'self' else self for t in tom)
+            temp_genome = copy(self.genome)
+            temp_genome['agent_types'] = tuple(t if t != 'self' else self for t in tom)
 
         except:
             pass
 
-        return self.type(dict(genome, **self.genome), world_id=world_id)
+        return self.type(dict(genome, **temp_genome), world_id=world_id)
 
     def short_name(self, *without):
         try:
