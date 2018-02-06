@@ -12,11 +12,13 @@ from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,ma
 from params import default_genome, default_params
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis, evo_analysis
-from steady_state import cp_to_transition, complete_softmax, matchups_and_populations, sim_to_rmcp
+from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis, evo_analysis, simulation
+#from steady_state import cp_to_transition, complete_softmax, matchups_and_populations, sim_to_rmcp
 import pandas as pd
 from datetime import date
 from agents import leading_8_dict, shorthand_to_standing
+
+TODAY = "./plots/"+date.today().isoformat()+"/"
 
 def agent_sim(payoff, pop, s, mu):
     pop_size = sum(pop)
@@ -83,7 +85,7 @@ def agent_simulation(generations, pop, player_types, **kwargs):
 def complete_agent_sim(player_types, s, **kwargs):
     type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
     original_order = np.array([type_to_index[t] for t in player_types])
-    player_types = sorted(player_types)
+    #player_types = sorted(player_types)
     types, initial_pop = zip(*player_types)
     print types
     print sorted(types)
@@ -102,22 +104,73 @@ def complete_agent_sim(player_types, s, **kwargs):
 
     pop_id = pop_to_id[initial_pop]
     while True:
-        yield np.array(id_to_pop[pop_id])[original_order]
+        yield np.array(id_to_pop[pop_id])
         t = transition[pop_id]
         neighbors = pop_ids[t!=0]
         trans_probs = t[t!=0]
         pop_id = np.random.choice(neighbors, p=trans_probs)
 
+def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kwargs):
+    np.random.seed(seed)
+    pop_size = sum(start_pop)
+    type_count = len(player_types)
+    I = np.identity(type_count)
+    pop = np.array(start_pop)
+    assert type_count == len(pop)
+
+    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
+    original_order = np.array([type_to_index[t] for t in player_types])
+    #player_types = sorted(player_types)
+    @memoize
+    def sim(pop):
+        #print np.array(range(3))[original_order]
+        f = simulation(zip(player_types,pop), trials = 20, **kwargs)[-1]
+        print 'types', player_types
+
+        print 'sorted', sorted(player_types)
+        print 'fixed',np.array(sorted(player_types))[original_order]
+        print "pop", pop
+        non_players = np.array(pop)==0
+        print "raw", f
+        player_payoffs = f[non_players==False]
+        f[non_players == False] = softmax(player_payoffs,s)
+        f[non_players] = 0
+        print "soft", f
+        #assert 0
+        
+        return f
+
+    while True:
+        yield pop
+        fitnesses = sim(pop)
+        actions = [(b,d) for b,d in permutations(xrange(type_count),2) if pop[d]!=0]
+        probs = []
+        for b,d in actions:
+            death_odds = pop[d] / pop_size
+            # birth_odds = (1-mu) * fitnesses[b] / total_fitness + mu * (1/type_count)
+            birth_odds = (1-mu) * fitnesses[b] + mu * (1/type_count)
+            prob = death_odds * birth_odds
+            probs.append(prob)
+        actions.append((0, 0))
+        probs.append(1 - np.sum(probs))
+
+        probs = np.array(probs)
+        #print actions
+        #print probs
+        action_index = np.random.choice(len(probs), 1, p = probs)[0]
+        (b,d) = actions[action_index]
+        pop = map(int,pop + I[b]-I[d])
+
 @experiment(unpack = 'record', memoize = False)
-def complete_agent_simulation(generations, player_types, s, seed = 0, **kwargs):
-    populations = complete_agent_sim(player_types, s, trials = [seed], **kwargs)
+def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0, **kwargs):
+    populations = complete_sim_live(player_types, start_pop, s, seed = seed, **kwargs)
     record = []
 
-    types,_ = zip(*player_types)
+    #types,_ = zip(*player_types)
     # Populations is an infinite iterator so need to combine it with a
     # finite iterator which sets the number of generations to look at.
     for n, pop in izip(xrange(generations), populations):
-        for t, p in zip(types, pop):
+        for t, p in zip(player_types, pop):
             record.append({'generation' : n,
                            'type' : t.short_name('agent_types'),
                            'population' : p})
@@ -323,23 +376,24 @@ if __name__ == "__main__":
     )
 
     ToM = ('self', ) + opponents
-    # pop = opponents + (WeAgent,)
-    pop = opponents 
+    pop = opponents + (WeAgent(agent_types=ToM, prior = .5),)
+    #pop = opponents 
     # for n in range(20):
-    complete_sim_plot(generations = 1000,
+    complete_sim_plot(generations = 1500,
                       rounds = 10,
-                      player_types = zip(pop,[20,0]),
+                      player_types = pop,
+                      start_pop = (0,10,0),
                       game = 'direct',
-                      direct = True,
-                      agent_types = ToM,
-                      beta = 5,
-                      RA_prior = 0.5,
-                      plot_dir = './writing/evo_cogsci18/figures/',
+                      beta = 10,
+                      #RA_prior = 0.5,
+                      cost = 1,
+                      benefit = 3,
+                      plot_dir = TODAY,
                       file_name = 'agentsim',
                       # gamma = .9,
                       # rounds = 100,
                       s = 1,
-                      mu= .01,
+                      mu= .001,
                       observability = 0,
                       seed = 0
     )
