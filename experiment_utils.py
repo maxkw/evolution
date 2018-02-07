@@ -103,7 +103,7 @@ class MultiArg(list):
 
 def unordered(maybe_seq):
     try:
-        return tuple(sorted(maybe_seq))#,key = lambda x: tuple(map(repr,x))))
+        return tuple(sorted(maybe_seq, key = lambda x: repr(x[0])))
     except:
         try:
             return tuple(sorted(maybe_seq))
@@ -173,7 +173,7 @@ def transform_inputs(*functions):
         return transform_args
     return transformer
 
-experiment_transformer = transform_inputs(tuple,unordered,twinned)
+experiment_transformer = transform_inputs(tuple,unordered)
 def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, verbose = 0,**kwargs):
     data_dir = './memo_cache/'
     default_trials = trials
