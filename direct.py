@@ -304,7 +304,6 @@ def AllC_AllD_race_test():
     pop = opponents
     #W = WeAgent(agent_types = ToM, prior = .5,)
     #pop = (W,)+opponents
-
     # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
     # )
 
@@ -332,6 +331,7 @@ def AllC_AllD_race_test():
         pop_size = 10,
         plot_dir = TODAY,
         s = .5,
+
         # observability = 0,
         # mu = .01,
     )
