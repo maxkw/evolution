@@ -380,9 +380,10 @@ class PrefabAgent(Agent):
         self.genome = HashableDict(genome_kwargs)
 
     def __call__(self, genome, world_id=None):
+
+        temp_genome = copy(self.genome)
         try:
-            tom = self.genome['agent_types']
-            temp_genome = copy(self.genome)
+            tom = temp_genome['agent_types']
             temp_genome['agent_types'] = tuple(t if t != 'self' else self for t in tom)
 
         except:
