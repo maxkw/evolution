@@ -276,7 +276,6 @@ def interval_direct(**kwargs):
         benefit = 15,
         cost = 5,
         tremble = 0,
-        direct = True,
         game = 'direct',
         pop_size = 100, 
         s = .5,
@@ -294,39 +293,45 @@ def interval_direct(**kwargs):
 
 def AllC_AllD_race_test():
     opponents = (
-        AltruisticAgent,
-        SelfishAgent,
+        SelfishAgent,#(beta=5),
+        ag.AltruisticAgent,
+        #ag.SelfishAgent,
+        #AllD,
+        #SelfishAgent,
     )
     ToM = ('self', ) + opponents #+(AllC,)
     
-    # pop = opponents
-    pop = (WeAgent,)+opponents
+    pop = opponents
+    #W = WeAgent(agent_types = ToM, prior = .5,)
+    #pop = (W,)+opponents
+
     # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
     # )
 
     background_params = dict(
-        trials = 20,
+        trials = 50,
         experiment = ssd_v_param,
-        direct = False,
         game = 'direct',
+        #direct = False,
         benefit = 3,
         tremble = 0,
         rounds = 10,
         # gamma = 0.9,
-        # parallelized = False,
+        #parallelized = False,
         
         player_types = pop,
-        agent_types = ToM,
-        analysis_type = 'limit',
-        # analysis_type = 'complete',
-        
-        RA_prior = 0.5,
+        #agent_types = ToM,
+        #analysis_type = 'limit',
         beta = 5,
+        analysis_type = 'complete',
+        
+        #RA_prior = 0.5,
+        #beta = 5,
 
         # tremble = t,
         pop_size = 10,
-        plot_dir = './writing/evo_cogsci18/figures/',
-        s = 1,
+        plot_dir = TODAY,
+        s = .5,
         # observability = 0,
         # mu = .01,
     )
@@ -337,8 +342,8 @@ def AllC_AllD_race_test():
         # background_params['observability'],
     )
     limit_param_plot("rounds",
-                     file_name = file_name,
-                     stacked = True,
+                     #file_name = file_name,
+                     #stacked = True,
                      **background_params)
 
 if __name__ == "__main__":
