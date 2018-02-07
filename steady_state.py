@@ -97,8 +97,8 @@ def mcp_to_invasion(mcp, type_count):
 
     return transition
 
-def limit_analysis(player_types, s, analytic = False, **kwargs):
-    if analytic:
+def limit_analysis(player_types, s, direct = False, **kwargs):
+    if direct:
         rmcp = ana_to_limit_rmcp(player_types, **kwargs)
     else:
         rmcp = sim_to_rmcp(player_types, analysis_type = 'limit', **kwargs)
@@ -185,7 +185,7 @@ def duels_to_rcp(duels, partitions, **kwargs):
     for r, duel in duels:
         pop_to_payoff = []
         for pop in partitions:
-            payoff = [np.dot(pop-I[t],duel[t]) for t in range(type_count)]
+            payoff = [np.dot(pop-I[t],duel[t]) if pop[t]!=0 else 0 for t in range(type_count)]
             #payoff = softmax(payoff,s)
             #payoff = [f if p!=0 else 0 for p,f in zip(pop,payoff)]
             pop_to_payoff.append(payoff)
@@ -275,7 +275,6 @@ def steady_state(matrix):
     return np.array(normalized([n.real for n in steady_states]))
 
 def avg_payoff_per_type_from_sim(sim_data, agent_types, game = None,**kwargs):
-    print agent_types
     type_to_index = dict(map(reversed, enumerate(agent_types)))
     
     type_count = len(agent_types)
@@ -418,9 +417,9 @@ def evo_analysis(player_types, analysis_type = 'limit', direct = True, *args, **
         direct = False
 
     if analysis_type == 'complete':
-        ssds = complete_analysis(player_types = player_types, analytic = direct, *args, **kwargs)
+        ssds = complete_analysis(player_types = player_types, direct = direct, *args, **kwargs)
     elif analysis_type == 'limit':
-        ssds = limit_analysis(player_types = player_types, analytic = direct,  *args, **kwargs)
+        ssds = limit_analysis(player_types = player_types, direct = direct,  *args, **kwargs)
 
     return np.array(ssds)
 
