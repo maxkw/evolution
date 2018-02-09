@@ -1298,8 +1298,9 @@ def OrTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, o
     return game
 
 @literal
-def dynamic(gamma,observability,**kwargs):
+def dynamic(expected_interactions,observability,**kwargs):
     dictator = SocialGame()
+    gamma = 1-1/expected_interactions
     game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
     return game
 
