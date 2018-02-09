@@ -191,6 +191,20 @@ def complete_sim_plot(generations, player_types, data =[], **kwargs):
     sns.despine()
     plt.tight_layout()
 
+def splits(n):
+    """
+    starting from 0, produces the sequence 2, 3, 5, 9, 17...
+    This sequence is the answer to the question 'if you have 2 points and find the midpoint,
+    then find the midpoints of each adjacent pair of points, and do that over and over,
+    how many points will you have after n iterations?'
+
+    excellent for populating real-valued parameter ranges since they recycle points
+    when used as
+    np.linspace(min, max, splits(n))
+    """
+    assert n>=0
+    i = n+1
+    return (2**i-0**i)/2 + 1
 
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
 def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
@@ -218,11 +232,13 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
         'beta': np.linspace(1, 11, 6),
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
-        'observability': [0, 0.25, .5, .75, 1],
-        'tremble': np.linspace(0, 0.4, 41),
+        'observability':np.linspace(0,1,splits(2)),
+        #'tremble': np.linspace(0, 0.4, 41),
+        'tremble':np.round(np.linspace(0,.4, splits(3)),2),
         # 'tremble': np.linspace(0, 0.05, 6),
         'intervals' : [2, 4, 8],
-        'gamma' : [0, .5, .8, .9]
+        #'gamma' : [0, .5, .8, .9]
+        'expected_interactions': np.linspace(1,10,splits(2)),
     }
     record = []
     
@@ -272,11 +288,11 @@ def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
 def make_legend():
     legend = plt.legend(frameon=True)
     for texts in legend.get_texts():
-        if texts.get_text() == 'WeAgent':
+        if 'WeAgent' in texts.get_text():
             texts.set_text('Reciprocal')
-        elif texts.get_text() == 'SelfishAgent':
+        elif 'SelfishAgent' in texts.get_text():
             texts.set_text('Selfish')
-        elif texts.get_text() == 'AltruisticAgent':
+        elif 'AltruisticAgent' in texts.get_text():
             texts.set_text('Altruistic')
 
     return legend
@@ -295,7 +311,12 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
     data.reindex_axis(sorted(data.columns, key = lambda t:type_order[t]), 1)
 
     if stacked:
-        data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
+        if param in ['expected_interactions']:
+            data.plot.area(stacked = True, ylim = [0, 1], xlim = [1,10], figsize = (3.5,3), legend=False)
+        elif param in ['rounds']:
+             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
+        else:
+            data.plot.area(stacked = True, ylim = [0, 1], xlim = [1,50], figsize = (3.5,3), legend=False)
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
             # for texts in legend.get_texts():
@@ -305,10 +326,13 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
             #         texts.set_text('Selfish')
             #     elif texts.get_text() == 'AltruisticAgent':
             #         texts.set_text('Altruistic')
-                    
-        if param == 'rounds':
-            plt.xlabel('Expected Repetitions\n' r'$1/(1-\gamma)$')
-            # plt.xticks([1, 10, 20, 30, 40, 50])
+        if param in ['rounds','expected_interactions']:
+            plt.xlabel('Expected Interactions\n' r'$1/(1-\gamma)$')
+            if param == 'expected_interactions':
+                plt.xticks(range(1,11))
+        elif param == 'observability':
+            plt.xlabel('Probability of observation\n' r'$\omega$')
+            plt.xticks([0, .2, .4, .6, .8, 1])
         elif param == 'tremble':
             plt.xlabel(r'Noise Probability ($\epsilon$)')
         else:
