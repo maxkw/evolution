@@ -316,7 +316,7 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
         elif param in ['rounds']:
              data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
         else:
-            data.plot.area(stacked = True, ylim = [0, 1], xlim = [1,50], figsize = (3.5,3), legend=False)
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
             # for texts in legend.get_texts():
