@@ -71,7 +71,7 @@ def fig4():
         limit_param_plot(file_name = "fig4"+letter,
                          **dict(common_params,**scene_params))
 def main():
-    #dynamic_dilemma_plot()
+    dynamic_dilemma_plot()
     fig4()
 
 if __name__ == "__main__":
