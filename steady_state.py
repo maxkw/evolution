@@ -180,12 +180,13 @@ def complete_softmax(rcp, populations, s):
 
 def duels_to_rcp(duels, partitions, **kwargs):
     rcp = []
+    pop_size = sum(partitions[0])
     type_count = len(duels[0][1][0])
     I = np.identity(type_count)
     for r, duel in duels:
         pop_to_payoff = []
         for pop in partitions:
-            payoff = [np.dot(pop-I[t],duel[t]) if pop[t]!=0 else 0 for t in range(type_count)]
+            payoff = [np.dot(pop-I[t],duel[t])/(pop_size-1) for t in range(type_count)]
             #payoff = softmax(payoff,s)
             #payoff = [f if p!=0 else 0 for p,f in zip(pop,payoff)]
             pop_to_payoff.append(payoff)
