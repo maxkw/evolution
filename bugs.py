@@ -18,7 +18,7 @@ def variable_plots():
     background_params = dict(
         trials = 20,
         #game = 'direct', direct = False,rounds = 10,
-        game = 'dynamic', observability = 0, gamma = 0.9,
+        game = 'dynamic', observability = 0, expected_interactions = 10,
         tremble = 0,
         
 
