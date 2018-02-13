@@ -204,7 +204,7 @@ def splits(n):
     """
     assert n>=0
     i = n+1
-    return (2**i-0**i)/2 + 1
+    return int((2**i-0**i)/2 + 1)
 
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
 def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
@@ -232,13 +232,12 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
         'beta': np.linspace(1, 11, 6),
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
-        'observability':np.linspace(0,1,splits(2)),
-        #'tremble': np.linspace(0, 0.4, 41),
-        'tremble':np.round(np.linspace(0,.4, splits(3)),2),
-        # 'tremble': np.linspace(0, 0.05, 6),
+        'observability': np.linspace(0, 1, 21),
+        'tremble': np.linspace(0, 0.4, 41),
+        'expected_interactions': np.linspace(1, 10, 10),
         'intervals' : [2, 4, 8],
+        # 'tremble': np.round(np.linspace(0, .4, splits(5)), 2),
         #'gamma' : [0, .5, .8, .9]
-        'expected_interactions': np.linspace(1,10,splits(2)),
     }
     record = []
     
@@ -287,7 +286,7 @@ def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
 
 def make_legend():
     legend = plt.legend(frameon=True)
-    for texts in legend.get_texts():
+    for i, texts in enumerate(legend.get_texts()):
         if 'WeAgent' in texts.get_text():
             texts.set_text('Reciprocal')
         elif 'SelfishAgent' in texts.get_text():
@@ -296,50 +295,49 @@ def make_legend():
             texts.set_text('Altruistic')
 
     return legend
-    
 
 @plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs'])
 def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwargs={}, **kwargs):
     fig, ax = plt.subplots()
 
-    # TODO: Investigate this
-    # Some weird but necessary data cleaning
+    # TODO: Investigate this, some weird but necessary data cleaning
     data[data['proportion']<0] = 0
     data = data[data['type']!=0]
+
     data = data[[param, 'proportion', 'type']].pivot(columns='type', index=param, values='proportion')
     type_order = dict(map(reversed,enumerate([t.short_name('agent_types') for t in player_types])))
     data.reindex_axis(sorted(data.columns, key = lambda t:type_order[t]), 1)
 
     if stacked:
-        if param in ['expected_interactions']:
-            data.plot.area(stacked = True, ylim = [0, 1], xlim = [1,10], figsize = (3.5,3), legend=False)
-        elif param in ['rounds']:
-             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
+        figsize = (3.5, 3)
+        
+        if param in ['expected_interactions', 'rounds']:
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = figsize, legend=False, **graph_kwargs)
+            
         else:
-            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = figsize, legend=False, **graph_kwargs)
+            
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
-            # for texts in legend.get_texts():
-            #     if texts.get_text() == 'WeAgent':
-            #         texts.set_text('Reciprocal')
-            #     elif texts.get_text() == 'SelfishAgent':
-            #         texts.set_text('Selfish')
-            #     elif texts.get_text() == 'AltruisticAgent':
-            #         texts.set_text('Altruistic')
+
         if param in ['rounds','expected_interactions']:
             plt.xlabel('Expected Interactions\n' r'$1/(1-\gamma)$')
             if param == 'expected_interactions':
+                plt.xlim([1,10])
                 plt.xticks(range(1,11))
+                
         elif param == 'observability':
             plt.xlabel('Probability of observation\n' r'$\omega$')
-            plt.xticks([0, .2, .4, .6, .8, 1])
+            plt.xticks([0, .2, .4, .6, .8,  1])
+            
         elif param == 'tremble':
             plt.xlabel(r'Noise Probability ($\epsilon$)')
+            
         else:
             plt.xlabel(param)
 
-
     else:
+        
         data.plot(ax=ax, ylim = [0, 1.05], **graph_kwargs)
             
         if param in ['pop_size']:
@@ -355,7 +353,7 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
         plt.xlabel(param)
         plt.legend()
         
-    plt.yticks([0,0.5,1])
+    plt.yticks([0, 0.5, 1])
     plt.ylabel('Frequency')
         
     sns.despine()
