@@ -71,26 +71,13 @@ def matchup(player_types, game, **kwargs):
     condition = dict(player_types = types, **kwargs)
     params = default_params(**condition)
 
-    if game == 'direct':
-        g = RepeatedPrisonersTournament(**kwargs)
-    elif game == 'indirect':
-        g = games.IndirectReciprocity(**kwargs)
-    elif game == 'exponential indirect':
-        g = games.ExponentialIndirectReciprocity(**kwargs)
-    elif game == 'ternary':
-        g = games.TernaryTournament(**kwargs)
-    elif game == 'social':
-        g = games.SocialTournament(**kwargs)
-    elif game == 'gradated':
-        g = games.GradatedTournament(**kwargs)
-    elif game == 'orgame':
-        g = games.OrTournament(**kwargs)
-    elif game == 'manual':
-        g = games.manual(**kwargs)
-    elif game == 'dynamic':
-        g = games.dynamic(**kwargs)
-    else:
-        raise Exception("Game must be specified for 'matchup'")
+    try:
+        g = games.__dict__[game](**kwargs)
+    except KeyError:
+        try:
+            g = game(**kwargs)
+        except TypeError:
+            raise Exception("Game must be a valid game or must be specified in the 'games' dict in 'games.py'")
 
 
     params['games'] = g
