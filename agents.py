@@ -702,9 +702,9 @@ class ModelNode(object):
         self.other_models = wAgentDict(tmp_genome)
 
         #print genome['agent_types']
-        RA_prior = genome['RA_prior']
-        non_WA_prior = (1-RA_prior)/(len(genome['agent_types'])-1)
-        self.pop_prior = prior = np.array([RA_prior if t is genome['type'] else non_WA_prior for t in genome['agent_types']])
+        prior = genome['prior']
+        non_WA_prior = (1-prior)/(len(genome['agent_types'])-1)
+        self.pop_prior = prior = np.array([prior if t is genome['type'] else non_WA_prior for t in genome['agent_types']])
 
         self.belief = ConstantDefaultDict(prior)
         self.likelihood = ConstantDefaultDict(np.zeros_like(prior))
