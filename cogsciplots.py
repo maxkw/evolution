@@ -1,9 +1,9 @@
 import inspect
 plot_dir = "./plots/"+inspect.stack()[0][1][:-3]+"/"
-
-from evolve import limit_param_plot
+from itertools import product
+from evolve import limit_param_plot, splits, grid_param_plot,splits
 import agents as ag
-
+import numpy as np
 
 
 def dynamic_dilemma_plot():
@@ -14,6 +14,7 @@ def dynamic_dilemma_plot():
         'omega':{
             'param':'observability',
             'expected_interactions':1,
+            #'rounds':1,
         },
         'gamma':{
             'param':'expected_interactions',
@@ -29,7 +30,7 @@ def dynamic_dilemma_plot():
                          pop_size = 10,
                          plot_dir = plot_dir,
                          stacked = True,
-                         #parallelized = False,
+                         param_vals = np.round(np.linspace(0,1,splits(1)),2)
                          )
 
     for scene_name in [
@@ -45,7 +46,6 @@ def fig4():
     common_params = dict(game = 'direct',
                          benefit = 3,
                          cost = 1,
-
                          pop_size = 100,
                          analysis_type = 'limit',
                          s = .5,
@@ -70,6 +70,10 @@ def fig4():
     for letter, scene_params in scenarios.iteritems():
         limit_param_plot(file_name = "fig4"+letter,
                          **dict(common_params,**scene_params))
+####
+## agent sims for fig 3
+####
+
 def main():
     dynamic_dilemma_plot()
     fig4()
