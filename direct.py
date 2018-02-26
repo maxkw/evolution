@@ -293,10 +293,11 @@ def interval_direct(**kwargs):
 
 def AllC_AllD_race_test():
     opponents = (
-        SelfishAgent,#(beta=5),
+        #SelfishAgent,#(beta=5),
         #ag.AltruisticAgent,
         #ag.SelfishAgent,
-        #AllD,
+        AllD,
+        AllC,
         #SelfishAgent,
     )
     ToM = ('self', ) + opponents #+(AllC,)
