@@ -390,6 +390,7 @@ def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = 
     if parallelized == True:
         pool = Pool(8)
         payoffs = pool.map(simulation_from_dict, matchup_pop_dicts)
+        pool.close()
     elif parallelized == False:
         payoffs = map(simulation_from_dict, matchup_pop_dicts)
 
