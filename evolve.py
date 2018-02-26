@@ -206,8 +206,22 @@ def splits(n):
     i = n+1
     return (2**i-0**i)/2 + 1
 
+def grid_v_param(row_param, col_param, hue_param, param, param_vals,col_vals,row_vals,hue_vals, **kwargs):
+    dfs = []
+
+    for row_val, col_val, hue_val in product(row_vals, col_vals,hue_vals):
+        dfs.append(ssd_v_param(**dict(kwargs,**{row_param:row_val,col_param:col_val,hue_param:hue_val,
+                                                'record_params':{hue_param:hue_val,row_param:row_val, col_param:col_val},
+                                               'param':param,
+                                               'param_vals':param_vals})))
+    return pd.concat(dfs)
+@plotter(grid_v_param, plot_exclusive_args = ['data','stacked'])
+def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs):
+    d = data.query('"WeAgent()" == type')
+    sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
+
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
-def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
+def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **kwargs):
     """
     This should be optimized to reflect the fact that
     in terms of complexity
@@ -232,7 +246,8 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
         'beta': np.linspace(1, 11, 6),
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
-        'observability':np.linspace(0,1,splits(2)),
+        #'observability':np.round(np.linspace(0,1,21),2),
+        'observability':np.round(np.linspace(0,1,splits(3)),2),
         #'tremble': np.linspace(0, 0.4, 41),
         'tremble':np.round(np.linspace(0,.4, splits(3)),2),
         # 'tremble': np.linspace(0, 0.05, 6),
@@ -246,16 +261,21 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
         expected_pop_per_round = evo_analysis(player_types = player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start = 1):
             for t, p in zip(player_types, pop):
-                record.append({
+                record.append(dict({
                     'rounds': r,
                     'type': t.short_name('agent_types'),
                     'proportion': p
-                })
+                }, **record_params))
                 
         return pd.DataFrame.from_records(record)
 
-    elif param in Xs:
-        for x in Xs[param]:
+    elif (param in Xs) or ('param_vals' in kwargs):
+        vals = kwargs.get('param_vals', Xs[param])
+        try:
+            del kwargs['param_vals']
+        except:
+            pass
+        for x in vals:
             expected_pop_per_round = evo_analysis(player_types = player_types, **dict(kwargs,**{param:x}))
 
 
@@ -266,12 +286,12 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
 
             for r, pop in enumerate(expected_pop_per_round[start:], start = 1):
                 for t, p in zip(player_types, pop):
-                    record.append({
+                    record.append(dict({
                         param: x,
                         'rounds': r,
                         'type': t.short_name('agent_types'),
                         'proportion': p
-                    })
+                    },**record_params))
 
         return pd.DataFrame.from_records(record)
 
