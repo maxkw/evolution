@@ -294,7 +294,7 @@ def interval_direct(**kwargs):
 def AllC_AllD_race_test():
     opponents = (
         SelfishAgent,#(beta=5),
-        ag.AltruisticAgent,
+        #ag.AltruisticAgent,
         #ag.SelfishAgent,
         #AllD,
         #SelfishAgent,
@@ -302,8 +302,8 @@ def AllC_AllD_race_test():
     ToM = ('self', ) + opponents #+(AllC,)
     
     pop = opponents
-    #W = WeAgent(agent_types = ToM, prior = .5,)
-    #pop = (W,)+opponents
+    W = WeAgent(agent_types = ToM, prior = .5,)
+    pop = (W,)+opponents
     # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
     # )
 
@@ -366,5 +366,4 @@ if __name__ == "__main__":
     TFT = gTFT(y=1,p=1,q=0)
     GTFT = gTFT(y=1,p=.99,q=.33)
 
-    
     
