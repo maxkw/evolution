@@ -131,7 +131,7 @@ def prior_generator(agent_type, agent_types, RA_prior=False):
 
 #assert prior_generator(ReciprocalAgent, (ReciprocalAgent,SelfishAgent), .75)[0] == 0.75
 
-def default_genome(agent_type = False, agent_types = None, RA_prior = .5, **extra_args):
+def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_args):
 
     if not agent_types:
         agent_types = default_params()["agent_types"]
@@ -151,10 +151,10 @@ def default_genome(agent_type = False, agent_types = None, RA_prior = .5, **extr
         agent_types = tuple(t if t != 'self' else agent_type for t in agent_types)
     genome = {
         'type': agent_type,
-        'RA_prior': RA_prior,
+        'prior': prior,
         'prior_precision': 0,
         'beta': 5,
-        'prior': prior_generator(agent_type, agent_types, RA_prior),
+        #'prior': prior_generator(agent_type, agent_types, RA_prior = prior),
         "agent_types": agent_types,
         'RA_K':0,
         'tremble':0,
