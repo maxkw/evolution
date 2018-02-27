@@ -4,32 +4,40 @@ from itertools import product
 from evolve import limit_param_plot, splits, grid_param_plot,splits
 import agents as ag
 import numpy as np
+import seaborn as sns
+from games import AnnotatedGame,IndefiniteMatchup,AllNoneObserve,Dynamic,literal
 
-
-TRIALS = 100
+TRIALS = 50
 
 def dynamic_dilemma_plot():
     opponents = (ag.SelfishAgent(beta=5),ag.AltruisticAgent(beta=5))
     ToM = ('self',)+opponents
-    agents = (ag.WeAgent(prior=.5, beta=5, agent_types=ToM),)+opponents
+    agents = (ag.WeAgent(#prior=.5,
+                         beta=5, agent_types=ToM),)+opponents
     scenario = {'omega':{'param': 'observability',
-                 'expected_interactions': 1},
+                         'param_vals': np.round(np.linspace(0, 1, 11), 2),
+                         'expected_interactions': 1},
                 'gamma':{'param': 'expected_interactions',
-                 'observability': 0}}
+                         'param_vals': np.round(np.linspace(1, 10, 10), 2),
+                         'observability': 0}}
 
     common_params = dict(s = .5,
-                         game = 'dynamic',
+                         game = "cog_sci_dynamic",
                          player_types = agents,
                          analysis_type = 'limit',
                          trials = TRIALS,
                          pop_size = 10,
                          plot_dir = plot_dir,
                          stacked = True,
-                         param_vals = np.round(np.linspace(0,1,splits(1)),2)
+                         #parallelized = False,
+                         #param_vals = np.round(np.linspace(0,1,splits(1)),2)
 
                          )
 
-    for scene_name in ['omega', 'gamma']:
+    for scene_name in [
+            'omega',
+            #'gamma'
+    ]:
         scene_params = scenario[scene_name]
         file_name = scene_name+"_plot"
         limit_param_plot(file_name = file_name,
@@ -71,7 +79,7 @@ def fig4():
 
 def main():
     dynamic_dilemma_plot()
-    fig4()
+    #fig4()
 
 if __name__ == "__main__":
     main()
