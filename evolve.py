@@ -220,7 +220,22 @@ def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs)
     d = data.query('"WeAgent()" == type')
     sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
 
+def grid_v_param(row_param, col_param, hue_param, param, param_vals,col_vals,row_vals,hue_vals, **kwargs):
+    dfs = []
+
+    for row_val, col_val, hue_val in product(row_vals, col_vals,hue_vals):
+        dfs.append(ssd_v_param(**dict(kwargs,**{row_param:row_val,col_param:col_val,hue_param:hue_val,
+                                                'record_params':{hue_param:hue_val,row_param:row_val, col_param:col_val},
+                                               'param':param,
+                                               'param_vals':param_vals})))
+    return pd.concat(dfs)
+@plotter(grid_v_param, plot_exclusive_args = ['data','stacked'])
+def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs):
+    d = data.query('"WeAgent()" == type')
+    sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
+
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
+
 def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **kwargs):
     """
     This should be optimized to reflect the fact that
@@ -249,6 +264,7 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
         'observability': np.round(np.linspace(0, 1, 11),2),
         'tremble': np.round(np.linspace(0, 0.4, 41),2),
         'expected_interactions': np.linspace(1, 10, 10),
+
         'intervals' : [2, 4, 8],
         # 'tremble': np.round(np.linspace(0, .4, splits(5)), 2),
         #'gamma' : [0, .5, .8, .9]
@@ -328,14 +344,13 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
     data.reindex_axis(sorted(data.columns, key = lambda t:type_order[t]), 1)
 
     if stacked:
-        figsize = (3.5, 3)
-        
-        if param in ['expected_interactions', 'rounds']:
-            data.plot.area(stacked = True, ylim = [0, 1], figsize = figsize, legend=False, **graph_kwargs)
-            
+
+        if param in ['expected_interactions']:
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
+        elif param in ['rounds']:
+             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
         else:
-            data.plot.area(stacked = True, ylim = [0, 1], figsize = figsize, legend=False, **graph_kwargs)
-            
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
 
@@ -347,8 +362,10 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
                 
         elif param == 'observability':
             plt.xlabel('Probability of observation\n' r'$\omega$')
+
             plt.xticks([0, .2, .4, .6, .8,  1])
-            
+            plt.xticks(np.linspace(0,1,5))
+
         elif param == 'tremble':
             plt.xlabel(r'Noise Probability ($\epsilon$)')
             
@@ -439,8 +456,8 @@ def some_test():
                       seed = 0
     )
 
-def cog_costs():
 
+def cog_costs(tremble = 0):
     common_params = dict(game = 'direct',
                          benefit = 3,
                          cost = 1,
@@ -448,22 +465,20 @@ def cog_costs():
                          analysis_type = 'limit',
                          s = .5,
                          #plot_dir = plot_dir,
-                         trials = 20,
+                         trials = 200,
                          stacked = True,
-                         tremble = .1,
+                         tremble = tremble,
                          rounds = 10,
                          param_vals = np.linspace(0,.3, 50),
     )
 
-    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.Pavlov)
+    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.WSLS)
     ToM = ('self',) + old_pop
     new_pop = old_pop +(ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
-   
-
-    
     limit_param_plot(param = 'cog_cost',
-                     file_name = "cogcosts",
+                     file_name = "cogcosts(tremble = %s)" % tremble,
                      player_types = new_pop,
+                     graph_kwargs = dict(xlim = [0,.3]),
                      **common_params)
 if __name__ == "__main__":
-    cog_costs()
+    cog_costs(.1)

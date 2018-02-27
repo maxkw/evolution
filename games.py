@@ -1498,6 +1498,37 @@ def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefi
     return game
 
 @literal
+def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefit = 10, intervals = 2, tremble = .1, **kwargs):
+    assert intervals>=0
+
+    def Gen():
+        N_actions = 1+np.random.poisson(intervals-1)
+        N_players = np.random.choice([2,3])
+        t = np.random.beta(tremble, 10)
+
+        # initialize set of choices with the zero-action
+        choices = [np.zeros(N_players)]
+        for n in range(intervals-1):
+            c = np.random.poisson(cost)
+            w = np.random.exponential(benefit/2)
+            e = np.random.exponential(benefit/2)
+            for p in xrange(1,N_players):
+                choice = np.zeros(N_players)
+                choice[0] = -c
+                choice[p] = c*w+e
+                choices.append(copy(choice))
+        decision = Decision(OrderedDict((str(p),p) for p in choices))
+        decision.tremble = t
+
+        return decision
+
+    dictator = Dynamic(Gen)
+    dictator.name = "dynamic"
+    gamma = 1-1/expected_interactions
+    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
+    return game
+
+@literal
 def manual(gamma, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, intervals = 2, followers = True, **kwargs):
     #gamma = 1-1/rounds
     dictator = SocialDictator(cost = cost, benefit = benefit, tremble = tremble, intervals = intervals)

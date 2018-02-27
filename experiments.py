@@ -78,8 +78,6 @@ def matchup(player_types, game, **kwargs):
             g = game(**kwargs)
         except TypeError:
             raise Exception("Game must be a valid game or must be specified in the 'games' dict in 'games.py'")
-
-
     params['games'] = g
 
     player_types = []
@@ -277,7 +275,6 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
                 # trials = combo[(combo['type']==player)]
                 # import pdb; pdb.set_trace()
                 # payoffs[p,o] += trials.mean()['fitness']
-
                 if 'WeAgent' in str(player):
                     c = cog_cost
                 else:
