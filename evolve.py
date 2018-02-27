@@ -246,15 +246,15 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
         'beta': np.linspace(1, 11, 6),
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
-        'observability': np.linspace(0, 1, 21),
-        'tremble': np.linspace(0, 0.4, 41),
+        'observability': np.round(np.linspace(0, 1, 11),2),
+        'tremble': np.round(np.linspace(0, 0.4, 41),2),
         'expected_interactions': np.linspace(1, 10, 10),
         'intervals' : [2, 4, 8],
         # 'tremble': np.round(np.linspace(0, .4, splits(5)), 2),
         #'gamma' : [0, .5, .8, .9]
     }
     record = []
-    
+
     if param == "rounds":
         expected_pop_per_round = evo_analysis(player_types = player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start = 1):
@@ -268,7 +268,7 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
         return pd.DataFrame.from_records(record)
 
     elif (param in Xs) or ('param_vals' in kwargs):
-        vals = kwargs.get('param_vals', Xs[param])
+        vals = kwargs.get('param_vals', Xs.get(param, None))
         try:
             del kwargs['param_vals']
         except:
@@ -410,7 +410,7 @@ def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[],
     g.set_titles("{col_name}")
     g.axes[0][0].legend(title=param, loc='best')
 
-if __name__ == "__main__":
+def some_test():
     opponents = (
         ag.AltruisticAgent,
         ag.SelfishAgent,
@@ -438,3 +438,32 @@ if __name__ == "__main__":
                       observability = 0,
                       seed = 0
     )
+
+def cog_costs():
+
+    common_params = dict(game = 'direct',
+                         benefit = 3,
+                         cost = 1,
+                         pop_size = 100,
+                         analysis_type = 'limit',
+                         s = .5,
+                         #plot_dir = plot_dir,
+                         trials = 20,
+                         stacked = True,
+                         tremble = .1,
+                         rounds = 10,
+                         param_vals = np.linspace(0,.3, 50),
+    )
+
+    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.Pavlov)
+    ToM = ('self',) + old_pop
+    new_pop = old_pop +(ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
+   
+
+    
+    limit_param_plot(param = 'cog_cost',
+                     file_name = "cogcosts",
+                     player_types = new_pop,
+                     **common_params)
+if __name__ == "__main__":
+    cog_costs()
