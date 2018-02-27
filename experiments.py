@@ -71,28 +71,13 @@ def matchup(player_types, game, **kwargs):
     condition = dict(player_types = types, **kwargs)
     params = default_params(**condition)
 
-    if game == 'direct':
-        g = RepeatedPrisonersTournament(**kwargs)
-    elif game == 'indirect':
-        g = games.IndirectReciprocity(**kwargs)
-    elif game == 'exponential indirect':
-        g = games.ExponentialIndirectReciprocity(**kwargs)
-    elif game == 'ternary':
-        g = games.TernaryTournament(**kwargs)
-    elif game == 'social':
-        g = games.SocialTournament(**kwargs)
-    elif game == 'gradated':
-        g = games.GradatedTournament(**kwargs)
-    elif game == 'orgame':
-        g = games.OrTournament(**kwargs)
-    elif game == 'manual':
-        g = games.manual(**kwargs)
-    elif game == 'dynamic':
-        g = games.dynamic(**kwargs)
-    else:
-        raise Exception("Game must be specified for 'matchup'")
-
-
+    try:
+        g = games.__dict__[game](**kwargs)
+    except KeyError:
+        try:
+            g = game(**kwargs)
+        except TypeError:
+            raise Exception("Game must be a valid game or must be specified in the 'games' dict in 'games.py'")
     params['games'] = g
 
     player_types = []
@@ -271,7 +256,7 @@ def matchup_data_to_matrix(data):
             trials = data[(data['player_types']==combination) & (data['type']==player)]
             payoffs[p,o] = trials.mean()['fitness']
 
-def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
+def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
 
@@ -290,7 +275,12 @@ def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
                 # trials = combo[(combo['type']==player)]
                 # import pdb; pdb.set_trace()
                 # payoffs[p,o] += trials.mean()['fitness']
-                payoffs[p,o] += combo[(combo['type']==player)].mean()['fitness']
+                if 'WeAgent' in str(player):
+                    c = cog_cost
+                else:
+                    c = 0
+
+                payoffs[p,o] += combo[(combo['type']==player)].mean()['fitness']-c
         payoffs_list.append(copy(payoffs))
     #print payoffs_list
     

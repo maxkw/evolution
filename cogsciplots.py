@@ -1,22 +1,26 @@
 import inspect
 plot_dir = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 
-from evolve import limit_param_plot
+from evolve import limit_param_plot, splits
 import agents as ag
+import numpy as np
+import seaborn as sns
 
+TRIALS = 50
 
-
-def dynamic_dilemma_plot():
+def dynamic_dilemma_plot(trials = TRIALS):
     opponents = (ag.SelfishAgent(beta=5),ag.AltruisticAgent(beta=5))
     ToM = ('self',)+opponents
     agents = (ag.WeAgent(prior=.5,beta=5,agent_types=ToM),)+opponents
     scenario = {
         'omega':{
             'param':'observability',
+            'param_vals': np.round(np.linspace(0, 1, 11), 2),
             'expected_interactions':1,
         },
         'gamma':{
             'param':'expected_interactions',
+            'param_vals': np.round(np.linspace(1, 10, 10), 2),
             'observability':0
         }
     }
@@ -25,7 +29,7 @@ def dynamic_dilemma_plot():
                          game='dynamic',
                          player_types = agents,
                          analysis_type = 'limit',
-                         trials = 50,
+                         trials = trials,
                          pop_size = 10,
                          plot_dir = plot_dir,
                          stacked = True,
@@ -39,9 +43,10 @@ def dynamic_dilemma_plot():
         scene_params = scenario[scene_name]
         file_name = scene_name+"_plot"
         limit_param_plot(file_name = file_name,
+                         graph_kwargs = {'color' : sns.color_palette(['C0', 'C1', 'C5'])},
                          **dict(common_params,**scene_params))
 
-def fig4():
+def fig4(trials = TRIALS):
     common_params = dict(game = 'direct',
                          benefit = 3,
                          cost = 1,
@@ -50,7 +55,7 @@ def fig4():
                          analysis_type = 'limit',
                          s = .5,
                          plot_dir = plot_dir,
-                         trials = 50,
+                         trials = trials,
                          stacked = True,
                          rounds = 50
                          )

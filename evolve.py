@@ -206,8 +206,22 @@ def splits(n):
     i = n+1
     return (2**i-0**i)/2 + 1
 
+def grid_v_param(row_param, col_param, hue_param, param, param_vals,col_vals,row_vals,hue_vals, **kwargs):
+    dfs = []
+
+    for row_val, col_val, hue_val in product(row_vals, col_vals,hue_vals):
+        dfs.append(ssd_v_param(**dict(kwargs,**{row_param:row_val,col_param:col_val,hue_param:hue_val,
+                                                'record_params':{hue_param:hue_val,row_param:row_val, col_param:col_val},
+                                               'param':param,
+                                               'param_vals':param_vals})))
+    return pd.concat(dfs)
+@plotter(grid_v_param, plot_exclusive_args = ['data','stacked'])
+def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs):
+    d = data.query('"WeAgent()" == type')
+    sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
+
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
-def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
+def ssd_v_param(param, player_types, return_rounds=False, record_params = {}, **kwargs):
     """
     This should be optimized to reflect the fact that
     in terms of complexity
@@ -241,21 +255,26 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
         'expected_interactions': np.linspace(1,10,splits(2)),
     }
     record = []
-    
+
     if param == "rounds":
         expected_pop_per_round = evo_analysis(player_types = player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start = 1):
             for t, p in zip(player_types, pop):
-                record.append({
+                record.append(dict({
                     'rounds': r,
                     'type': t.short_name('agent_types'),
                     'proportion': p
-                })
+                }, **record_params))
                 
         return pd.DataFrame.from_records(record)
 
-    elif param in Xs:
-        for x in Xs[param]:
+    elif (param in Xs) or ('param_vals' in kwargs):
+        vals = kwargs.get('param_vals', Xs.get(param, None))
+        try:
+            del kwargs['param_vals']
+        except:
+            pass
+        for x in vals:
             expected_pop_per_round = evo_analysis(player_types = player_types, **dict(kwargs,**{param:x}))
 
 
@@ -266,12 +285,12 @@ def ssd_v_param(param, player_types, return_rounds=False, **kwargs):
 
             for r, pop in enumerate(expected_pop_per_round[start:], start = 1):
                 for t, p in zip(player_types, pop):
-                    record.append({
+                    record.append(dict({
                         param: x,
                         'rounds': r,
                         'type': t.short_name('agent_types'),
                         'proportion': p
-                    })
+                    },**record_params))
 
         return pd.DataFrame.from_records(record)
 
@@ -312,11 +331,11 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
 
     if stacked:
         if param in ['expected_interactions']:
-            data.plot.area(stacked = True, ylim = [0, 1], xlim = [1,10], figsize = (3.5,3), legend=False)
+            data.plot.area(stacked = True, ylim = [0, 1], xlim = [1,10], figsize = (3.5, 3), legend=False)
         elif param in ['rounds']:
-             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
+             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False)
         else:
-            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5,3), legend=False)
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False)
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
             # for texts in legend.get_texts():
@@ -393,7 +412,7 @@ def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[],
     g.set_titles("{col_name}")
     g.axes[0][0].legend(title=param, loc='best')
 
-if __name__ == "__main__":
+def some_test():
     opponents = (
         ag.AltruisticAgent,
         ag.SelfishAgent,
@@ -421,3 +440,31 @@ if __name__ == "__main__":
                       observability = 0,
                       seed = 0
     )
+
+def cog_costs():
+    common_params = dict(game = 'direct',
+                         benefit = 3,
+                         cost = 1,
+                         pop_size = 100,
+                         analysis_type = 'limit',
+                         s = .5,
+                         #plot_dir = plot_dir,
+                         trials = 20,
+                         stacked = True,
+                         tremble = .1,
+                         rounds = 10,
+                         param_vals = np.linspace(0,.3, 50),
+    )
+
+    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.Pavlov)
+    ToM = ('self',) + old_pop
+    new_pop = old_pop +(ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
+   
+
+    
+    limit_param_plot(param = 'cog_cost',
+                     file_name = "cogcosts",
+                     player_types = new_pop,
+                     **common_params)
+if __name__ == "__main__":
+    cog_costs()
