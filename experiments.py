@@ -258,7 +258,7 @@ def matchup_data_to_matrix(data):
             trials = data[(data['player_types']==combination) & (data['type']==player)]
             payoffs[p,o] = trials.mean()['fitness']
 
-def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
+def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
 
@@ -277,7 +277,13 @@ def matchup_matrix_per_round(player_types, max_rounds, **kwargs):
                 # trials = combo[(combo['type']==player)]
                 # import pdb; pdb.set_trace()
                 # payoffs[p,o] += trials.mean()['fitness']
-                payoffs[p,o] += combo[(combo['type']==player)].mean()['fitness']
+
+                if 'WeAgent' in str(player):
+                    c = cog_cost
+                else:
+                    c = 0
+
+                payoffs[p,o] += combo[(combo['type']==player)].mean()['fitness']-c
         payoffs_list.append(copy(payoffs))
     #print payoffs_list
     
