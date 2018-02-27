@@ -9,7 +9,7 @@ from experiment_utils import fun_call_labeler
 from inspect import getargspec
 #import random
 import itertools
-from explore import *
+#from explore import *
 
 COST = 1
 BENEFIT = 3
@@ -1040,7 +1040,7 @@ def SocialGameGen(N_players_gen, N_actions_gen, cwe, tremble_gen):
     return d
 
 @literal
-def SocialGame(cost = 1, weight = 5, endowment = 5, intervals = 1, tremble = .1, **kwargs):
+def SocialGame(cost = 1, weight = 5, endowment = 5, intervals = 2, tremble = .1, **kwargs):
     assert intervals>=0
     N_players_gen = lambda: np.random.choice([2,3])
     N_actions_gen = lambda: 1 + np.random.poisson(intervals-1)
@@ -1462,6 +1462,37 @@ def dd_ci_pas(expected_interactions = 1, observability=0, cost = 1, benefit = 3,
 
     dictator = Dynamic(Gen)
     dictator.name = "dd_ci_va"
+    gamma = 1-1/expected_interactions
+    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
+    return game
+
+@literal
+def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefit = 10, intervals = 2, tremble = .1, **kwargs):
+    assert intervals>=0
+
+    def Gen():
+        N_actions = 1+np.random.poisson(intervals-1)
+        N_players = np.random.choice([2,3])
+        t = np.random.beta(tremble, 10)
+
+        # initialize set of choices with the zero-action
+        choices = [np.zeros(N_players)]
+        for n in range(intervals-1):
+            c = np.random.poisson(cost)
+            w = np.random.exponential(benefit/2)
+            e = np.random.exponential(benefit/2)
+            for p in xrange(1,N_players):
+                choice = np.zeros(N_players)
+                choice[0] = -c
+                choice[p] = c*w+e
+                choices.append(copy(choice))
+        decision = Decision(OrderedDict((str(p),p) for p in choices))
+        decision.tremble = t
+
+        return decision
+
+    dictator = Dynamic(Gen)
+    dictator.name = "dynamic"
     gamma = 1-1/expected_interactions
     game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
     return game
