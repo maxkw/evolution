@@ -275,7 +275,7 @@ def steady_state(matrix):
 
     return np.array(normalized([n.real for n in steady_states]))
 
-def avg_payoff_per_type_from_sim(sim_data, agent_types, game = None,**kwargs):
+def avg_payoff_per_type_from_sim(sim_data, agent_types, cog_cost, game = None, **kwargs):
     type_to_index = dict(map(reversed, enumerate(agent_types)))
     
     type_count = len(agent_types)
@@ -291,7 +291,11 @@ def avg_payoff_per_type_from_sim(sim_data, agent_types, game = None,**kwargs):
         fitness = np.zeros(type_count)
         interactions = np.zeros(type_count)
         for i, (t, t_d) in enumerate(r_d.groupby('type')):
-            fitness[type_to_index[t]] = t_d['fitness'].mean()
+            if 'WeAgent' in t:
+                c = cog_cost
+            else:
+                c = 0
+            fitness[type_to_index[t]] = t_d['fitness'].mean()-c
             interactions[type_to_index[t]] = t_d['interactions'].mean()
 
         running_fitness += np.array(fitness)
@@ -312,7 +316,7 @@ def avg_payoff_per_type_from_sim(sim_data, agent_types, game = None,**kwargs):
 
 
 #@memoized
-def simulation(player_types, *args, **kwargs):
+def simulation(player_types, cog_cost = 0,  *args, **kwargs):
 
 
     type_count = len(player_types)
@@ -329,7 +333,7 @@ def simulation(player_types, *args, **kwargs):
     
     sim_data = matchup(player_types = active_players, *args, **kwargs)
 
-    raw_fitness_per_round = avg_payoff_per_type_from_sim(sim_data, types, **kwargs)
+    raw_fitness_per_round = avg_payoff_per_type_from_sim(sim_data, types, cog_cost, **kwargs)
     #print player_types
     #print types
     expanded_fitness_per_round = []
