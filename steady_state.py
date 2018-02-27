@@ -315,7 +315,7 @@ def avg_payoff_per_type_from_sim(sim_data, agent_types, cog_cost, game = None, *
     return fitness_per_round
 
 
-#@memoized
+@memoized
 def simulation(player_types, cog_cost = 0,  *args, **kwargs):
 
 

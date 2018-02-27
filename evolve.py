@@ -247,8 +247,9 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params = {}, **
         'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
         's': logspace(start = .001, stop = 1, samples = 100),
         'observability':np.linspace(0,1,splits(2)),
-        #'tremble': np.linspace(0, 0.4, 41),
-        'tremble':np.round(np.linspace(0,.4, splits(3)),2),
+        'tremble': np.linspace(0, 0.4, 41),
+        #'tremble':np.round(np.linspace(0,.4, splits(3)),2),
+
         # 'tremble': np.linspace(0, 0.05, 6),
         'intervals' : [2, 4, 8],
         #'gamma' : [0, .5, .8, .9]
@@ -331,11 +332,11 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
 
     if stacked:
         if param in ['expected_interactions']:
-            data.plot.area(stacked = True, ylim = [0, 1], xlim = [1,10], figsize = (3.5, 3), legend=False)
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
         elif param in ['rounds']:
-             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False)
+             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
         else:
-            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False)
+            data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
             # for texts in legend.get_texts():
@@ -351,7 +352,7 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
                 plt.xticks(range(1,11))
         elif param == 'observability':
             plt.xlabel('Probability of observation\n' r'$\omega$')
-            plt.xticks([0, .2, .4, .6, .8, 1])
+            plt.xticks(np.linspace(0,1,5))#[0, .2, .4, .6, .8, 1])
         elif param == 'tremble':
             plt.xlabel(r'Noise Probability ($\epsilon$)')
         else:
@@ -441,7 +442,7 @@ def some_test():
                       seed = 0
     )
 
-def cog_costs():
+def cog_costs(tremble = 0):
     common_params = dict(game = 'direct',
                          benefit = 3,
                          cost = 1,
@@ -449,22 +450,21 @@ def cog_costs():
                          analysis_type = 'limit',
                          s = .5,
                          #plot_dir = plot_dir,
-                         trials = 20,
+                         trials = 200,
                          stacked = True,
-                         tremble = .1,
+                         tremble = tremble,
                          rounds = 10,
                          param_vals = np.linspace(0,.3, 50),
     )
 
-    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.Pavlov)
+    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.WSLS)
     ToM = ('self',) + old_pop
     new_pop = old_pop +(ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
-   
-
     
     limit_param_plot(param = 'cog_cost',
-                     file_name = "cogcosts",
+                     file_name = "cogcosts(tremble = %s)" % tremble,
                      player_types = new_pop,
+                     graph_kwargs = dict(xlim = [0,.3]),
                      **common_params)
 if __name__ == "__main__":
-    cog_costs()
+    cog_costs(.1)

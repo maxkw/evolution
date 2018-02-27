@@ -1215,7 +1215,7 @@ def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tre
 
     return g
     
-
+direct = RepeatedPrisonersTournament
 
 @literal
 def IndirectReciprocity(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, **kwargs):
