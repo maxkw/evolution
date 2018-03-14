@@ -421,6 +421,122 @@ class PrefabAgent(Agent):
     def ingroup(self):
         return self.type.ingroup()
 
+### feasible
+# kappa | 0 <= kappa <= B-C
+# chi | -1 <= max((kap-B)/(kap+C),(kap+C)/(kap-B)) <= chi <= 1
+# phi | 0 < phi <= chi*B/(chi*B/chi*C+B)
+# lamda |
+# (chi+1)/C + (B-C) <= lambda <= (chi+1)/(-B) + (B-C)
+# -(chi*B+C)<= lambda <= (B+chi*C)
+
+### robust
+# X is robust against mutant Y
+# if the odds off Y replacing X are <1/N
+# for N->inf robustness reduces to ESS
+
+### extortion
+# kap = 0 = P
+# chi > 0
+
+### cooperative
+# kappa = R = B-C
+
+### generous
+# cooperative
+# chi > 0
+
+### good
+# cooperative
+#
+#(lambda > -(B-C)*chi AND lambda > -(B+C)*chi)
+# OR
+#lambda | -(chi*B+C) <= lambda <= (B+chi*C)
+
+### Good+Robust (in pop = N)
+# feasible
+# cooperative (implied)
+# lambda |
+# lambda >(B-C)/(3N)* (N+1-(2n-1)*chi)
+# AND
+# lambda >(B+C)/(N-2)*(N+1-(2n-1)*chi)
+
+### robust ZD for N>2
+# cooperative
+# generous (implied)
+# 1 > chi >= (N+1)/(2N-1)
+
+### ZD
+# lambda = 0
+
+### WSLS at least has
+# chi = -C/B < 0
+
+
+class HyperAgent(Agent):
+    ####ONLY WORKS FOR THE DEFAULT CASE
+    def __init__(self, genome, world_id=None):
+        defaults = dict(chi=2/3, kap = None, lam = 0, phi = 3/11)
+        keys = ["B","C","chi","kap","lam",'phi']
+        B,C,chi,kap,lam,phi = [genome[k] if k in genome else defaults[k] for k in keys]
+        self.world_id = world_id
+
+        if kap == None:
+            # make strategies cooperative
+            kap = B-C
+
+        assert 0 <= kap and kap <= B-C
+        assert max((kap-B)/(kap+C),(kap+C)/(kap-B)) <= chi and chi <= 1
+
+        if phi == None:
+            #max out phi, at bottom it's TFT
+            #phi = (chi*B)/(chi*C+B)
+            phi = C/(C+chi*B)
+
+        #print phi
+        #assert (0 < phi) and (phi <= (chi*B)/(chi*C+B))
+        #assert (0 < phi) and (phi <= C/(chi*B+C))
+        #assert (lam > -(B-C)*chi) and (lam > -(B+C)*chi)
+        assert (lam >= -B*(chi+1)+B-C) and (lam <= C*(chi+1)+B-C)
+        p_vec= (1-phi*(1-chi)*(B-C-kap),
+                1-phi*(chi*C+B-kap*(1-chi)+lam),
+                phi*(chi*B+C+(1-chi)*kap-lam),
+                phi*(1-chi)*kap)
+        
+
+        for i,p in enumerate(p_vec):
+            if not p<=1 and p>=0:
+                print chi,kap,lam,phi
+                print B,C
+                print i,p
+                raise Exception("p out of bounds: %s" % str(p_vec))
+        
+        joint_actions = [('give','give'),
+                         ('give','keep'),
+                         ('keep','give'),
+                         ('keep','keep')]
+
+        self.reaction = strats = {a:{'give':p,'keep':1-p} for a,p in zip(joint_actions,p_vec)}
+        self.memory = defaultdict(lambda:('give','give'))
+
+    def observe(self, observations):
+        # Can only judge a case where there are two observations
+        # TODO: This will not work on sequential PD since it requires two simultaneous observations
+        obs1, obs2 = observations
+        actions = (obs1[3], obs2[3])
+        players = (obs1[1][0], obs2[1][0])
+        me = self.world_id
+        if me in players:
+            if me == players[1]:
+                players = tuple(reversed(players))
+                actions = tuple(reversed(actions))
+            self.memory[players[1]] = actions
+
+
+    def decide_likelihood(self, game, agents=None, tremble=None):
+        me, other = agents
+        assert me == self.world_id
+        return add_tremble(np.array([self.reaction[self.memory[other]][action] for action in game.actions]), tremble)
+
 class ClassicAgent(Agent):
     
     def decide(self, game, agent_ids):
@@ -437,6 +553,7 @@ class ClassicAgent(Agent):
 
     def k_belief(self, *args, **kwargs):
         return 0
+
 
 class Standing(Agent):
     def __init__(self, genome, world_id = None):
