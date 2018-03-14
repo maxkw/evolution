@@ -292,19 +292,24 @@ def interval_direct(**kwargs):
                         **background_params)
 
 def AllC_AllD_race_test():
+
+    benefit,cost = 3,1
     opponents = (
         #SelfishAgent,#(beta=5),
         #ag.AltruisticAgent,
         #ag.SelfishAgent,
         AllD,
         AllC,
+        ag.HyperAgent(B = benefit, C = cost),
+        #ag.HyperAgent(B = benefit, C = cost, chi=0),
+        #ag.GTFT
         #SelfishAgent,
     )
     ToM = ('self', ) + opponents #+(AllC,)
     
     pop = opponents
-    W = WeAgent(agent_types = ToM, prior = .5,)
-    pop = (W,)+opponents
+    #W = WeAgent(agent_types = ToM, prior = .5,)
+    #pop = (W,)+opponents
     # pop = (ReciprocalAgent(agent_types = ToM, RA_K=0),)+opponents
     # )
 
@@ -313,11 +318,13 @@ def AllC_AllD_race_test():
         experiment = ssd_v_param,
         game = 'direct',
         #direct = False,
-        benefit = 3,
+        benefit = benefit,
+        cost = cost,
         tremble = 0,
-        rounds = 10,
+        rounds = 100,
         # gamma = 0.9,
         #parallelized = False,
+        #tremble = .01,
         
         player_types = pop,
         #agent_types = ToM,
