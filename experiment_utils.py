@@ -234,7 +234,7 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             #
             try:
                 assert memoized and not overwrite
-                print "Loading cache..."
+                print "Loading cache...",
                 cache = pd.read_pickle(cache_file)
                 cached_trials = list(cache['trial'].unique())
                 uncached_trials = [trial for trial in trials if trial not in cached_trials]
