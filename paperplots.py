@@ -1,24 +1,142 @@
+import inspect
 import numpy as np
-# from agents import ReciprocalAgent, AltruisticAgent, RationalAgent, SelfishAgent
-# from experiment_utils import MultiArg
-import scenarios
-from experiments import plot_coop_prob
-import evolve
-import direct
+import seaborn as sns
+
+import agents as ag
+from evolve import limit_param_plot, complete_sim_plot
 
 
-if __name__ == '__main__':
-    plot_dir = './writing/evo_cogsci18/figures/'
+PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
+TRIALS = 10
+POP_SIZE = 10
 
-    params = dict(
-        beta = 5,
-        plot_dir = plot_dir
+def color_list(agent_list):
+    '''takes a list of agent types `agent_list` and returns the correctly
+    ordered color mapping for plots
+    '''
+    def lookup(a):
+        a = str(a)
+        if 'WeAgent' in a: return 'C0'
+        if 'AltruisticAgent' in a or 'AllC' in a: return 'C2'
+        if 'SelfishAgent' in a or 'AllD' in a: return 'C3'
+        if 'WSLS' in a: return 'C1'
+        if 'GTFT' in a: return 'C4'
+        if 'TFT' in a: return 'C5'
+        raise('Color not defined for agent %s' % a)
+
+    return sns.color_palette([lookup(a) for a in sorted(agent_list, key=str)])
+
+'''
+Evolution of Cooperation in the Game Engine:
+1. As a function of repeated interactions
+2. As a function of tremble
+3. TODO what about b/c, what about # of actions?
+'''
+def game_engine():
+    beta = 5
+    prior = 0.5
+    opponents = (ag.SelfishAgent(beta = beta), ag.AltruisticAgent(beta = beta))
+    ToM = ('self',) + opponents
+    agents = (ag.WeAgent(prior = prior, beta = beta, agent_types = ToM),) + opponents
+
+    common_params = dict(
+        game = "game_engine",
+        player_types = agents,
+        observability = 0,
+        analysis_type = 'complete',
+        s = .5,
+        pop_size = POP_SIZE,
+        trials = TRIALS,
+        stacked = True,
+        plot_dir = PLOT_DIR,
+        graph_kwargs = {'color' : color_list(agents)},
     )
 
-    direct.Compare_Old(**params)
-    # plot_coop_prob(file_name = 'coop_prob', **params)
-    # scenarios.main(**params)
-    # indirect.ToM_indirect(**params)
+    # Vary expected number of repetitions
+    limit_param_plot(
+        param = 'expected_interactions',
+        param_vals = np.round(np.linspace(1, 10, 10), 2),
+        tremble = 0.0, 
+        file_name = 'game_engine_gamma',
+        **common_params)
+
+    # Vary tremble
+    limit_param_plot(
+        param = 'tremble',
+        param_vals = np.round(np.linspace(0, 1, 10), 2),
+        expected_interactions = 5,
+        file_name = 'game_engine_tremble',
+        **common_params)
+    
+    # complete_sim_plot(
+    #     generations = 1500,
+    #     # param = 'rounds',
+    #     mu = .001,
+    #     tremble = 0,
+    #     expected_interactions = 5,
+    #     start_pop = (0,10,0),
+    #     file_name = 'game_engine_sim',
+    #     # seed = 0,
+    #     **common_params)
+
+def ipd():
+    old_pop = (ag.AllC,ag.AllD,ag.GTFT,ag.TFT,ag.WSLS)
+    ToM = ('self',) + old_pop
+    new_pop = old_pop + (ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
+
+
+    common_params = dict(
+        game = 'direct',
+        s = .5,
+        benefit = 3,
+        cost = 1,
+        pop_size = 100,
+        analysis_type = 'limit',
+        plot_dir = PLOT_DIR,
+        trials = TRIALS,
+        stacked = True,
+    )
+
+    for label, player_types in zip(['wRA', 'woRA'], [old_pop, new_pop]):
+
+        # By expected rounds
+        limit_param_plot(
+            param = 'rounds',
+            rounds = 50,
+            tremble = 0.0,
+            player_types = player_types,
+            file_name = "ipd_rounds_%s" % label,
+            graph_kwargs = {'color' : color_list(player_types)},
+            **common_params)
+
+        # # Tremble
+        # limit_param_plot(
+        #     param = 'tremble',
+        #     param_vals = np.round(np.linspace(0, 0.4, 11), 2),
+        #     rounds = 10,
+        #     player_types = player_types,
+        #     file_name = "ipd_tremble_%s" % label,
+        #     graph_kwargs = {'color' : color_list(player_types)},
+        #     **common_params)
+
+        # Adding cognitive costs
+
+if __name__ == '__main__':
+    # ipd()
+    game_engine()
+
+
+
+
+
+
+
+
+
+
+# plot_coop_prob(file_name = 'coop_prob', **params)
+# scenarios.main(**params)
+# indirect.ToM_indirect(**params)
     
 
 # # Currently broken
@@ -26,7 +144,6 @@ if __name__ == '__main__':
 # evolve.Pavlov_gTFT_race()
 
 
-assert 0 
 
 
 # condition = dict(trials=50,
