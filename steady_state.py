@@ -5,7 +5,6 @@ from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
 from experiment_utils import multi_call, experiment, plotter, MultiArg
-from observability_experiments import indirect_simulator
 from functools import partial
 from utils import memoized
 from multiprocessing import Pool
@@ -307,7 +306,13 @@ def avg_payoff_per_type_from_sim(sim_data, agent_types, cog_cost, game = None, *
             fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
         #fitness_per_round.append(np.array(running_fitness / r))
         else:
-            r = running_fitness/running_interactions
+            # Note to Max: Alejandro convinced me that its OK to set r
+            # = 0 when the running_interactions are 0, that is when
+            # they never interact your fitness should be 0, this pops
+            # up with a warning in any case
+            with np.errstate(divide='ignore', invalid='ignore'):
+                r = running_fitness/running_interactions
+                
             r[running_interactions==0] = 0
             fitness_per_round.append(r)
         

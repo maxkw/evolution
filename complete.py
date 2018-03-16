@@ -5,7 +5,6 @@ from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
 from experiment_utils import multi_call, experiment, plotter, MultiArg
-from observability_experiments import indirect_simulator
 from functools import partial
 from utils import memoized
 from multiprocessing import Pool

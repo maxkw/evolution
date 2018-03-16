@@ -1,21 +1,22 @@
 from __future__ import division
 from collections import Counter, defaultdict
-from itertools import product, permutations, izip
-from utils import normalized, softmax, excluding_keys, logspace, int_logspace, memoized
+import pandas as pd
+from datetime import date
 from math import factorial
 import numpy as np
 from copy import copy
-from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
 import matplotlib.pyplot as plt
 import seaborn as sns
+from itertools import product, permutations, izip
+
+import agents as ag
+from utils import normalized, softmax, excluding_keys, logspace, int_logspace, memoized
+from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
 from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,matchup_matrix_per_round
 from params import default_genome, default_params
-import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
 from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis, evo_analysis, simulation
 #from steady_state import cp_to_transition, complete_softmax, matchups_and_populations, sim_to_rmcp
-import pandas as pd
-from datetime import date
 from agents import leading_8_dict, shorthand_to_standing
 
 TODAY = "./plots/"+date.today().isoformat()+"/"
@@ -176,7 +177,7 @@ def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0,
                            'population' : p})
     return record
 
-@plotter(complete_agent_simulation,plot_exclusive_args = ['data'])
+@plotter(complete_agent_simulation, plot_exclusive_args = ['data', 'graph_kwargs', 'stacked'])
 def complete_sim_plot(generations, player_types, data =[], **kwargs):
     plt.figure(figsize = (3.5,3))
     for hue in data['type'].unique():
@@ -307,6 +308,10 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
     else:
         raise Exception('`param_vals` %s is not defined. Pass this variable' % param)
 
+def ssd_v_params(params, player_types, return_rounds=False, record_params ={}, **kwargs):
+    pass
+
+    
 def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
     dfs = []
     for player_type in player_types:
@@ -349,10 +354,15 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
 
+        if param == 'rounds':
+            plt.xlim([1, kwargs['rounds']])
+        else:
+            plt.xlim([min(kwargs['param_vals']), max(kwargs['param_vals'])])
+            
+            
         if param in ['rounds','expected_interactions']:
             plt.xlabel('Expected Interactions\n' r'$1/(1-\gamma)$')
-            if param == 'expected_interactions':
-                plt.xlim([min(kwargs['param_vals']), max(kwargs['param_vals'])])
+            # if param == 'expected_interactions':
                 # plt.xticks(range(1,11))
                 
         elif param == 'observability':

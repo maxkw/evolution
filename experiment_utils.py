@@ -394,7 +394,7 @@ def plotter(experiment,
             default_file_name = None,
             default_extension = ".pdf",
             experiment_args=[],
-            plot_exclusive_args = ['data']):
+            plot_exclusive_args = ['data', 'graph_kwargs', 'stacked']):
     def wrapper(plot_fun):
         try:
             assert 'data' in getargspec(plot_fun)[0]

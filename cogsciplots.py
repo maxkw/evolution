@@ -50,7 +50,6 @@ def dynamic_dilemma_plot(trials = TRIALS):
         scene_params = scenario[scene_name]
         file_name = scene_name+"_plot"
         limit_param_plot(file_name = file_name,
-                         graph_kwargs = {'color' : sns.color_palette(['C0', 'C1', 'C5'])},
                          **dict(common_params,**scene_params))
 
 def fig4(trials = 200):
@@ -95,8 +94,8 @@ def fig4(trials = 200):
 ####
 
 def main():
-    dynamic_dilemma_plot()
     fig4()
+    dynamic_dilemma_plot()
 
 
 if __name__ == "__main__":
