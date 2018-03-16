@@ -73,11 +73,12 @@ def matchup(player_types, game, **kwargs):
 
     try:
         g = games.__dict__[game](**kwargs)
-    except KeyError:
+    except:
         try:
             g = game(**kwargs)
-        except TypeError:
+        except:
             raise Exception("Game must be a valid game or must be specified in the 'games' dict in 'games.py'")
+        
     params['games'] = g
 
     player_types = []
