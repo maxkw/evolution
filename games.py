@@ -325,15 +325,6 @@ def TernaryDictator(endowment = 0, cost = COST, benefit1 = BENEFIT, benefit2 = B
     decision.tremble = tremble
     return decision
 
-@literal
-def TernaryIgnore(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
-    payoffs = [
-        (endowment,0,0),
-        (endowment-cost,benefit,0),
-    ]
-    decision = Decision(dict((str(p),p) for p in payoffs))
-    decision.tremble = tremble
-    return decision
 
 """
 Decision Seqs
@@ -622,34 +613,6 @@ class DecisionDependentSeq(DecisionSeq):
             last_action = last_decision.last_action
             last_payoff = last_decision(last_action)
 
-"""
-Ultimatum Game
-
-this game is built up of a 'Propose' and 'Decide' game
-"""
-class UltimatumPropose(Decision):
-    def __init__(self, endowment = 10):
-        payoffs = dict()
-        self.name = "UltimatumProposal(%s)" % endowment
-        for give in range(endowment+1):
-            keep = endowment - give
-            payoffs["keep %d/give %d" % (keep, give)] = (keep, give)
-
-        super(UltimatumPropose,self).__init__(payoffs)
-
-class UltimatumDecide(DecisionDependent):
-    def __init__(self,proposed_payoff):
-        self.name = "UltimatumDecide([%s])" % ",".join(map(str,proposed_payoff))
-        payoffs = {"accept":(0,)*len(proposed_payoff),
-                   "reject":tuple(-array(proposed_payoff))}
-        super(UltimatumDecide,self).__init__(payoffs)
-
-class UltimatumGame(DecisionDependentSeq):
-    def __init__(self,endowment = 10):
-        self.name = "UltimatumGame(%s)" % endowment
-        pairs = [(UltimatumPropose(endowment),[0,1]),
-                 (UltimatumDecide,[1,0])]
-        super(UltimatumGame,self).__init__(pairs)
 
 """
 Annotated Decision Sequences
@@ -1198,15 +1161,6 @@ Exponential(PrisonersDilemma, cost = {'gamma':9,'scale':3}, benefit = {'gamma':3
 
 """
 
-#@literal
-def RepeatedDynamicPrisoners(rounds = ROUNDS, endowment = 0, cost = COST, benefit = BENEFIT, gamma = 1):
-    return Repeated(rounds,PrivatelyObserved(Exponential(PrisonersDilemma)))
-#return Repeated(rounds,PrivatelyObserved(DynamicPD()))
-
-def RepeatedSequentialBinary(rounds = ROUNDS, visibility = "private"):
-    BD = BinaryDictator(cost = COST, benefit = BENEFIT)
-    return Repeated(rounds,PrivatelyObserved(Symmetric(BD)))
-
 @literal
 def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tremble = 0, intervals = 2, **kwargs):
     PD = Symmetric(GradatedBinaryDictator(cost = cost, benefit = benefit, intervals=intervals, tremble = tremble))
@@ -1220,86 +1174,6 @@ def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tre
     return g
     
 direct = RepeatedPrisonersTournament
-
-@literal
-def IndirectReciprocity(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, **kwargs):
-    bd = GradatedBinaryDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-    g = Repeated(rounds, Circular(RandomlyObserved(observability, bd)))
-    return g
-
-@literal
-def ExponentialIndirectReciprocity(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, **kwargs):
-    bd = Randomly(GradatedBinaryDictator,
-                     cost = dict(func = exponential, gamma = 1, scale = cost),
-                     benefit = dict(func = exponential, gamma = 1, scale = benefit),
-                     intervals = intervals,
-                     tremble = tremble)
-    g = Repeated(rounds, Circular(RandomlyObserved(observability, bd)))
-    return g
-
-
-@literal
-def GradatedTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, intervals = 2, **kwargs):
-    args = dict(cost=cost, benefit = benefit, tremble = tremble, intervals = intervals)
-    game = Repeated(rounds, PubliclyObserved(Symmetric(GradatedBinaryDictator(**args))))
-    return game
-
-
-@literal
-def SocialTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, followers = True, **kwargs):
-    args = dict(cost = cost, benefit = benefit, tremble = tremble)
-    bd = SocialDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble)
-
-    # bd = OrGame(
-    #    SocialDictator(intervals = intervals, **args),
-    #    TernaryDictator(**args)
-    # )
-    #bd = TernaryDictator(**args)
-    #bd = SocialDictator(intervals = intervals, **args)
-
-    if followers:
-        game = Annotated(rounds, RandomMatching(ObservedByFollowers(observability,bd)))
-    else:
-        raise Exception
-        #game = Annotated(rounds, RandomMatching(RandomlyObserved(observability,bd)))
-
-    return game
-
-@literal
-def OrTournament(rounds = ROUNDS, cost = COST, benefit = BENEFIT, tremble = 0, observability = 1, intervals = 2, followers = True, **kwargs):
-    bd = OrGame(Randomly(SocialDictator,
-                         cost = dict(func = np.random.gamma, shape = 1, scale = cost),
-                         benefit = dict(func = np.random.gamma, shape = 1, scale = benefit),
-                         intervals = dict(func = np.random.randint, low = 2, high = 9),
-                         tremble = tremble),
-                Randomly(SocialDictator,
-                         cost = dict(func = np.random.gamma, shape = 1, scale = cost),
-                         benefit = dict(func = np.random.gamma, shape = 1, scale = benefit),
-                         intervals = dict(func = np.random.randint, low = 2, high = 9),
-                         tremble = tremble),
-                Randomly(SocialDictator,
-                         cost = dict(func = np.random.gamma, shape = 1, scale = cost),
-                         benefit = dict(func = np.random.gamma, shape = 1, scale = benefit),
-                         intervals = dict(func = np.random.randint, low = 2, high = 9),
-                         tremble = tremble),
-                Randomly(TernaryDictator,
-                         cost = 0,
-                         benefit1 = dict(func = np.random.gamma, shape = 1, scale = benefit),
-                         benefit2 = dict(func = np.random.gamma, shape = 1, scale = benefit),
-                         tremble = tremble))
-    
-    # bd = OrGame(
-        # SocialDictator(cost = cost, benefit = benefit, intervals = intervals, tremble = tremble),
-        # TernaryDictator(cost = cost, benefit1 = benefit, benefit2 = benefit, tremble = tremble)
-        # )
-    
-    if followers:
-        game = Annotated(rounds, RandomMatching(ObservedByFollowers(observability,bd)))
-    else:
-        raise Exception
-
-
-    return game
 
 @literal
 def dynamic(expected_interactions, observability, **kwargs):
@@ -1319,154 +1193,6 @@ def dynamic_sim(expected_interactions, observability, **kwargs):
     return game
 
 @literal
-def dd_ci_va(expected_interactions = 1, observability=0, cost = 1, benefit = 3, intervals = 1, tremble = .1, **kwargs):
-    assert intervals>=0
-
-    def Gen():
-        N_actions = intervals-1
-        N_players = np.random.choice([2,3])
-        t = np.random.beta(tremble, 10)
-        # initialize set of choices with the zero-action
-        choices = [np.zeros(N_players)]
-        for n in range(intervals-1):
-            c = np.random.poisson(cost)
-            b = np.random.exponential(benefit)
-            for p in xrange(1,N_players):
-                choice = np.zeros(N_players)
-                choice[0] = -c
-                choice[p] = b*c
-                choices.append(copy(choice))
-        decision = Decision(OrderedDict((str(p),p) for p in choices))
-        decision.tremble = t
-
-        return decision
-
-    dictator = Dynamic(Gen)
-    dictator.name = "dd_ci_va"
-    gamma = 1-1/expected_interactions
-    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
-    return game
-
-@literal
-def dd_ci_sa(expected_interactions = 1, observability=0, cost = 1, benefit = 3, intervals = 1, tremble = .1, variance = 1, **kwargs):
-    assert intervals>=0
-
-    def Gen():
-        N_actions = intervals-1
-        N_players = np.random.choice([2,3])
-        t = tremble#np.random.beta(tremble, 10)
-        # initialize set of choices with the zero-action
-
-        costs = sorted([np.random.poisson(cost) for _ in range(intervals-1)])
-        weights = sorted([np.random.exponential(benefit) for _ in range(intervals-1)])
-
-        choices = [np.zeros(N_players)]
-        for c,w in zip(costs,weights):
-            for p in xrange(1,N_players):
-                choice = np.zeros(N_players)
-                choice[0] = -c
-                choice[p] = w*c
-                choices.append(copy(choice))
-        decision = Decision(OrderedDict((str(p),p) for p in choices))
-        decision.tremble = t
-
-        return decision
-
-    dictator = Dynamic(Gen)
-    dictator.name = "dd_ci_va"
-    gamma = 1-1/expected_interactions
-    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
-    return game
-
-@literal
-def dd_ci_pa(expected_interactions = 1, observability=0, cost = 1, benefit = 3, intervals = 1, tremble = .1, **kwargs):
-    assert intervals>=0
-
-    def Gen():
-        N_players = np.random.choice([2,3])
-        c = np.random.poisson(cost)
-        b = np.random.exponential(benefit)*c
-        t = tremble#np.random.beta(tremble, 10)
-
-        max_d = benefit - cost
-        max_r = cost / benefit
-
-        ratios = np.linspace(0, max_r, intervals)
-        differences = np.linspace(0, max_d, intervals)
-
-        def new_cost(r,d):
-            return d/(1-r)-d
-        def new_benefit(r,d):
-            return d/(1-r)
-
-        payoffs = []
-        for i,(d,r) in enumerate(zip(differences,ratios)):
-            if i == 0:
-                payoffs.append(np.zeros(N_players))
-            else:
-                nc = new_cost(r,d)
-                nb = new_benefit(r,d)*nc
-                for p in xrange(1,N_players):
-                    choice = np.zeros(N_players)
-                    choice[0] = -nc
-                    choice[p] = nb*nc
-                    payoffs.append(copy(choice))
-
-        decision = Decision(OrderedDict((str(p),p) for p in payoffs))
-        decision.tremble = t
-        return decision
-
-    dictator = Dynamic(Gen)
-    dictator.name = "dd_ci_va"
-    gamma = 1-1/expected_interactions
-    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
-    return game
-
-@literal
-def dd_ci_pas(expected_interactions = 1, observability=0, cost = 1, benefit = 3, intervals = 1, tremble = .1, **kwargs):
-    assert intervals>=0
-
-    def Gen():
-        N_players = np.random.choice([2,3])
-        c = cost#np.random.poisson(cost)
-        b = benefit*c#np.random.exponential(benefit)*c
-        t = tremble#np.random.beta(tremble, 10)
-
-        max_d = benefit - cost
-        max_r = cost / benefit
-
-        ratios = np.linspace(0, max_r, intervals)
-        differences = np.linspace(0, max_d, intervals)
-
-        def new_cost(r,d):
-            return d/(1-r)-d
-        def new_benefit(r,d):
-            return d/(1-r)
-
-        payoffs = []
-        for i,(d,r) in enumerate(zip(differences,ratios)):
-            if i == 0:
-                payoffs.append(np.zeros(N_players))
-            else:
-                nc = np.random.poisson(new_cost(r,d))
-                nb = np.random.exponential(new_benefit(r,d))*nc
-                for p in xrange(1,N_players):
-                    choice = np.zeros(N_players)
-                    choice[0] = -nc
-                    choice[p] = nb
-                    payoffs.append(copy(choice))
-
-        decision = Decision(OrderedDict((str(p),p) for p in payoffs))
-        decision.tremble = t
-        return decision
-
-    dictator = Dynamic(Gen)
-    dictator.name = "dd_ci_va"
-    gamma = 1-1/expected_interactions
-    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
-    return game
-
-@literal
 def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefit = 10, intervals = 2, tremble = .1, **kwargs):
     assert intervals>=0
 
@@ -1498,13 +1224,12 @@ def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefi
     return game
 
 @literal
-def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefit = 10, intervals = 2, tremble = .1, **kwargs):
+def game_engine(expected_interactions = 1, observability = 0, cost = 1, benefit = 10, intervals = 2, tremble = 0, **kwargs):
     assert intervals>=0
 
     def Gen():
         N_actions = 1+np.random.poisson(intervals-1)
         N_players = np.random.choice([2,3])
-        t = np.random.beta(tremble, 10)
 
         # initialize set of choices with the zero-action
         choices = [np.zeros(N_players)]
@@ -1518,7 +1243,7 @@ def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefi
                 choice[p] = c*w+e
                 choices.append(copy(choice))
         decision = Decision(OrderedDict((str(p),p) for p in choices))
-        decision.tremble = t
+        decision.tremble = tremble
 
         return decision
 
@@ -1527,6 +1252,7 @@ def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefi
     gamma = 1-1/expected_interactions
     game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
     return game
+
 
 @literal
 def manual(gamma, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, intervals = 2, followers = True, **kwargs):
