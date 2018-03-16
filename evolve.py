@@ -254,21 +254,19 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
     # Test to make sure each agent interacts with a new agent each
     # time. Otherwise its not true 'indirect' reciprocity.
 
-    Xs = {
-        # 'RA_prior': np.linspace(0,1,21)[1:-1],
-        'RA_prior': np.linspace(0, 1, 21),
-        'benefit': np.linspace(2, 10, 5),
-        'beta': np.linspace(1, 11, 6),
-        'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
-        's': logspace(start = .001, stop = 1, samples = 100),
-        'observability': np.round(np.linspace(0, 1, 11),2),
-        'tremble': np.round(np.linspace(0, 0.4, 41),2),
-        'expected_interactions': np.linspace(1, 10, 10),
-
-        'intervals' : [2, 4, 8],
-        # 'tremble': np.round(np.linspace(0, .4, splits(5)), 2),
-        #'gamma' : [0, .5, .8, .9]
-    }
+    # Xs = {
+    #     # 'RA_prior': np.linspace(0,1,21)[1:-1],
+    #     'RA_prior': np.linspace(0, 1, 21),
+    #     'benefit': np.linspace(2, 10, 5),
+    #     'beta': np.linspace(1, 11, 6),
+    #     'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
+    #     's': logspace(start = .001, stop = 1, samples = 100),
+    #     'observability': np.round(np.linspace(0, 1, 11),2),
+    #     'tremble': np.round(np.linspace(0, 0.4, 41),2),
+    #     'expected_interactions': np.linspace(1, 10, 10),
+    #     'intervals' : [2, 4, 8],
+    # }
+    
     record = []
 
     if param == "rounds":
@@ -283,15 +281,12 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
                 
         return pd.DataFrame.from_records(record)
 
-    elif (param in Xs) or ('param_vals' in kwargs):
-        vals = kwargs.get('param_vals', Xs.get(param, None))
-        try:
-            del kwargs['param_vals']
-        except:
-            pass
+    if 'param_vals' in kwargs:
+        vals = kwargs['param_vals']
+        del kwargs['param_vals']
+
         for x in vals:
             expected_pop_per_round = evo_analysis(player_types = player_types, **dict(kwargs,**{param:x}))
-
 
             if return_rounds:
                 start = 1
@@ -310,7 +305,7 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
         return pd.DataFrame.from_records(record)
 
     else:
-        raise Exception('Param %s is not implemented. Add the range to Xs' % param)
+        raise Exception('`param_vals` %s is not defined. Pass this variable' % param)
 
 def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
     dfs = []
@@ -344,21 +339,21 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_kwar
     data.reindex_axis(sorted(data.columns, key = lambda t:type_order[t]), 1)
 
     if stacked:
-
         if param in ['expected_interactions']:
             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
         elif param in ['rounds']:
              data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
         else:
             data.plot.area(stacked = True, ylim = [0, 1], figsize = (3.5, 3), legend=False, **graph_kwargs)
+            
         if 'legend' not in graph_kwargs or graph_kwargs['legend']:
             legend = make_legend()
 
         if param in ['rounds','expected_interactions']:
             plt.xlabel('Expected Interactions\n' r'$1/(1-\gamma)$')
             if param == 'expected_interactions':
-                plt.xlim([1,10])
-                plt.xticks(range(1,11))
+                plt.xlim([min(kwargs['param_vals']), max(kwargs['param_vals'])])
+                # plt.xticks(range(1,11))
                 
         elif param == 'observability':
             plt.xlabel('Probability of observation\n' r'$\omega$')
