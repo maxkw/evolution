@@ -1,7 +1,7 @@
 from __future__ import division
 from collections import OrderedDict
 from utils import flip
-from itertools import product, combinations, permutations,cycle,izip
+from itertools import combinations, cycle, izip, permutations
 from numpy import array
 from copy import copy, deepcopy
 import numpy as np
@@ -583,7 +583,6 @@ class DecisionDependent(Decision):
     this, along with DecisionDependentSeq are meant to be a framework
     for implementing things like the ultimatum game
     """
-    pass
 
 class DecisionDependentSeq(DecisionSeq):
     """
@@ -1268,9 +1267,7 @@ def manual(gamma, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0
 if __name__ == "__main__":
     import utils
     assert 0
-    from agents import WeAgent, Puppet
-    import agents
-    from params import default_genome
+    from agents import Puppet
     
     puppets = array([Puppet("Alpha"),Puppet("Beta"),Puppet("C")])
     

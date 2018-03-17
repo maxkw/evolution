@@ -1,12 +1,12 @@
 from __future__ import division
 import scipy as sp
-from collections import defaultdict, OrderedDict, Counter
+from collections import Counter, OrderedDict
 import seaborn as sns
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
-from params import default_params, default_genome
-from agents import ReciprocalAgent, SelfishAgent, AltruisticAgent, RationalAgent, gTFT, AllC, AllD, Pavlov, WeAgent, RandomAgent
-from games import BinaryDictator, GradatedBinaryDictator, SocialDictator
+from params import default_genome
+from agents import AltruisticAgent, RationalAgent, ReciprocalAgent, SelfishAgent, WeAgent
+from games import BinaryDictator, SocialDictator
 import matplotlib.pyplot as plt
 
 agent_to_label = {ReciprocalAgent: 'Reciprocal',

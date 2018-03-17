@@ -2,18 +2,10 @@ from __future__ import division
 import numpy as np
 import itertools
 import random
-import scipy as sp
-from collections import Counter
-from itertools import product
-from copy import copy
 import pandas as pd
-import collections
-import math
-from inspect import getargspec
-from collections import OrderedDict
-import os
 from functools import wraps, reduce
 from pickle import load, dump
+from copy import deepcopy
 
 pd.set_option('precision',5)
 
@@ -67,7 +59,7 @@ def memoized(f):
     class memodict(dict):
         def __getitem__(self, *key):
             try:
-                return dict.__getitem__(self, key)
+                return deepcopy(dict.__getitem__(self, key))
             except:
                 print self, key
                 raise

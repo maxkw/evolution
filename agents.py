@@ -1,13 +1,10 @@
 from __future__ import division
-import scipy as sp
 import numpy as np
-import pandas as pd
-import itertools
 from collections import defaultdict
 import matplotlib.pyplot as plt
-from utils import softmax, sample_softmax, softmax_utility, flip, normalized, excluding_keys
+from utils import excluding_keys, normalized, softmax
 from copy import copy, deepcopy
-from utils import unpickled, pickled, HashableDict,_issubclass
+from utils import HashableDict, _issubclass
 from itertools import chain, product, combinations
 import networkx as nx
 
@@ -43,7 +40,7 @@ class AgentType(type):
         return hash(cls.__name__)
 
     def __eq__(cls, other):
-        return hash(cls) == hash(other)
+        return str(cls) == str(other)
 
     def short_name(cls, *args):
         return cls.__name__
@@ -412,11 +409,17 @@ class PrefabAgent(Agent):
         return hash(str(self))
 
     def __eq__(self, other):
-        if hash(self) == hash(other):
+        if str(self) == str(other):
             return True
-        if hash(self.type) == hash(other):
+        if str(self.type) == str(other):
             return True
         return False
+
+        # if hash(self) == hash(other):
+        #     return True
+        # if hash(self.type) == hash(other):
+        #     return True
+        # return False
 
     def ingroup(self):
         return self.type.ingroup()

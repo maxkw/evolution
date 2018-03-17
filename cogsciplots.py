@@ -1,6 +1,6 @@
 import inspect
 plot_dir = "./plots/"+inspect.stack()[0][1][:-3]+"/"
-from evolve import limit_param_plot, splits
+from evolve import limit_param_plot
 import agents as ag
 import numpy as np
 import seaborn as sns

@@ -1,6 +1,5 @@
 import numpy as np
-from agents import SelfishAgent,ReciprocalAgent,AltruisticAgent,RationalAgent,IngroupAgent,PrefabAgent, is_agent_type
-import math
+from agents import IngroupAgent, RationalAgent
 from utils import _issubclass
 import seaborn as sns
 #from frozendict import frozendict

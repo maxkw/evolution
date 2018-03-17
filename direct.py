@@ -1,21 +1,8 @@
 from __future__ import division
-from collections import Counter, defaultdict
-from itertools import product, permutations, izip
-from utils import normalized, softmax, excluding_keys, logspace, int_logspace, memoized
-from math import factorial
-import numpy as np
-from copy import copy
-from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
-import matplotlib.pyplot as plt
-import seaborn as sns
-from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,matchup_matrix_per_round
-from params import default_genome, default_params
+from itertools import product
 import agents as ag
 from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis
-from cycler import cycler
 
-import pandas as pd
 from datetime import date
 from evolve import param_v_rounds_heat, param_v_rounds, compare_param_v_rounds
 from evolve import limit_param_plot, ssd_v_param, compare_ssd_v_param, param_v_rounds_plot
