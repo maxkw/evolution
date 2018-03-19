@@ -218,7 +218,8 @@ def plot_beliefs(believer, opponent_types, believed_types, data = [],**kwargs):
     # .set_xlabels("P(t = Type)")
      #.set_titles("")
      #.set_ylabels5
-                
+
+@memoize
 def matchup_grid(player_types,**kwargs):
     player_types = MultiArg(combinations_with_replacement(player_types,2))
     return matchup(player_types,**kwargs)
@@ -254,6 +255,7 @@ def matchup_data_to_matrix(data):
         for matchup in permutations(combination):
             player,opponent = matchup
             p,o = tuple(index[t] for t in matchup)
+            
             trials = data[(data['player_types']==combination) & (data['type']==player)]
             payoffs[p,o] = trials.mean()['fitness']
 
@@ -262,34 +264,30 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
     params = default_params(**condition)
 
     all_data = matchup_grid(player_types, per_round = True, rounds = max_rounds, **kwargs)
+    means = all_data.groupby(['round', 'player_types', 'type'])['fitness'].mean()
+    player_combos = means.index.levels[1]
+
     index = dict(map(reversed,enumerate(player_types)))
     payoffs_list = []
     payoffs = np.zeros((len(player_types),)*2)
-    # FIXME: Why is this starting from 1?
-    for r in range(1, max_rounds + 1):
-        data = all_data[all_data['round']==r]
-        for combination in data['player_types'].unique():
-            combo = data[(data['player_types']==combination)]
+    for r in range(1, max_rounds+ 1): 
+        for combination in player_combos:
             for matchup in set(permutations(combination)):
-                player,opponent = matchup
-                p,o = tuple(index[t] for t in matchup)
-                # trials = combo[(combo['type']==player)]
-                # import pdb; pdb.set_trace()
-                # payoffs[p,o] += trials.mean()['fitness']
+                player, opponent = matchup
+                p, o = tuple(index[t] for t in matchup)
+
                 if 'WeAgent' in str(player):
                     c = cog_cost
                 else:
                     c = 0
 
-                payoffs[p,o] += combo[(combo['type']==player)].mean()['fitness']-c
+                payoffs[p,o] += means[(r, combination, player)] - c
         payoffs_list.append(copy(payoffs))
-    #print payoffs_list
     
     for r,p in enumerate(payoffs_list,start=1):
-        p/=r
+        p /= r
+        
     return list(enumerate(payoffs_list,start=1))
-
-
 
 @plotter(matchup_grid, plot_exclusive_args = ['data'])
 def matchup_plot(data = [],**kwargs):
@@ -578,11 +576,6 @@ memo_bin_matchup = memoize(binary_matchup)
 
 def mean(*numbers):
     return sum(numbers)/len(numbers)
-
-
-
-
-
 
 def test_matchup_matrix(RA):
     

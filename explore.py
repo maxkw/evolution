@@ -1,7 +1,6 @@
 import inspect
 plot_dir = "./plots/"+inspect.stack()[0][1][:-3]+"/"
-from itertools import product
-from evolve import limit_param_plot, splits, grid_param_plot,splits
+from evolve import grid_param_plot, splits, splits
 import agents as ag
 import numpy as np
 from games import AnnotatedGame, IndefiniteMatchup, AllNoneObserve, literal

@@ -1,25 +1,22 @@
 from __future__ import division
-from collections import Counter, defaultdict
 import pandas as pd
 from datetime import date
-from math import factorial
 import numpy as np
-from copy import copy
 import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import product, permutations, izip
 
 import agents as ag
-from utils import normalized, softmax, excluding_keys, logspace, int_logspace, memoized
-from experiment_utils import multi_call, experiment, plotter, MultiArg, memoize, apply_to_args
-from experiments import binary_matchup, memoize, matchup_matrix, matchup_plot,matchup_matrix_per_round
-from params import default_genome, default_params
-from agents import gTFT, AllC, AllD, Pavlov, RandomAgent, WeAgent, SelfishAgent, ReciprocalAgent, AltruisticAgent
-from steady_state import mm_to_limit_mcp, mcp_to_ssd, steady_state, mcp_to_invasion, limit_analysis, evo_analysis, simulation
+
+from utils import excluding_keys, softmax
+from experiment_utils import experiment, memoize, plotter
+from experiments import matchup_matrix, memoize
+from params import default_params
+from agents import WeAgent
+from steady_state import evo_analysis, simulation
 from steady_state import simulation_from_dict, matchups_and_populations
 from multiprocessing import Pool
 #from steady_state import cp_to_transition, complete_softmax, matchups_and_populations, sim_to_rmcp
-from agents import leading_8_dict, shorthand_to_standing
 
 TODAY = "./plots/"+date.today().isoformat()+"/"
 
@@ -471,28 +468,5 @@ def some_test():
     )
 
 
-def cog_costs(tremble = 0):
-    common_params = dict(game = 'direct',
-                         benefit = 3,
-                         cost = 1,
-                         pop_size = 100,
-                         analysis_type = 'limit',
-                         s = .5,
-                         #plot_dir = plot_dir,
-                         trials = 200,
-                         stacked = True,
-                         tremble = tremble,
-                         rounds = 10,
-                         param_vals = np.linspace(0,.3, 50),
-    )
-
-    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.WSLS)
-    ToM = ('self',) + old_pop
-    new_pop = old_pop +(ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
-    limit_param_plot(param = 'cog_cost',
-                     file_name = "cogcosts(tremble = %s)" % tremble,
-                     player_types = new_pop,
-                     graph_kwargs = dict(xlim = [0,.3]),
-                     **common_params)
 if __name__ == "__main__":
-    cog_costs(.1)
+    pass

@@ -3,7 +3,7 @@ import numpy as np
 import seaborn as sns
 
 import agents as ag
-from evolve import limit_param_plot, complete_sim_plot
+from evolve import limit_param_plot
 
 
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
@@ -97,17 +97,16 @@ def ipd():
         stacked = True,
     )
 
-    for label, player_types in zip(['wRA', 'woRA'], [old_pop, new_pop]):
-
-        # By expected rounds
-        limit_param_plot(
-            param = 'rounds',
-            rounds = 50,
-            tremble = 0.0,
-            player_types = player_types,
-            file_name = "ipd_rounds_%s" % label,
-            graph_kwargs = {'color' : color_list(player_types)},
-            **common_params)
+    # for label, player_types in zip(['wRA', 'woRA'], [old_pop, new_pop]):
+    #     # By expected rounds
+    #     limit_param_plot(
+    #         param = 'rounds',
+    #         rounds = 50,
+    #         tremble = 0.0,
+    #         player_types = player_types,
+    #         file_name = "ipd_rounds_%s" % label,
+    #         graph_kwargs = {'color' : color_list(player_types)},
+    #         **common_params)
 
         # # Tremble
         # limit_param_plot(
@@ -119,11 +118,20 @@ def ipd():
         #     graph_kwargs = {'color' : color_list(player_types)},
         #     **common_params)
 
-        # Adding cognitive costs
+    
+    # Adding cognitive costs
+    limit_param_plot(param = 'cog_cost',
+                     tremble = 0.0,
+                     rounds = 10,
+                     param_vals = np.linspace(0,.3, 50),
+                     file_name = "ipd_cogcosts",
+                     player_types = new_pop,
+                     graph_kwargs = {'color' : color_list(new_pop)},
+                     **common_params)
 
 if __name__ == '__main__':
-    # ipd()
-    game_engine()
+    ipd()
+    # game_engine()
 
 
 

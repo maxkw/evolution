@@ -9,10 +9,10 @@ from copy import copy,deepcopy
 from utils import pickled, unpickled
 from operator import itemgetter
 import matplotlib.pyplot as plt
-from types import FunctionType
 import sys
 from functools import wraps
-### for experiments
+from copy import deepcopy
+
 def is_sequency(obj):
     if isinstance(obj,basestring):
         return False
@@ -582,7 +582,7 @@ def memoize(obj):
         key = str(args) + str(kwargs)
         if key not in cache:
             cache[key] = obj(*args, **kwargs)
-        return cache[key]
+        return deepcopy(cache[key])
     return memoizer
 
 if __name__ == "__main__":

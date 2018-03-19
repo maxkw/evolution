@@ -1,4 +1,4 @@
-from agents import SelfishAgent,AltruisticAgent,WeAgent
+from agents import SelfishAgent, WeAgent
 from evolve import limit_param_plot
 from itertools import product
 

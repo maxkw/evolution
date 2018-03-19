@@ -1,7 +1,5 @@
 from __future__ import division
-import scipy as sp
 import numpy as np
-import itertools
 import warnings
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 

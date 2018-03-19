@@ -1,4 +1,4 @@
-from agents import WeAgent, AllD, AllC, gTFT
+from agents import AllC, AllD, WeAgent
 from itertools import product
 import numpy as np
 from games import BinaryDictator

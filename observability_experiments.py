@@ -1,13 +1,10 @@
 from games import IndirectReciprocity
 from world import World
-from agents import WeAgent, AllD, ReciprocalAgent
+from agents import AllD, WeAgent
 from collections import defaultdict
 from params import default_params,default_genome
-from experiment_utils import experiment, plotter, multi_call, MultiArg
-import numpy as np
+from experiment_utils import experiment, multi_call, plotter
 import seaborn as sns
-import pandas as pd
-from utils import softmax_utility
 
 
 

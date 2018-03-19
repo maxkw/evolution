@@ -1,14 +1,9 @@
 from __future__ import division
-from collections import Counter, defaultdict
-from itertools import product, permutations, combinations, izip
-from utils import normalized, softmax, excluding_keys
+from collections import Counter
+from itertools import permutations
+from utils import softmax
 from math import factorial
 import numpy as np
-from experiment_utils import multi_call, experiment, plotter, MultiArg
-from functools import partial
-from utils import memoized
-from multiprocessing import Pool
-from experiments import matchup,matchup_matrix_per_round
 
 def fixed_length_partitions(n,L):
     """
