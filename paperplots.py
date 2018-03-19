@@ -46,7 +46,7 @@ def game_engine():
         #analysis_type = 'complete',
         s = .5,
         pop_size = POP_SIZE,
-        trials = TRIALS,
+        #trials = TRIALS,
         stacked = True,
         plot_dir = PLOT_DIR,
         graph_kwargs = {'color' : color_list(agents)},
