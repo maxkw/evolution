@@ -1,7 +1,7 @@
 from __future__ import division
 import pandas as pd
 import seaborn as sns
-from experiment_utils import multi_call,experiment,plotter,MultiArg, memoize, apply_to_args
+from experiment_utils import multi_call,experiment,plotter,MultiArg, apply_to_args
 import numpy as np
 from params import default_params, default_genome
 from world import World
@@ -15,7 +15,7 @@ from itertools import product,islice,cycle
 import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy,deepcopy
-from utils import softmax_utility, _issubclass, normalized
+from utils import softmax_utility, _issubclass, normalized,memoize
 import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
