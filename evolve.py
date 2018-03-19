@@ -458,28 +458,5 @@ def some_test():
     )
 
 
-def cog_costs(tremble = 0):
-    common_params = dict(game = 'direct',
-                         benefit = 3,
-                         cost = 1,
-                         pop_size = 100,
-                         analysis_type = 'limit',
-                         s = .5,
-                         #plot_dir = plot_dir,
-                         trials = 200,
-                         stacked = True,
-                         tremble = tremble,
-                         rounds = 10,
-                         param_vals = np.linspace(0,.3, 50),
-    )
-
-    old_pop = (ag.AllC, ag.AllD, ag.GTFT, ag.TFT, ag.WSLS)
-    ToM = ('self',) + old_pop
-    new_pop = old_pop +(ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
-    limit_param_plot(param = 'cog_cost',
-                     file_name = "cogcosts(tremble = %s)" % tremble,
-                     player_types = new_pop,
-                     graph_kwargs = dict(xlim = [0,.3]),
-                     **common_params)
 if __name__ == "__main__":
-    cog_costs(.1)
+    pass
