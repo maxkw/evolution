@@ -1,17 +1,22 @@
 from __future__ import division
+from collections import Counter, defaultdict
 from itertools import product, permutations, combinations, izip
-from utils import normalized
+from utils import normalized, softmax, excluding_keys
+from math import factorial
 import numpy as np
-from utils import memoized
+from experiment_utils import multi_call, experiment, plotter, MultiArg
+from functools import partial
+from utils import memoize
 from multiprocessing import Pool
-from experiments import matchup, matchup_matrix_per_round
-from complete import all_partitions
+from experiments import matchup,matchup_matrix_per_round
+from copy import copy
+from complete import all_partitions, fixed_length_partitions
 
 ###
 # Limit
 ###
 
-def mm_to_limit_mcp(payoff, pop_size):
+def mm_to_limit_mcp(payoff,pop_size):
     """
     this takes a TxT matrix that gives the payoff to t1 when facing t2 into a
     matchup->composition->payoff matrix, which goes from the
@@ -27,26 +32,23 @@ def mm_to_limit_mcp(payoff, pop_size):
     I = np.identity(type_count)
 
     mcp_lists= []
-    
     for types in type_indices_matchups:
         payoffs = []
         type_indices = np.array([True if i in tuple(types) else False for i in range(type_count)])
         
-        # TODO: The below code is slow because it is not vectorized see if
-        # its possible vectorize it
         for counts in liminal_pops:
-            pay = np.array([np.dot(counts-I[t][type_indices], payoff[t][type_indices])/(pop_size-1) for t in types])
+            pay = np.array([np.dot(counts-I[t][type_indices],payoff[t][type_indices])/(pop_size-1) for t in types])
             payoffs.append(pay)
-
+            
         mcp_lists.append(payoffs)
         
     mcp_matrix = np.array(mcp_lists)
     return mcp_matrix
 
-@memoized
-def ana_to_limit_rmcp(player_types, pop_size, rounds, cog_cost = 0, **kwargs):
+@memoize
+def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
-    rmcp = np.array([mm_to_limit_mcp(payoff, pop_size) for r, payoff in payoffs])
+    rmcp = np.array([mm_to_limit_mcp(payoff, pop_size) for r,payoff in payoffs])
     return rmcp
 
 def mcp_to_ssd(mcp,s):
@@ -318,7 +320,7 @@ def avg_payoff_per_type_from_sim(sim_data, agent_types, cog_cost, game = None, *
     return fitness_per_round
 
 
-@memoized
+@memoize
 def simulation(player_types, cog_cost = 0,  *args, **kwargs):
 
 
@@ -415,7 +417,7 @@ def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = 
     return rmcp
 
 
-@memoized
+@memoize
 def evo_analysis(player_types, analysis_type = 'limit', direct = True, *args, **kwargs):
     type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
     original_order = np.array([type_to_index[t] for t in player_types])
