@@ -43,10 +43,10 @@ def game_engine():
         game = "game_engine",
         player_types = agents,
         observability = 0,
-        analysis_type = 'complete',
+        #analysis_type = 'complete',
         s = .5,
         pop_size = POP_SIZE,
-        trials = TRIALS,
+        #trials = TRIALS,
         stacked = True,
         plot_dir = PLOT_DIR,
         graph_kwargs = {'color' : color_list(agents)},
@@ -79,16 +79,16 @@ def game_engine():
     #     file_name = 'game_engine_tremble',
     #     **common_params)
     
-    # complete_sim_plot(
-    #     generations = 1500,
-    #     # param = 'rounds',
-    #     mu = .001,
-    #     tremble = 0,
-    #     expected_interactions = 5,
-    #     start_pop = (0,10,0),
-    #     file_name = 'game_engine_sim',
-    #     # seed = 0,
-    #     **common_params)
+    complete_sim_plot(
+         generations = 1500,
+         #param = 'rounds',
+         mu = .001,
+         tremble = 0,
+         expected_interactions = 5,
+         start_pop = (0,10,0),
+         file_name = 'game_engine_sim',
+         # seed = 0,
+         **common_params)
 
 def ipd():
     old_pop = (ag.AllC,ag.AllD,ag.GTFT,ag.TFT,ag.WSLS)

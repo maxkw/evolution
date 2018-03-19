@@ -7,12 +7,15 @@ import seaborn as sns
 from itertools import product, permutations, izip
 
 import agents as ag
+
 from utils import excluding_keys, softmax
 from experiment_utils import experiment, memoize, plotter
 from experiments import matchup_matrix, memoize
 from params import default_params
 from agents import WeAgent
 from steady_state import evo_analysis, simulation
+from steady_state import simulation_from_dict, matchups_and_populations
+from multiprocessing import Pool
 #from steady_state import cp_to_transition, complete_softmax, matchups_and_populations, sim_to_rmcp
 
 TODAY = "./plots/"+date.today().isoformat()+"/"
@@ -115,13 +118,20 @@ def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kw
     pop = np.array(start_pop)
     assert type_count == len(pop)
 
+
+    matchups, populations = matchups_and_populations(player_types, pop_size, "complete")
+    matchup_pop_dicts = [dict(player_types = zip(*pop_pair), **kwargs) for pop_pair in product(matchups, populations)]
+    pool = Pool(8)
+    payoffs = pool.map(simulation_from_dict, matchup_pop_dicts)
+    pool.close()
+
     type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
     original_order = np.array([type_to_index[t] for t in player_types])
     #player_types = sorted(player_types)
     @memoize
     def sim(pop):
         #print np.array(range(3))[original_order]
-        f = simulation(zip(player_types,pop), trials = 20, **kwargs)[-1]
+        f = simulation(zip(player_types,pop), **kwargs)[-1]
         print 'types', player_types
 
         print 'sorted', sorted(player_types)
