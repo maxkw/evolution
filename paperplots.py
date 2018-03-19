@@ -43,7 +43,7 @@ def game_engine():
         game = "game_engine",
         player_types = agents,
         observability = 0,
-        analysis_type = 'complete',
+        #analysis_type = 'complete',
         s = .5,
         pop_size = POP_SIZE,
         trials = TRIALS,
@@ -53,31 +53,31 @@ def game_engine():
     )
 
     # Vary expected number of repetitions
-    limit_param_plot(
-        param = 'expected_interactions',
-        param_vals = np.round(np.linspace(1, 10, 10), 2),
-        tremble = 0.0, 
-        file_name = 'game_engine_gamma',
-        **common_params)
+    #limit_param_plot(
+    #    param = 'expected_interactions',
+    #    param_vals = np.round(np.linspace(1, 10, 10), 2),
+    #    tremble = 0.0, 
+    #    file_name = 'game_engine_gamma',
+    #    **common_params)
 
     # Vary tremble
-    limit_param_plot(
-        param = 'tremble',
-        param_vals = np.round(np.linspace(0, 1, 10), 2),
-        expected_interactions = 5,
-        file_name = 'game_engine_tremble',
-        **common_params)
+    #limit_param_plot(
+    #    param = 'tremble',
+    #    param_vals = np.round(np.linspace(0, 1, 10), 2),
+    #    expected_interactions = 5,
+    #    file_name = 'game_engine_tremble',
+    #    **common_params)
     
-    # complete_sim_plot(
-    #     generations = 1500,
-    #     # param = 'rounds',
-    #     mu = .001,
-    #     tremble = 0,
-    #     expected_interactions = 5,
-    #     start_pop = (0,10,0),
-    #     file_name = 'game_engine_sim',
-    #     # seed = 0,
-    #     **common_params)
+    complete_sim_plot(
+         generations = 1500,
+         #param = 'rounds',
+         mu = .001,
+         tremble = 0,
+         expected_interactions = 5,
+         start_pop = (0,10,0),
+         file_name = 'game_engine_sim',
+         # seed = 0,
+         **common_params)
 
 def ipd():
     old_pop = (ag.AllC,ag.AllD,ag.GTFT,ag.TFT,ag.WSLS)
