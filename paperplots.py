@@ -3,8 +3,7 @@ import numpy as np
 import seaborn as sns
 
 import agents as ag
-from evolve import limit_param_plot
-
+from evolve import limit_param_plot, complete_sim_plot
 
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 TRIALS = 10
@@ -46,7 +45,7 @@ def game_engine():
         #analysis_type = 'complete',
         s = .5,
         pop_size = POP_SIZE,
-        #trials = TRIALS,
+        trials = TRIALS,
         stacked = True,
         plot_dir = PLOT_DIR,
         graph_kwargs = {'color' : color_list(agents)},
@@ -69,7 +68,7 @@ def game_engine():
     #    **common_params)
     
     complete_sim_plot(
-         generations = 1500,
+         generations = 15000,
          #param = 'rounds',
          mu = .001,
          tremble = 0,
@@ -130,8 +129,8 @@ def ipd():
                      **common_params)
 
 if __name__ == '__main__':
-    ipd()
-    # game_engine()
+    #ipd()
+    game_engine()
 
 
 
