@@ -174,7 +174,7 @@ def transform_inputs(*functions):
     return transformer
 
 experiment_transformer = transform_inputs(tuple,unordered)
-def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, verbose = 0,**kwargs):
+def experiment(unpack = False, trials = None, overwrite = False, memoize = True, verbose = 0,**kwargs):
     data_dir = './memo_cache/'
     default_trials = trials
 
@@ -196,22 +196,21 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             except:
                 pass
             arg_dict = call_data['args']
-            
-                
-            try:
-                trials = range(arg_dict['trials'])
-            except TypeError:
-                trials = arg_dict['trials']
-            except KeyError:
-                trials = range(default_trials)
-            #print "trials:%s" % len(trials)
 
-            try:
-                if 'trials' not in call_data['defined_args']:
+            if default_trials:
+                try:
+                    trials = range(arg_dict['trials'])
+                except TypeError:
+                    trials = arg_dict['trials']
+                except KeyError:
+                    trials = range(default_trials)
+                    #print "trials:%s" % len(trials)
+
+                try:
                     del arg_dict['trials']
                     call_data = fun_call_labeler(function,[],arg_dict)
-            except:
-                pass
+                except:
+                    pass
 
             args = experiment_call._last_args = transform_arg_dict(call_data['valid_args'])
 
@@ -232,28 +231,42 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
             
             cache_file =data_dir+str(arg_hash)+".pkl"
             #
-            try:
-                assert memoized and not overwrite
-                print "Loading cache...",
-                cache = pd.read_pickle(cache_file)
-                cached_trials = list(cache['trial'].unique())
-                uncached_trials = [trial for trial in trials if trial not in cached_trials]
-                #print "...cache loaded! Entries:%s, New Entries:%s" % (len(cache),len(uncached_trials))
+            if default_trials:
+                try:
+                    assert memoized and not overwrite
+                    print "Loading cache...",
+                    cache = pd.read_pickle(cache_file)
 
-            except Exception as e:
-                print "No cache loaded."
-                if 'trial' in args.keys():
+                    cached_trials = list(cache['trial'].unique())
+                    uncached_trials = [trial for trial in trials if trial not in cached_trials]
+                    #print "...cache loaded! Entries:%s, New Entries:%s" % (len(cache),len(uncached_trials))
+
+                except Exception as e:
+                    print "No cache loaded."
+                    if 'trial' in args.keys():
+                        cols = args.keys()
+                    else:
+                        cols = args.keys()+['trial']
+                    cache = pd.DataFrame(columns = cols)
+                    uncached_trials = trials
+            else:
+                try:
+                    assert memoized and not overwrite
+                    print "Loading cache...",
+                    cache = pd.read_pickle(cache_file)
+                except Exception as e:
+                    print "No cache loaded."
                     cols = args.keys()
-                else:
-                    cols = args.keys()+['trial']
-                cache = pd.DataFrame(columns = cols)
-                uncached_trials = trials
+                    cache = pd.DataFrame(columns = cols)
+                    uncached_trials = [0]
+
 
             #print arg_hash
             #print cached_trials
             #print uncached_trials
             #assert 0
 
+            call_args = copy(args)
             results = []
             total_calls = float(len(uncached_trials))
             landmark = step = .1
@@ -262,8 +275,12 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                 pass
             for n,trial in enumerate(uncached_trials):
                 np.random.seed(trial)
-                result = function(**copy(args))
-                args['trial'] = trial
+                if "trial" in call_args:
+                    print args
+                    assert 0
+                result = function(**copy(call_args))
+                if default_trials:
+                    args['trial'] = trial
                 if not unpack:
                     results.append(dict(args,**{'result':result}))
                 elif unpack == 'dict':
@@ -297,7 +314,10 @@ def experiment(unpack = False, trials = 1, overwrite = False, memoize = True, ve
                 cache.to_pickle(cache_file)
             
             #return only those trials that were asked for
-            return cache.query('trial in %s' % trials)
+            if default_trials:
+                return cache.query('trial in %s' % trials)
+            else:
+                return cache
         experiment_call._decorator = 'experiment'
         return experiment_call
     return wrapper
@@ -575,15 +595,7 @@ def literal(constructor):
         return ret
     return call
 
-def memoize(obj):
-    cache = obj.cache = {}
-    @wraps(obj)
-    def memoizer(*args, **kwargs):
-        key = str(args) + str(kwargs)
-        if key not in cache:
-            cache[key] = obj(*args, **kwargs)
-        return deepcopy(cache[key])
-    return memoizer
+
 
 if __name__ == "__main__":
     a = MultiArg(i for i in range(5))
