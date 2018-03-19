@@ -52,21 +52,32 @@ def game_engine():
         graph_kwargs = {'color' : color_list(agents)},
     )
 
-    # Vary expected number of repetitions
-    limit_param_plot(
-        param = 'expected_interactions',
-        param_vals = np.round(np.linspace(1, 10, 10), 2),
-        tremble = 0.0, 
-        file_name = 'game_engine_gamma',
-        **common_params)
+    from evolve import params_heat
+    ticks = 2
+    params = {'expected_interactions': np.round(np.linspace(1, 10, ticks)),
+              'observability': np.round(np.linspace(0, 1, ticks), 2)}
+    
+    # Heatmap based on gamma vs. observability
+    params_heat(params,
+                tremble = 0,
+                file_name = 'game_engine_indirect_direct',
+                **common_params)
+    
+    # # Vary expected number of repetitions
+    # limit_param_plot(
+    #     param = 'expected_interactions',
+    #     param_vals = np.round(np.linspace(1, 10, 10), 2),
+    #     tremble = 0.0, 
+    #     file_name = 'game_engine_gamma',
+    #     **common_params)
 
-    # Vary tremble
-    limit_param_plot(
-        param = 'tremble',
-        param_vals = np.round(np.linspace(0, 1, 10), 2),
-        expected_interactions = 5,
-        file_name = 'game_engine_tremble',
-        **common_params)
+    # # Vary tremble
+    # limit_param_plot(
+    #     param = 'tremble',
+    #     param_vals = np.round(np.linspace(0, 1, 10), 2),
+    #     expected_interactions = 5,
+    #     file_name = 'game_engine_tremble',
+    #     **common_params)
     
     # complete_sim_plot(
     #     generations = 1500,
@@ -84,7 +95,6 @@ def ipd():
     ToM = ('self',) + old_pop
     new_pop = old_pop + (ag.WeAgent(prior = .5, beta = 5, agent_types = ToM),)
 
-
     common_params = dict(
         game = 'direct',
         s = .5,
@@ -97,26 +107,26 @@ def ipd():
         stacked = True,
     )
 
-    # for label, player_types in zip(['wRA', 'woRA'], [old_pop, new_pop]):
-    #     # By expected rounds
-    #     limit_param_plot(
-    #         param = 'rounds',
-    #         rounds = 50,
-    #         tremble = 0.0,
-    #         player_types = player_types,
-    #         file_name = "ipd_rounds_%s" % label,
-    #         graph_kwargs = {'color' : color_list(player_types)},
-    #         **common_params)
+    for label, player_types in zip(['wRA', 'woRA'], [old_pop, new_pop]):
+        # By expected rounds
+        limit_param_plot(
+            param = 'rounds',
+            rounds = 50,
+            tremble = 0.0,
+            player_types = player_types,
+            file_name = "ipd_rounds_%s" % label,
+            graph_kwargs = {'color' : color_list(player_types)},
+            **common_params)
 
-        # # Tremble
-        # limit_param_plot(
-        #     param = 'tremble',
-        #     param_vals = np.round(np.linspace(0, 0.4, 11), 2),
-        #     rounds = 10,
-        #     player_types = player_types,
-        #     file_name = "ipd_tremble_%s" % label,
-        #     graph_kwargs = {'color' : color_list(player_types)},
-        #     **common_params)
+        # Tremble
+        limit_param_plot(
+            param = 'tremble',
+            param_vals = np.round(np.linspace(0, 0.4, 11), 2),
+            rounds = 10,
+            player_types = player_types,
+            file_name = "ipd_tremble_%s" % label,
+            graph_kwargs = {'color' : color_list(player_types)},
+            **common_params)
 
     
     # Adding cognitive costs
@@ -129,9 +139,11 @@ def ipd():
                      graph_kwargs = {'color' : color_list(new_pop)},
                      **common_params)
 
+    
+    
 if __name__ == '__main__':
-    ipd()
-    # game_engine()
+    game_engine()
+    # ipd()
 
 
 

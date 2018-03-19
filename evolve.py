@@ -188,48 +188,6 @@ def complete_sim_plot(generations, player_types, data =[], **kwargs):
     sns.despine()
     plt.tight_layout()
 
-def splits(n):
-    """
-    starting from 0, produces the sequence 2, 3, 5, 9, 17...
-    This sequence is the answer to the question 'if you have 2 points and find the midpoint,
-    then find the midpoints of each adjacent pair of points, and do that over and over,
-    how many points will you have after n iterations?'
-
-    excellent for populating real-valued parameter ranges since they recycle points
-    when used as
-    np.linspace(min, max, splits(n))
-    """
-    assert n>=0
-    i = n+1
-    return int((2**i-0**i)/2 + 1)
-
-def grid_v_param(row_param, col_param, hue_param, param, param_vals,col_vals,row_vals,hue_vals, **kwargs):
-    dfs = []
-
-    for row_val, col_val, hue_val in product(row_vals, col_vals,hue_vals):
-        dfs.append(ssd_v_param(**dict(kwargs,**{row_param:row_val,col_param:col_val,hue_param:hue_val,
-                                                'record_params':{hue_param:hue_val,row_param:row_val, col_param:col_val},
-                                               'param':param,
-                                               'param_vals':param_vals})))
-    return pd.concat(dfs)
-@plotter(grid_v_param, plot_exclusive_args = ['data','stacked'])
-def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs):
-    d = data.query('"WeAgent()" == type')
-    sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
-
-def grid_v_param(row_param, col_param, hue_param, param, param_vals,col_vals,row_vals,hue_vals, **kwargs):
-    dfs = []
-
-    for row_val, col_val, hue_val in product(row_vals, col_vals,hue_vals):
-        dfs.append(ssd_v_param(**dict(kwargs,**{row_param:row_val,col_param:col_val,hue_param:hue_val,
-                                                'record_params':{hue_param:hue_val,row_param:row_val, col_param:col_val},
-                                               'param':param,
-                                               'param_vals':param_vals})))
-    return pd.concat(dfs)
-@plotter(grid_v_param, plot_exclusive_args = ['data','stacked'])
-def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs):
-    d = data.query('"WeAgent()" == type')
-    sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
 
 #@experiment(unpack = 'record', memoize = False, verbose = 3)
 
@@ -285,6 +243,7 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
         for x in vals:
             expected_pop_per_round = evo_analysis(player_types = player_types, **dict(kwargs,**{param:x}))
 
+            # Only return all of the rounds if return_rounds is True
             if return_rounds:
                 start = 1
             else:
@@ -297,17 +256,58 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
                         'rounds': r,
                         'type': t.short_name('agent_types'),
                         'proportion': p
-                    },**record_params))
+                    }, **record_params))
 
         return pd.DataFrame.from_records(record)
 
     else:
         raise Exception('`param_vals` %s is not defined. Pass this variable' % param)
 
-def ssd_v_params(params, player_types, return_rounds=False, record_params ={}, **kwargs):
-    pass
 
+def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
+    '''`params`: <dict> with <string> keys that name the parameter and
+    values that are lists of the parameters to range over.
+
+    '''
     
+    record = []
+    
+    for pvs in product(*params.values()):
+        ps = dict(zip(params, pvs))
+        expected_pop_per_round = evo_analysis(player_types = player_types, **dict(kwargs, **ps))
+
+        # Only return all of the rounds if return_rounds is True
+        if return_rounds:
+            start = 1
+        else:
+            start = len(expected_pop_per_round)-1
+
+        for r, pop in enumerate(expected_pop_per_round[start:], start = 1):
+            for t, p in zip(player_types, pop):
+                record.append(dict({'rounds': r,
+                                    'type': t.short_name('agent_types'),
+                                    'proportion': p},
+                                   **ps))
+
+    return pd.DataFrame.from_records(record)
+
+@plotter(ssd_v_params)
+def params_heat(params, player_types, data = [], stacked = False, graph_kwargs={}, **kwargs):
+    def draw_heatmap(*args, **kwargs):
+        data = kwargs.pop('data')
+        d = data.pivot(index=args[1], columns=args[0], values=args[2])
+        sns.heatmap(d, **kwargs)
+        
+    assert len(params)==2
+    g = sns.FacetGrid(data = data, col = 'type')
+    g.map_dataframe(draw_heatmap, params[0], params[1], 'proportion',  cbar=False, square=True,
+                    vmin=0,
+                    vmax=1,
+                    # vmax=data['frequency'].max(),
+                    cmap=plt.cm.gray_r,
+                    linewidths=.5)
+
+
 def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
     dfs = []
     for player_type in player_types:
