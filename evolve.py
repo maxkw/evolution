@@ -17,8 +17,6 @@ from steady_state import evo_analysis, simulation
 from steady_state import simulation_from_dict, matchups_and_populations
 from multiprocessing import Pool
 
-TODAY = "./plots/"+date.today().isoformat()+"/"
-
 def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kwargs):
     pop_size = sum(start_pop)
     type_count = len(player_types)
@@ -102,9 +100,6 @@ def complete_sim_plot(generations, player_types, data =[], graph_kwargs={}, **kw
     plt.ylabel('Count')
     sns.despine()
     plt.tight_layout()
-
-
-#@experiment(unpack = 'record', memoize = False, verbose = 3)
 
 def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **kwargs):
     """
@@ -358,36 +353,6 @@ def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[],
     g.map(plt.plot, 'rounds', 'proportion')
     g.set_titles("{col_name}")
     g.axes[0][0].legend(title=param, loc='best')
-
-def some_test():
-    opponents = (
-        ag.AltruisticAgent,
-        ag.SelfishAgent,
-    )
-
-    ToM = ('self', ) + opponents
-    pop = opponents + (WeAgent(agent_types=ToM, prior = .5),)
-    #pop = opponents 
-    # for n in range(20):
-    complete_sim_plot(generations = 1500,
-                      rounds = 10,
-                      player_types = pop,
-                      start_pop = (0,10,0),
-                      game = 'direct',
-                      beta = 10,
-                      #RA_prior = 0.5,
-                      cost = 1,
-                      benefit = 3,
-                      plot_dir = TODAY,
-                      file_name = 'agentsim',
-                      # gamma = .9,
-                      # rounds = 100,
-                      s = 1,
-                      mu= .001,
-                      observability = 0,
-                      seed = 0
-    )
-
 
 if __name__ == "__main__":
     pass
