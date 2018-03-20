@@ -73,7 +73,6 @@ def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0,
     populations = complete_sim_live(player_types, start_pop, s, seed = seed, trials = trials, **kwargs)
     record = []
 
-    #types,_ = zip(*player_types)
     # Populations is an infinite iterator so need to combine it with a
     # finite iterator which sets the number of generations to look at.
     for n, pop in izip(xrange(generations), populations):
@@ -81,6 +80,7 @@ def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0,
             record.append({'generation' : n,
                            'type' : t.short_name('agent_types'),
                            'population' : p})
+            
     return record
 
 @plotter(complete_agent_simulation, plot_exclusive_args = ['data', 'graph_kwargs', 'stacked'])
