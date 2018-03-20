@@ -8,9 +8,9 @@ from itertools import product, permutations, izip
 
 import agents as ag
 
-from utils import excluding_keys, softmax
-from experiment_utils import experiment, memoize, plotter
-from experiments import matchup_matrix, memoize
+from utils import excluding_keys, softmax, memoize
+from experiment_utils import experiment, plotter
+from experiments import matchup_matrix
 from params import default_params
 from agents import WeAgent
 from steady_state import evo_analysis, simulation
@@ -110,6 +110,7 @@ def complete_agent_sim(player_types, s, **kwargs):
         trans_probs = t[t!=0]
         pop_id = np.random.choice(neighbors, p=trans_probs)
 
+
 def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kwargs):
     pop_size = sum(start_pop)
     type_count = len(player_types)
@@ -133,12 +134,12 @@ def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kw
         print 'types', player_types
 
         print 'sorted', sorted(player_types)
-        print 'fixed',np.array(sorted(player_types))[original_order]
+        print 'fixed', np.array(sorted(player_types))[original_order]
         print "pop", pop
         non_players = np.array(pop)==0
         print "raw", f
         player_payoffs = f[non_players==False]
-        f[non_players == False] = softmax(player_payoffs,s)
+        f[non_players == False] = softmax(player_payoffs, s)
         f[non_players] = 0
         print "soft", f
         #assert 0
@@ -168,8 +169,8 @@ def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kw
         pop = map(int,pop + I[b]-I[d])
 
 @experiment(unpack = 'record', memoize = False)
-def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0, **kwargs):
-    populations = complete_sim_live(player_types, start_pop, s, seed = seed, **kwargs)
+def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0, trials = 100, **kwargs):
+    populations = complete_sim_live(player_types, start_pop, s, seed = seed, trials = trials, **kwargs)
     record = []
 
     #types,_ = zip(*player_types)

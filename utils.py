@@ -69,23 +69,7 @@ def flip(p = 0.5):
     """return true with probability p"""
     return np.random.rand() < p
 
-def memoized(f):
-    """ Memoization decorator for a function taking one or more arguments. """
-    class memodict(dict):
-        def __getitem__(self, *key):
-            try:
-                return deepcopy(dict.__getitem__(self, key))
-            except:
-                print self, key
-                raise
-            
-        def __missing__(self, key):
-            ret = self[key] = f(*key)
-            return ret
-            
-    return memodict().__getitem__
-
-def memoized(obj):
+def memoize(obj):
     cache = obj.cache = {}
 
     @wraps(obj)
@@ -93,10 +77,10 @@ def memoized(obj):
         key = str(args) + str(kwargs)
         if key not in cache:
             cache[key] = obj(*args, **kwargs)
-        return cache[key]
+        return deepcopy(cache[key])
     return memoizer
 
-@memoized
+@memoize
 def namedArrayConstructor(fields, className = "NamedArray"):
     """
     this takes a canonical sequence of hashable objects and returns a class of arrays

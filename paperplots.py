@@ -5,7 +5,6 @@ import seaborn as sns
 import agents as ag
 from evolve import limit_param_plot, complete_sim_plot
 
-
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 TRIALS = 10
 
@@ -78,19 +77,16 @@ def game_engine():
     #     file_name = 'game_engine_tremble',
     #     **common_params)
     
-    # complete_sim_plot(
-    #      generations = 15000,
-    #      #param = 'rounds',
-    #      mu = .001,
-    #      tremble = 0,
-    #      expected_interactions = 1,
-    #      observability = 1,
-    #     pop_size = 20,
-    #      start_pop = (0,20,0),
-    #      file_name = 'game_engine_sim',
-    #      seed = 0,
-    #      **common_params)
-
+    complete_sim_plot(
+         generations = 15000,
+         #param = 'rounds',
+         mu = .001,
+         tremble = 0,
+         expected_interactions = 5,
+         start_pop = (0,10,0),
+         file_name = 'game_engine_sim',
+         # seed = 0,
+         **common_params)
 def ipd():
     old_pop = (ag.AllC,ag.AllD,ag.GTFT,ag.TFT,ag.WSLS)
     ToM = ('self',) + old_pop
