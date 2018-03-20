@@ -38,14 +38,11 @@ def dynamic_dilemma_plot(trials = TRIALS):
                          pop_size = 10,
                          plot_dir = plot_dir,
                          stacked = True,
-                         #parallelized = False,
-                         #param_vals = np.round(np.linspace(0,1,splits(1)),2)
-
                          )
 
     for scene_name in [
             'omega',
-            #'gamma'
+            'gamma'
     ]:
         scene_params = scenario[scene_name]
         file_name = scene_name+"_plot"

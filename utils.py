@@ -9,6 +9,21 @@ from copy import deepcopy
 
 pd.set_option('precision',5)
 
+def splits(n):
+    """
+    starting from 0, produces the sequence 2, 3, 5, 9, 17...
+    This sequence is the answer to the question 'if you have 2 points and find the midpoint,
+    then find the midpoints of each adjacent pair of points, and do that over and over,
+    how many points will you have after n iterations?'
+
+    excellent for populating real-valued parameter ranges since they recycle points
+    when used as
+    np.linspace(min, max, splits(n))
+    """
+    assert n>=0
+    i = n+1
+    return int((2**i-0**i)/2 + 1)
+
 def logspace(start = .001,stop = 1, samples=10):
     mult = (np.log(stop)-np.log(start))/np.log(10)
     plus = np.log(start)/np.log(10)

@@ -3,12 +3,11 @@ import numpy as np
 import seaborn as sns
 
 import agents as ag
-from evolve import limit_param_plot
+from evolve import limit_param_plot, complete_sim_plot
 
 
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 TRIALS = 10
-POP_SIZE = 10
 
 def color_list(agent_list):
     '''takes a list of agent types `agent_list` and returns the correctly
@@ -42,19 +41,19 @@ def game_engine():
     common_params = dict(
         game = "game_engine",
         player_types = agents,
-        observability = 0,
+        # observability = 0,
         #analysis_type = 'complete',
         s = .5,
-        pop_size = POP_SIZE,
-        #trials = TRIALS,
+        pop_size = 10,
+        trials = TRIALS,
         stacked = True,
         plot_dir = PLOT_DIR,
         graph_kwargs = {'color' : color_list(agents)},
     )
 
     from evolve import params_heat
-    ticks = 2
-    params = {'expected_interactions': np.round(np.linspace(1, 10, ticks)),
+    ticks = 4
+    params = {'expected_interactions': np.round(np.linspace(1, 4, ticks)),
               'observability': np.round(np.linspace(0, 1, ticks), 2)}
     
     # Heatmap based on gamma vs. observability
@@ -79,16 +78,18 @@ def game_engine():
     #     file_name = 'game_engine_tremble',
     #     **common_params)
     
-    complete_sim_plot(
-         generations = 1500,
-         #param = 'rounds',
-         mu = .001,
-         tremble = 0,
-         expected_interactions = 5,
-         start_pop = (0,10,0),
-         file_name = 'game_engine_sim',
-         # seed = 0,
-         **common_params)
+    # complete_sim_plot(
+    #      generations = 15000,
+    #      #param = 'rounds',
+    #      mu = .001,
+    #      tremble = 0,
+    #      expected_interactions = 1,
+    #      observability = 1,
+    #     pop_size = 20,
+    #      start_pop = (0,20,0),
+    #      file_name = 'game_engine_sim',
+    #      seed = 0,
+    #      **common_params)
 
 def ipd():
     old_pop = (ag.AllC,ag.AllD,ag.GTFT,ag.TFT,ag.WSLS)
@@ -133,7 +134,7 @@ def ipd():
     limit_param_plot(param = 'cog_cost',
                      tremble = 0.0,
                      rounds = 10,
-                     param_vals = np.linspace(0,.3, 50),
+                     param_vals = np.linspace(0, .3, 50),
                      file_name = "ipd_cogcosts",
                      player_types = new_pop,
                      graph_kwargs = {'color' : color_list(new_pop)},

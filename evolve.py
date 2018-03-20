@@ -111,13 +111,11 @@ def complete_agent_sim(player_types, s, **kwargs):
         pop_id = np.random.choice(neighbors, p=trans_probs)
 
 def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kwargs):
-    np.random.seed(seed)
     pop_size = sum(start_pop)
     type_count = len(player_types)
     I = np.identity(type_count)
     pop = np.array(start_pop)
     assert type_count == len(pop)
-
 
     matchups, populations = matchups_and_populations(player_types, pop_size, "complete")
     matchup_pop_dicts = [dict(player_types = zip(*pop_pair), **kwargs) for pop_pair in product(matchups, populations)]
@@ -147,6 +145,7 @@ def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kw
         
         return f
 
+    np.random.seed(seed)
     while True:
         yield pop
         fitnesses = sim(pop)
@@ -184,13 +183,18 @@ def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0,
     return record
 
 @plotter(complete_agent_simulation, plot_exclusive_args = ['data', 'graph_kwargs', 'stacked'])
-def complete_sim_plot(generations, player_types, data =[], **kwargs):
-    plt.figure(figsize = (3.5,3))
-    for hue in data['type'].unique():
-        plt.plot(data[data['type']==hue]['generation'],
-                 data[data['type']==hue]['population'].astype(int),
-                 label=hue)
+def complete_sim_plot(generations, player_types, data =[], graph_kwargs={}, **kwargs):
+    data['population'] = data['population'].astype(int)
+    data = data[['generation', 'population', 'type']].pivot(columns='type', index='generation', values='population')
+    type_order = dict(map(reversed,enumerate([t.short_name('agent_types') for t in player_types])))
+    data.reindex_axis(sorted(data.columns, key = lambda t:type_order[t]), 1)
 
+    fig, ax = plt.subplots(figsize = (3.5,3))
+    data.plot(ax = ax, legend=False,
+              ylim=[0, sum(kwargs['start_pop'])],
+              xlim=[0, generations],
+              **graph_kwargs)
+    
     make_legend()
     plt.xlabel(r'Time $\rightarrow$')
     
@@ -302,21 +306,27 @@ def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
     return pd.DataFrame.from_records(record)
 
 @plotter(ssd_v_params)
-def params_heat(params, player_types, data = [], stacked = False, graph_kwargs={}, **kwargs):
+def params_heat(params, player_types, data = [], graph_kwargs={}, **kwargs):
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop('data')
         d = data.pivot(index=args[1], columns=args[0], values=args[2])
-        sns.heatmap(d, **kwargs)
+        ax = sns.heatmap(d, **kwargs)
+        ax.invert_yaxis()
         
     assert len(params)==2
     g = sns.FacetGrid(data = data, col = 'type')
-    g.map_dataframe(draw_heatmap, params[0], params[1], 'proportion',  cbar=False, square=True,
+    g.map_dataframe(draw_heatmap, params.keys()[1], params.keys()[0], 'proportion',  cbar=False, square=True,
                     vmin=0,
                     vmax=1,
                     # vmax=data['frequency'].max(),
                     cmap=plt.cm.gray_r,
                     linewidths=.5)
 
+@plotter(ssd_v_params)
+def params_mode(params, player_types, data = [], graph_kwargs={}, **kwargs):
+    
+    pass
+    
 
 def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
     dfs = []

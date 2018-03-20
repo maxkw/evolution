@@ -1,9 +1,33 @@
 import inspect
 plot_dir = "./plots/"+inspect.stack()[0][1][:-3]+"/"
-from evolve import grid_param_plot, splits, splits
+from utils import splits
+from evolve import evo_analysis
+from itertiems import product
+import seaborn as sns
 import agents as ag
 import numpy as np
 from games import AnnotatedGame, IndefiniteMatchup, AllNoneObserve, literal
+
+
+def grid_v_param(row_param, col_param, hue_param, param, param_vals, col_vals, row_vals, hue_vals, **kwargs):
+    dfs = []
+
+    for row_val, col_val, hue_val in product(row_vals, col_vals,hue_vals):
+        dfs.append(ssd_v_param(**dict(kwargs,**{
+            row_param       :row_val,
+            col_param       :col_val,
+            hue_param       :hue_val,
+            'record_params' : {hue_param:hue_val, row_param:row_val, col_param:col_val},
+            'param'         :param,
+            'param_vals'    :param_vals}))
+        )
+    return pd.concat(dfs)
+
+@plotter(grid_v_param, plot_exclusive_args = ['data', 'stacked'])
+def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs):
+    d = data.query('"WeAgent()" == type')
+    sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
+
 
 @literal
 def dd_ci_sa(expected_interactions = 1, observability = 0, cost = 1, benefit = 3, intervals = 1, tremble = .1, variance = 1, **kwargs):

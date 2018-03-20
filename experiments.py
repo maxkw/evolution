@@ -20,8 +20,6 @@ import operator
 from fractions import gcd as binary_gcd
 from fractions import Fraction
 import games
-priors_for_RAvRA = map(tuple,map(sorted,combinations(np.linspace(.75,.25,3),2)))
-diagonal_priors = [(n,n) for n in np.linspace(.75,.25,3)]
 
 letter_to_id = dict(map(reversed,enumerate("ABCDEFGHIJK")))
 letter_to_action = {"C":'give',"D":'keep'}
@@ -152,45 +150,6 @@ def matchup(player_types, game, **kwargs):
                 })
     return record
 
-def avg_payoff_per_type_from_sim(sim_data):
-    running_fitness = 0
-    fitness_per_round = []
-    pop_size = max(sim_data['id'].unique())+1
-
-    print sim_data
-    assert 0
-    print data.unique('type')
-    for r, r_d in sim_data.groupby('round'):
-        fitness = []
-        interactions = []
-        for i, (t, t_d) in enumerate(r_d.groupby('type')):
-            fitness.append(t_d['fitness'].mean())
-            interactions.append(t_d['interactions'].mean())
-
-        running_fitness += np.array(fitness)
-        running_interactions += np.array(interactions)
-        #fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
-        
-    return fitness_per_round[1:]
-
-#@experiment(unpack = 'record', memoize=False)
-def fitness_per_round(player_types,**kwargs):
-    types = zip(*player_types)[0]
-    sim_data = matchup(player_types = player_types, per_round = True, **kwargs)
-    payoffs = avg_payoff_per_type_from_sim(sim_data)
-    record = []
-    for r, payoff in enumerate(payoffs,start=1):
-        for p,t in zip(payoff, types):
-            record.append({'round':r,'payoffs':p,'type':t.short_name('agent_types')})
-    #print record
-    return pd.Dataframe.from_records(record)
-
-@plotter(fitness_per_round)
-def payoff_plot(player_types, data = [], **kwargs):
-    #data = fitness_per_round(player_types, matchup(player_types,**kwargs))
-    sns.factorplot(data = data, x = 'round', y = 'payoffs', hue = 'type')
-
-
 def beliefs(believer, opponent_types, believed_types, **kwargs):
     dfs = []
     b_name = repr(believer)#.short_name('agent_types')
@@ -258,7 +217,7 @@ def matchup_data_to_matrix(data):
             
             trials = data[(data['player_types']==combination) & (data['type']==player)]
             payoffs[p,o] = trials.mean()['fitness']
-
+            
 def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
     condition = dict(locals(),**kwargs)
     params = default_params(**condition)
@@ -270,7 +229,7 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
     index = dict(map(reversed,enumerate(player_types)))
     payoffs_list = []
     payoffs = np.zeros((len(player_types),)*2)
-    for r in range(1, max_rounds+ 1): 
+    for r in range(1, max_rounds + 1): 
         for combination in player_combos:
             for matchup in set(permutations(combination)):
                 player, opponent = matchup
@@ -282,6 +241,7 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
                     c = 0
 
                 payoffs[p,o] += means[(r, combination, player)] - c
+                
         payoffs_list.append(copy(payoffs))
     
     for r,p in enumerate(payoffs_list,start=1):
