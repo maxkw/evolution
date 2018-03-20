@@ -323,10 +323,22 @@ def params_heat(params, player_types, data = [], graph_kwargs={}, **kwargs):
                     cmap=plt.cm.gray_r,
                     linewidths=.5)
 
-@plotter(ssd_v_params)
-def params_mode(params, player_types, data = [], graph_kwargs={}, **kwargs):
+def ssd_param_search(param, param_lim, player_types, target_player, tolerance, **kwargs):
+    def is_mode(ep):
+        # takes in the output of a evo_analysis and returns whether or not the target is the mode. 
+        pass
+
+    # First check the max and min and see if target_player is *ever* the mode. If not return some kind of 0
+
+    # If min or max gives you a mode. Check the tolerance, which is defined as the difference in proportion between the mode and second most prevalent. The smaller the tolerance the more fine grained the algorithm will search. 
+
+    # This should just be a recursive binary search
+    current = np.mean(param_lim)
+
     
-    pass
+    
+    
+    
     
 
 def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
