@@ -323,23 +323,55 @@ def params_heat(params, player_types, data = [], graph_kwargs={}, **kwargs):
                     cmap=plt.cm.gray_r,
                     linewidths=.5)
 
-def ssd_param_search(param, param_lim, player_types, target_player, tolerance, **kwargs):
-    def is_mode(ep):
-        # takes in the output of a evo_analysis and returns whether or not the target is the mode. 
-        pass
+def ssd_param_search(param, param_lim, player_types, target, param_tol, mean_tol, **kwargs):
 
-    # First check the max and min and see if target_player is *ever* the mode. If not return some kind of 0
+    min_val, max_val = param_lim
+    def is_mode(ssd):
+        return sorted(zip(ssd, player_types))[-1][1] == target
+    def tolerable(ssd):
+        y,z = sorted(ssd)[-2:]
+        return z-y <= mean_tol
 
-    # If min or max gives you a mode. Check the tolerance, which is defined as the difference in proportion between the mode and second most prevalent. The smaller the tolerance the more fine grained the algorithm will search. 
+    @memoize
+    def get_ssd(val):
+        return evo_analysis(player_types = player_types, **dict(kwargs,**{param:val}))[-1]
 
-    # This should just be a recursive binary search
-    current = np.mean(param_lim)
+    max_p = get_ssd(max_val)
+    min_p = get_ssd(min_val)
 
-    
-    
-    
-    
-    
+    if is_mode(min_p):
+        if tolerable(min_p):
+            best = min_val
+        else:
+            best = min_val#"poor min"
+    if not is_mode(max_p):
+        best = max_val
+    elif tolerable(max_p):
+        best = max_val
+    else:
+        def finder(max_val, min_val):
+            mid_val = np.round(np.mean((max_val, min_val)), 5)
+            #check tolerance
+            if max_val - mid_val <= param_tol:
+                return max_val
+            mid_p = get_ssd(mid_val)
+            if is_mode(mid_p):
+                if tolerable(mid_p):
+                    return mid_val
+                else:
+                    return finder(mid_val, min_val)
+            else:
+                return finder(max_val, mid_val)
+
+        best = finder(max_val, min_val)
+
+    ret =  dict({param:best,
+                 "ssd":get_ssd(best),
+                 "player_types":player_types,
+                 "target":target},**kwargs)
+    return ret
+
+
 
 def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
     dfs = []
