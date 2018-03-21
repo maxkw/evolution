@@ -1223,7 +1223,7 @@ def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefi
     return game
 
 @literal
-def game_engine(expected_interactions = 1, observability = 0, cost = 1, benefit = 10, intervals = 2, tremble = 0, **kwargs):
+def game_engine(expected_interactions, observability, cost = 1, benefit = 10, intervals = 2, tremble = 0, **kwargs):
     assert intervals>=0
 
     def Gen():
