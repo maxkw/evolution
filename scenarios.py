@@ -9,6 +9,13 @@ from agents import AltruisticAgent, RationalAgent, ReciprocalAgent, SelfishAgent
 from games import BinaryDictator, SocialDictator
 import matplotlib.pyplot as plt
 
+def lookup_agent(a):
+    a = str(a)
+    if 'WeAgent' in a or 'self' in a: return 'Reciprocal'
+    if 'AltruisticAgent' in a: return 'Altruistic'
+    if 'SelfishAgent' in a: return 'Selfish'
+    raise('String not defined for agent %s' % a)
+
 agent_to_label = {ReciprocalAgent: 'Reciprocal',
                   AltruisticAgent: 'Altruistic',
                   SelfishAgent: 'Selfish',
@@ -19,65 +26,61 @@ agent_to_label = {ReciprocalAgent: 'Reciprocal',
 @experiment(unpack='record', unordered=['agent_types'], memoize=False)
 def scenarios(scenario_func, agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
-    genome = default_genome(agent_type=RationalAgent, **condition)
     game = BinaryDictator()
 
     scenario_dict = scenario_func()
 
     record = []
     for name, observations in scenario_dict.iteritems():
-        observer = RationalAgent(genome=genome, world_id="O")
+        observer = WeAgent(genome=default_genome(agent_type = WeAgent(**condition), **condition), world_id="O")
+        
         for observation in observations:
             observer.observe(observation)
 
-        for agent_type in agent_types:
+        for agent_type in  observer._type_to_index:
             record.append({
                 'scenario': name,
                 'belief': observer.belief_that('A', agent_type),
-                'type': agent_to_label[agent_type],
+                'type': lookup_agent(agent_type),
             })
+            
     return record
 
+@plotter(scenarios, plot_exclusive_args=['data', 'color', 'graph_kwargs', 'titles'])
+def scene_plot(agent_types, titles = None, data=[], color = sns.color_palette(['C5', 'C0', 'C1']), graph_kwargs={}):
+    sns.set_context("talk", font_scale=1)
 
-@plotter(scenarios, plot_exclusive_args=['data'])
-def scene_plot(agent_types, titles = None, data=[]):
-    #print data
-    sns.set_context("poster", font_scale=1.2)
-    if AltruisticAgent in agent_types:
-        order = ["Altruistic", "Selfish", "Reciprocal", ]
-    else:
-        order = ["Reciprocal", "Selfish"]
-    
-    f_grid = sns.factorplot(data=data, y="type", x='belief', col='scenario', row="RA_K",
+    order = ["Reciprocal", "Altruistic", "Selfish"]
+    f_grid = sns.factorplot(data=data, y="type", x='belief', col='scenario', 
                             kind='bar', orient='h', order=order,
-                            palette=sns.color_palette(['C0', 'C1', 'C5']),
-                            aspect=2.3, size=3, 
-                            sharex=False, sharey=False)
+                            palette=color,
+                            aspect=.9, size=3, 
+                            sharex=False, sharey=False,
+                            **graph_kwargs
+    )
 
-    # def draw_prior(data, **kwargs):
-    # plt.axhline(data.mean(), linestyle=":")
-    #f_grid.map(draw_prior, 'RA_prior')
-
-    if titles[0] == 'Prior':
-        f_grid.set_xlabels("")
+    if 'Prior' in titles[0]:
+        f_grid.set_xlabels(" ")
     else:
         f_grid.set_xlabels("Belief")
         
         
     (f_grid
-     # .set_xlabels("")
      .set_titles("")
      .set_ylabels("")
      .set(xlim=(0, 1),
           xticks=np.linspace(0, 1, 5),
           xticklabels=['0', '', '0.5', '', '1'])
      )
-    # import pdb; pdb.set_trace()
-    if titles is not None:
-        for t, ax in zip(titles, f_grid.axes[0]):
-            ax.set_title(t, fontsize=18)
 
-    # plt.tight_layout()
+    if titles is not None:
+        for i, (t, ax) in enumerate(zip(titles, f_grid.axes[0])):
+            if i > 0:
+                ax.set_yticklabels([])
+            # ax.set_title(t, fontsize=14, loc='right')
+            ax.set_title(t, loc='right')
+
+    plt.tight_layout()
 
 
 def make_dict_from_scenarios(scenarios, observers, scenario_dict=None):
@@ -189,8 +192,6 @@ def forgive(agent_types, **kwargs):
 
         print record
     return record
-
-
 
 
 @multi_call()
@@ -361,27 +362,27 @@ def main(prior = 0.5, beta = 5, **kwargs):
     #     tremble=0.05,
     #     file_name='first_impressions', **kwargs)
 
-    scene_plot(
-        scenario_func=reciprocal_scenarios_0,
-        titles = ['Prior', r'$j$ cooperates w/ $k$', r'$j$ defects on $k$'],
-        agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
-        RA_prior=prior,
-        RA_K=MultiArg([1]),
-        beta=beta,
-        plot_dir = './writing/evo_cogsci18/figures/',
-        file_name='scene_reciprocal_0', **kwargs)
+    # scene_plot(
+    #     scenario_func=reciprocal_scenarios_0,
+    #     titles = ['Prior', r'$j$ cooperates w/ $k$', r'$j$ defects on $k$'],
+    #     agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
+    #     RA_prior=prior,
+    #     RA_K=MultiArg([1]),
+    #     beta=beta,
+    #     plot_dir = './writing/evo_cogsci18/figures/',
+    #     file_name='scene_reciprocal_0', **kwargs)
 
-    scene_plot(
-        scenario_func=reciprocal_scenarios_1,
-        agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
-        titles = [r'$k$ defects on $j$ $\rightarrow$ $j$ defects on $k$',
-                  r'$k$ defects on $j$ $\rightarrow$ $j$ cooperates w/ $k$', 
-                  r'$k$ cooperates w/ $j$ $\rightarrow$ $j$ defects on $k$'],
-        RA_prior=prior,
-        RA_K=MultiArg([1]),
-        beta=beta,
-        plot_dir = './writing/evo_cogsci18/figures/',
-        file_name='scene_reciprocal_1', **kwargs)
+    # scene_plot(
+    #     scenario_func=reciprocal_scenarios_1,
+    #     agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
+    #     titles = [r'$k$ defects on $j$ $\rightarrow$ $j$ defects on $k$',
+    #               r'$k$ defects on $j$ $\rightarrow$ $j$ cooperates w/ $k$', 
+    #               r'$k$ cooperates w/ $j$ $\rightarrow$ $j$ defects on $k$'],
+    #     RA_prior=prior,
+    #     RA_K=MultiArg([1]),
+    #     beta=beta,
+    #     plot_dir = './writing/evo_cogsci18/figures/',
+    #     file_name='scene_reciprocal_1', **kwargs)
 
     # scene_plot(
     #     scenario_func=false_belief_scenarios,
@@ -390,6 +391,7 @@ def main(prior = 0.5, beta = 5, **kwargs):
     #     RA_K=MultiArg([0, 1, 2]),
     #     beta=beta,
     #     file_name='scene_false_belief', **kwargs)
+    pass
 
 if __name__ == '__main__':
     main()

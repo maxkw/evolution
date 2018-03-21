@@ -322,33 +322,21 @@ def avg_payoff_per_type_from_sim(sim_data, agent_types, cog_cost, game = None, *
 
 @memoize
 def simulation(player_types, cog_cost = 0,  *args, **kwargs):
-
-
     type_count = len(player_types)
 
-    type_to_index = dict(map(reversed, enumerate(player_types)))
-    
-    original_order = np.array([type_to_index[t] for t in player_types])
-    types,_ = zip(*player_types)
-    sorted_types = sorted(player_types)
-    
+    types, _ = zip(*player_types)
 
     active_player_mask = np.array([p[1]!=0 for p in player_types])
     active_players = [p for p in player_types if p[1] != 0]
     
     sim_data = matchup(player_types = active_players, *args, **kwargs)
-
     raw_fitness_per_round = avg_payoff_per_type_from_sim(sim_data, types, cog_cost, **kwargs)
-    #print player_types
-    #print types
+
     expanded_fitness_per_round = []
     for fitness in raw_fitness_per_round:
         new_fitness = np.zeros(type_count)
-        #print fitness
-        #print new_fitness
-        #print active_player_mask
         new_fitness += fitness
-        expanded_fitness_per_round.append(new_fitness)#[original_order])
+        expanded_fitness_per_round.append(new_fitness)
 
     return expanded_fitness_per_round
 
