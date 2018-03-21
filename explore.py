@@ -2,32 +2,34 @@ import inspect
 plot_dir = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 from utils import splits
 from evolve import evo_analysis
-from itertiems import product
+from itertools import product
+import pandas as pd
 import seaborn as sns
 import agents as ag
 import numpy as np
 from games import AnnotatedGame, IndefiniteMatchup, AllNoneObserve, literal
+from evolve import ssd_param_search
+from experiment_utils import plotter
+import matplotlib.pyplot as plt
 
 
-def grid_v_param(row_param, col_param, hue_param, param, param_vals, col_vals, row_vals, hue_vals, **kwargs):
+def grid_v_param(f, row_param, col_param, hue_param, col_vals, row_vals, hue_vals, **kwargs):
     dfs = []
-
-    for row_val, col_val, hue_val in product(row_vals, col_vals,hue_vals):
-        dfs.append(ssd_v_param(**dict(kwargs,**{
+    for row_val, col_val, hue_val in product(row_vals, col_vals, hue_vals):
+        dfs.append(f(**dict(kwargs,**{
             row_param       :row_val,
             col_param       :col_val,
-            hue_param       :hue_val,
-            'record_params' : {hue_param:hue_val, row_param:row_val, col_param:col_val},
-            'param'         :param,
-            'param_vals'    :param_vals}))
-        )
-    return pd.concat(dfs)
+            hue_param       :hue_val})))
+    return pd.DataFrame(dfs)
+
+
 
 @plotter(grid_v_param, plot_exclusive_args = ['data', 'stacked'])
-def grid_param_plot(param, row_param, col_param, hue_param, data = [], **kwargs):
-    d = data.query('"WeAgent()" == type')
-    sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
-
+def grid_param_plot(row_param, col_param, hue_param, data = [], **kwargs):
+    #d = data.query('"WeAgent()" == type')
+    #sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
+    sns.factorplot(y = "observability", x = "expected_interactions", data = data)
+    plt.ylim([0,1])
 
 @literal
 def dd_ci_sa(expected_interactions = 1, observability = 0, cost = 1, benefit = 3, intervals = 1, tremble = .1, variance = 1, **kwargs):
@@ -151,65 +153,55 @@ def dd_ci_pas(expected_interactions = 1, observability = 0, cost = 1, benefit = 
 def compare_slopes():
     opponents = (ag.SelfishAgent,ag.AltruisticAgent)
     ToM = ('self',)+opponents
-    agents = (ag.WeAgent(agent_types=ToM),)+opponents
+    WE = ag.WeAgent(agent_types=ToM)
+    agents = (WE,)+opponents
     common_params = dict(s=.5,
                          #game='dynamic',
-                         #game = "dynamic_sim",
+                         game = "game_engine",
                          #game = 'direct',
                          #game = 'dd_ci_va',
                          player_types = agents,
-                         analysis_type = 'limit',
-                         beta = 5,
+                         #analysis_type = 'limit',
+                         #beta = 5,
                          pop_size = 10,
-                         plot_dir = plot_dir,
-                         stacked = True,
+                         #stacked = True,
                          #parallelized = False,
-                         extension = '.png',
-                         benefit = 3,
-                         expected_interactions = 1
+                         #expected_interactions = 1
                          )
 
-    games = [
-        #'dd_ci_sa',
-        'dd_ci_va',
-        #'dd_ci_pa',
-        #'dd_ci_pas'
-    ]
+    search_params = dict(param = "observability",
+                         param_lim = [0,1],
+                         target = WE,
+                         param_tol = .05,
+                         mean_tol = .1)
 
     trials = [
-        #25,
+        25,
         #50,
         #75,
         #100,
-        125,
-        150,
-        175,
-        200,
+        #125,
+        #150,
+        #175,
+        #200,
     ]
 
+    
+
     for t in trials:
-        name = "compare_slopes(games=%s, trials = %s)" % (games,t)
+        name = "topographic"
+        #print ssd_param_search(trials = t,**dict(search_params, **common_params))
+        #assert 0
         grid_param_plot(
-            #game = g,
+            f = ssd_param_search,
             trials = t,
-            prior = .5,
-            file_name = name,
-            param = "observability", param_vals = np.round(np.linspace(0,1,splits(2)),2),#(0,.25,.5,.75,1),
-            #col_param = "prior", col_vals = (.5,),#(.25,.5,.75),
             col_param = "beta", col_vals = (5,),
-            #col_param = "variance", col_vals
-            row_param = "game", row_vals = games,
-            hue_param = "intervals", hue_vals = (
-                2,
-                3,
-                4,
-                5,
-                6,
-                #7,
-                #8,
-                #9,
-                #10
-            ), **common_params)
+            row_param = "benefit", row_vals =[10],
+            hue_param = "expected_interactions", hue_vals = np.linspace(1,5,splits(2)),
+            file_name = name,
+            extension = '.png',
+            plot_dir = plot_dir,
+            **dict(search_params,**common_params))
 
 
 
