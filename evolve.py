@@ -57,7 +57,8 @@ def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kw
             birth_odds = (1-mu) * fitnesses[b] + mu * (1/type_count)
             prob = death_odds * birth_odds
             probs.append(prob)
-            
+
+        # The probability of not changing the population at all. 
         actions.append((0, 0))
         probs.append(1 - np.sum(probs))
 
@@ -92,13 +93,15 @@ def complete_sim_plot(generations, player_types, data =[], graph_kwargs={}, **kw
     data.plot(ax = ax, legend=False,
               ylim=[0, sum(kwargs['start_pop'])],
               xlim=[0, generations],
+              lw = .5,
               **graph_kwargs)
     
     make_legend()
-    plt.xlabel(r'Time $\rightarrow$')
+    plt.xlabel('Generation')
     
     plt.ylabel('Count')
     sns.despine()
+    
     plt.tight_layout()
 
 def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **kwargs):
