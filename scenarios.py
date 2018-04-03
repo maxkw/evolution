@@ -6,8 +6,9 @@ from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
 from params import default_genome
 from agents import AltruisticAgent, RationalAgent, ReciprocalAgent, SelfishAgent, WeAgent
-from games import BinaryDictator, SocialDictator
+from games import BinaryDictator, RandomDictator
 import matplotlib.pyplot as plt
+from itertools import product
 
 def lookup_agent(a):
     a = str(a)
@@ -147,52 +148,6 @@ def false_belief_scenarios():
 
     return scenario_dict
 
-@multi_call()
-@experiment(unordered=['agent_types'], unpack='record', memoize=False)
-def forgive(agent_types, **kwargs):
-    condition = dict(locals(), **kwargs)
-    genome = default_genome(agent_type=WeAgent, **condition)
-    game = BinaryDictator()
-
-    record = []
-
-    trials = ['D', 'CD', 'CCD', 'CCDDD']
-
-    for trial in trials:
-        observer = WeAgent(genome=genome, world_id='B')
-        h = Counter(trial)
-
-        # observations = [
-        #     [(game, 'AB', 'ABO', 'give'),
-        #      (game, 'BA', 'ABO', 'give')
-        #     ]] * h['C']
-
-        # for observation in observations:
-        #     observer.observe(observation)
-
-        for _ in xrange(h['C']):
-            observer.observe([(game, 'AB', 'ABO', 'give'),
-                              (game, 'BA', 'ABO', 'give')])
-
-        before = observer.belief_that('A', WeAgent)
-        
-        for _ in xrange(h['D']):
-            observer.observe([(game, 'AB', 'ABO', 'keep')])
-        
-        after = observer.decide_likelihood(game, 'BA', )[0]
-
-        # after = observer.belief_that('A', WeAgent)
-        # after = after - before
-        
-        # for t, b in zip(['Before', 'After'], [before, after]):
-        for t, b in zip(['After'], [after]):
-            record.append({'cooperations': trial,
-                           'belief': b,
-                           'type': t})
-
-        print record
-    return record
-
 
 @multi_call()
 @experiment(unordered=['agent_types'], unpack='record', memoize=False)
@@ -203,19 +158,11 @@ def first_impressions(agent_types, **kwargs):
 
     record = []
 
-    trials = ['', 'D', 'CD', 'CCD', 'CCDDD']
+    trials = ['Prior', 'D', 'CD', 'CCD', 'CCDDD']
 
     for trial in trials:
         observer = WeAgent(genome=genome, world_id='B')
         h = Counter(trial)
-
-        # observations = [
-        #     [(game, 'AB', 'ABO', 'give'),
-        #      (game, 'BA', 'ABO', 'give')
-        #     ]] * h['C']
-
-        # for observation in observations:
-        #     observer.observe(observation)
 
         for _ in xrange(h['C']):
             observer.observe([(game, 'AB', 'ABO', 'give'),
@@ -227,86 +174,72 @@ def first_impressions(agent_types, **kwargs):
             observer.observe([(game, 'AB', 'ABO', 'keep')])
         
         # after = observer.decide_likelihood(game, 'BA', )[0]
-
-        after = observer.belief_that('A', WeAgent)
+        after_b = observer.belief_that('A', WeAgent)
+        after_l = observer.decide_likelihood(game, 'BA', )[0]
         # after = after - before
         
         # for t, b in zip(['Before', 'After'], [before, after]):
-        for t, b in zip(['After'], [after]):
+        for t, b, d in zip(['After'], [after_b], [after_l]):
             record.append({'cooperations': trial,
                            'belief': b,
+                           'decision': d,
                            'type': t})
 
         print record
     return record
 
 @plotter(first_impressions)
-def forgive_plot(data=[]):
+def forgive_plot(p, data=[], label=''):
     sns.set_context("poster", font_scale=1)
-    fplot = sns.factorplot(data=data, x='cooperations',
-                           y='belief',
+    fplot = sns.factorplot(data=data,
+                           y='cooperations',
+                           x=p,
+                           orient = 'h',
                            # bw=.1,
+                           palette={'k'},
                            kind = 'bar',
-                           hue='type', legend=False, aspect=1.3)
+                           hue='type', legend=False, aspect=1)
 
-    fplot.axes[0][0].axhline(.33, 0, 2, color='black')
+    # fplot.axes[0][0].axhline(.33, 0, 2, color='black')
     fplot.set(
-         # ylim=(0, 1.05),
-          # ylabel='P(A = Reciprocal)',
-          ylabel='P(Cooperate)',
-          xlabel='',
-          # yticks=np.linspace(0, 1, 5),
-          # yticklabels=['0', '0.25', '0.5', '0.75', '1']
+        # ylim=(0, 1.05),
+        xlabel = label,
+        ylabel = '',
+        xticklabels=['0', '0.5', '1']
     )
-    # plt.legend(loc='best')
+
+    if p=='decision':
+        fplot.set(yticklabels=[])
+        
     plt.tight_layout()
 
-
-@plotter(first_impressions)
-def first_impressions_plot(data=[]):
-    sns.set_context("poster", font_scale=1)
-    fplot = sns.factorplot(data=data, x='cooperations',
-                           y='belief',
-                           # bw=.1,
-                           kind = 'bar',
-                           hue='type', legend=False, aspect=1.3)
-
-    fplot.set(
-         # ylim=(0, 1.05),
-          ylabel='P(A = Reciprocal)',
-          # ylabel='',
-          xlabel='',
-          # yticks=np.linspace(0, 1, 5),
-          # yticklabels=['0', '0.25', '0.5', '0.75', '1']
-    )
-    # plt.legend(loc='best')
-    plt.tight_layout()
-
-@multi_call()
 @experiment(unordered=['agent_types'], unpack='record', memoize=False)
 def n_action_info(agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
     genome = default_genome(agent_type=WeAgent, **condition)
-
+    trials = 100
     record = []
-    for args in [
-            dict(cost = 5, benefit = 15, tremble = 0),
-    ]:
-        
-        for i in [2, 4, 8]:
-            
-            for game in [
-                    SocialDictator(intervals = i, **args),
-                    # GradatedBinaryDictator(intervals = i, **args)
-            ]:
-                for t in agent_types:
-                    E_KL = 0
-                    if t == 'self':
-                        actor = WeAgent(genome=genome, world_id='O')
-                    else:
-                        actor = t(genome=genome)
-                        # continue 
 
+    # build args
+    args = []
+    # for b in [2,3,4, 10]:
+    #     args.append(dict(cost = 1, benefit = b, tremble = 0))
+    for t in np.linspace(0, .15, 4):
+        args.append(dict(cost = 1, benefit = 3, tremble = t))
+        
+    for arg in args:
+        for i in range(2, 17, 2):
+            for k in xrange(trials):
+                game = RandomDictator(cost = arg['cost'], benefit = arg['benefit'], tremble = arg['tremble'], intervals = i)
+
+                for t in agent_types:
+                    if t == 'self':
+                        actor = WeAgent(genome=genome, world_id='A')
+                    else:
+                        actor = t(genome=genome, world_id = 'A')
+                        
+                    E_KL = 0
+                     
                     for a_id, likelihood in enumerate(actor.decide_likelihood(game, 'AB')):
                         observer = WeAgent(genome=genome, world_id='O')
                         q = observer.belief['A']
@@ -314,44 +247,39 @@ def n_action_info(agent_types, **kwargs):
                         p = observer.belief['A']
                         E_KL += likelihood * sp.stats.entropy(p, q, base = 2)
                         
-                    # import pdb; pdb.set_trace()
-                    
                     record.append({
-                        '# Actions': int(i),
+                        '# Actions': i,
                         'bits': E_KL,
-                        # 'args': 'Tremble=%0.2f C=%d B=%d' % (args['tremble'], args['cost'], args['benefit']),
-                        'args': 'C=%d B=%d' % (args['cost'], args['benefit']),
-                        # 'args': '%0.2f' % (args['tremble']),
-                        'game':  'Social' in str(game.name),
-                        'actor': str(actor.__class__)
+                        'tremble': arg['tremble'],
+                        'b/c': arg['benefit'] / arg['cost'],
+                        'type': lookup_agent(actor)
                     })
 
     return record
 
-@plotter(n_action_info)
-def n_action_plot(data=[]):
-    data['# Actions'] = data['# Actions'].astype(int)
-    sns.set_context("poster", font_scale=1)
-    fplot = sns.factorplot(data=data,
-                           x='# Actions',
-                           y='bits',
-                           # hue = 'args',
-                           hue = 'actor',
-                           # bw=.1,
-                           kind = 'bar',
-                           # col = 'actor', 
-                           aspect=1.3).set_titles("{col_name}")
+@plotter(n_action_info, plot_exclusive_args=['data', 'color', 'graph_kwargs', 'titles'])
+def n_action_plot(data=[], color=sns.color_palette(['C5', 'C0', 'C1'])):
+    sns.set_context('notebook')
 
+    fig, axs = plt.subplots(3, 1, figsize = (3.5, 9), sharex=True, sharey=False)
+    means = data.groupby(['# Actions', 'type']).mean().unstack()['bits']
+    means = means.reindex(['Reciprocal', 'Altruistic', 'Selfish'], axis=1)
+    means.plot(ax=axs[0], color=color, legend = True)
     
+    means = data[data['tremble'] == 0].groupby(['# Actions', 'b/c']).mean().unstack()['bits']
+    means.plot(ax=axs[1], color= sns.color_palette("Blues"), legend = True)
 
-    fplot.set(
-         # ylim=(0, 2),
-          ylabel='bits',
-          xlabel='# Actions',
-    )
-    # plt.legend(loc='best')
-    # plt.tight_layout()
+    means = data[data['b/c'] == 3].groupby(['# Actions', 'tremble']).mean().unstack()['bits']
+    means.plot(ax=axs[2], color=sns.color_palette("Blues_r"), legend = True)
 
+    for ax in axs:
+        ax.set_ylabel('bits')
+    
+    plt.xlabel('# of Options')
+    plt.xticks(2**np.arange(1, np.log2(max(means.index))+1))
+
+    sns.despine()
+    plt.tight_layout()
 
 def main(prior = 0.5, beta = 5, **kwargs):
     # first_impressions_plot(
@@ -397,7 +325,6 @@ if __name__ == '__main__':
     main()
     
     # forgive_plot(agent_types = (SelfishAgent, AltruisticAgent, 'self'))
-    # first_impressions_plot(agent_types = (SelfishAgent, AltruisticAgent, 'self'))
     
     # n_action_plot(
     #     agent_types= ('self', SelfishAgent, AltruisticAgent),

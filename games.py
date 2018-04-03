@@ -243,12 +243,13 @@ class Decision(Playable):
     the nth payoff then corresponds to the nth agent in the provided list
     """
     name = _name = "Decision"
-    def __init__(self, payoffDict):
+    def __init__(self, payoffDict, tremble = 0):
         actions = payoffDict.keys()
         self.N_players = len(payoffDict.values()[0])
         self.actions = actions
         self.action_lookup = dict(map(reversed,enumerate(actions)))
         self.payoffs = payoffDict
+        self.tremble = tremble
 
     def __call__(self,action):
         self.last_action = action
@@ -286,6 +287,31 @@ def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT
     
     #decision._name = "GradatedBinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))"
     return decision
+
+@literal
+def RandomDictator(cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
+    N_players = 2
+    
+    # initialize set of choices with the zero-action
+    choices = [np.zeros(N_players)]
+    
+     for p in xrange(1, N_players):
+        choice = np.zeros(N_players)
+        choice[0] = -cost
+        choice[p] = cost * benefit
+        choices.append(copy(choice))
+
+    for n in range(intervals-2):
+        c = np.random.random_integers(-cost, cost)
+        w = np.random.uniform(0, benefit/2)
+        e = np.random.uniform(0, benefit/2)
+        for p in xrange(1, N_players):
+            choice = np.zeros(N_players)
+            choice[0] = -c
+            choice[p] = min(c*w+e, benefit - cost)
+            choices.append(copy(choice))
+            
+    return Decision(OrderedDict((str(p),p) for p in choices), tremble)
 
 @literal
 def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0, **kwargs):

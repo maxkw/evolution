@@ -375,11 +375,6 @@ def coop_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
             
             for a_id, believer in enumerate(event['players']):
                 players = [a_id,(a_id+1)%2]
-                # print "here"
-                # print a_id
-                # print players
-                # print believer.belief_that((a_id+1)%2,ReciprocalAgent)
-                # print believer.decide_likelihood(game,players,kwargs.get('tremble',0))[game.actions.index('give')]
                 for t in ['belief','coop']:
                     if t == 'belief':
                         it = believer.belief_that((a_id+1)%2,ReciprocalAgent)
@@ -394,7 +389,6 @@ def coop_plot(player_types,priors,Ks,believed_types=None,data=[],**kwargs):
                         'type':t.short_name(),
                     })
     bdata = pd.DataFrame(record)
-    #import pdb; pdb.set_trace()
     bt =  ['belief','coop']
     f_grid = sns.factorplot(data = bdata, x = 'round', y = 'value', row = '', col = 'believer', kind = 'point', hue = 'type', legend = False, facet_kws = {'ylim':(0,1)}, ci = None)
     #f_grid.set(yscale = "logit")

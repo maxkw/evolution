@@ -4,7 +4,6 @@ import seaborn as sns
 
 import agents as ag
 from evolve import limit_param_plot, complete_sim_plot
-from scenarios import scene_plot, reciprocal_scenarios_0, reciprocal_scenarios_1
 from experiment_utils import MultiArg
 
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
@@ -168,28 +167,51 @@ def agent():
     agents = (ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ToM),) + opponents
 
     common_params = dict(
+        player_types = agents,
         agent_types = ToM,
         plot_dir = PLOT_DIR,
         color = color_list(agents, sort=False)
     )
 
-    # SCENARIO PLOTS
-    scene_plot(
-        scenario_func=reciprocal_scenarios_0,
-        titles = ['Prior' + "\n ",
-                  r'$j$ cooperates w/ $k$' + "\n ",
-                  r'$j$ defects on $k$' + "\n "],
-        file_name='scene_reciprocal_0',
-        **common_params)
+    # # SCENARIO PLOTS
+    # from scenarios import scene_plot, reciprocal_scenarios_0, reciprocal_scenarios_1
+    # scene_plot(
+    #     scenario_func=reciprocal_scenarios_0,
+    #     titles = ['Prior' + "\n ",
+    #               r'$j$ cooperates w/ $k$' + "\n ",
+    #               r'$j$ defects on $k$' + "\n "],
+    #     file_name='scene_reciprocal_0',
+    #     **common_params)
 
-    scene_plot(
-        scenario_func=reciprocal_scenarios_1,
-        titles = [r'$k$ defects on $j$' + "\n" + r'$j$ defects on $k$',
-                  r'$k$ defects on $j$' + "\n" + r'$j$ cooperates w/ $k$', 
-                  r'$k$ cooperates w/ $j$' + "\n" + r'$j$ defects on $k$'],
-        file_name='scene_reciprocal_1',
-        **common_params)
+    # scene_plot(
+    #     scenario_func=reciprocal_scenarios_1,
+    #     titles = [r'$k$ defects on $j$' + "\n" + r'$j$ defects on $k$',
+    #               r'$k$ defects on $j$' + "\n" + r'$j$ cooperates w/ $k$', 
+    #               r'$k$ cooperates w/ $j$' + "\n" + r'$j$ defects on $k$'],
+    #     file_name='scene_reciprocal_1',
+    #     **common_params)
 
+    # # FORGIVENESS AND REPUTATION
+    # from scenarios import forgive_plot
+    # forgive_plot(
+    #     p = 'belief',
+    #     file_name = 'forgive_belief',
+    #     label = 'Belief',
+    #     **common_params
+    # )
+
+    # forgive_plot(
+    #     p = 'decision',
+    #     file_name = 'forgive_act',
+    #     label = 'Probability of Cooperate',
+    #     **common_params
+    # )
+    
+    from scenarios import n_action_plot
+    n_action_plot(
+        file_name = 'n_action_info', 
+        **common_params
+    )
     
 
 if __name__ == '__main__':
@@ -197,15 +219,4 @@ if __name__ == '__main__':
     # ipd()
     agent()
 
-
-
-
-
-
-
-
-
-
-# plot_coop_prob(file_name = 'coop_prob', **params)
-# indirect.ToM_indirect(**params)
     
