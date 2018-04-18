@@ -17,6 +17,7 @@ from steady_state import evo_analysis, simulation
 from steady_state import simulation_from_dict, matchups_and_populations
 from multiprocessing import Pool
 
+
 def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kwargs):
     pop_size = sum(start_pop)
     type_count = len(player_types)
@@ -137,7 +138,7 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
     
     record = []
 
-    if param == "rounds":
+    if param == "rounds" and 'param_vals' not in kwargs:
         expected_pop_per_round = evo_analysis(player_types = player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start = 1):
             for t, p in zip(player_types, pop):
@@ -195,7 +196,7 @@ def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
         else:
             start = len(expected_pop_per_round)-1
 
-        for r, pop in enumerate(expected_pop_per_round[start:], start = 1):
+        for r, pop in enumerate(expected_pop_per_round[start:], start = start):
             for t, p in zip(player_types, pop):
                 record.append(dict({'rounds': r,
                                     'type': t.short_name('agent_types'),
@@ -203,6 +204,9 @@ def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
                                    **ps))
 
     return pd.DataFrame.from_records(record)
+
+def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
+    return ssd_v_params(params= {x_param:x_vals, y_param:y_vals}, player_types = player_types, **kwargs)
 
 @plotter(ssd_v_params)
 def params_heat(params, player_types, data = [], graph_kwargs={}, **kwargs):
@@ -234,39 +238,41 @@ def ssd_param_search(param, param_lim, player_types, target, param_tol, mean_tol
     def get_ssd(val):
         return evo_analysis(player_types = player_types, **dict(kwargs,**{param:val}))[-1]
 
-    max_p = get_ssd(max_val)
     min_p = get_ssd(min_val)
-
     if is_mode(min_p):
         if tolerable(min_p):
             best = min_val
         else:
             best = min_val#"poor min"
-    if not is_mode(max_p):
-        best = max_val
-    elif tolerable(max_p):
-        best = max_val
     else:
-        def finder(max_val, min_val):
-            mid_val = np.round(np.mean((max_val, min_val)), 5)
-            #check tolerance
-            if max_val - mid_val <= param_tol:
-                return max_val
-            mid_p = get_ssd(mid_val)
-            if is_mode(mid_p):
-                if tolerable(mid_p):
-                    return mid_val
+        max_p = get_ssd(max_val)
+        if not is_mode(max_p):
+            best = max_val
+        elif tolerable(max_p):
+            best = max_val
+        else:
+            def finder(max_val, min_val):
+                mid_val = np.round(np.mean((max_val, min_val)), 5)
+                #check tolerance
+                if max_val - mid_val <= param_tol:
+                    return max_val
+                mid_p = get_ssd(mid_val)
+                if is_mode(mid_p):
+                    if tolerable(mid_p):
+                        return mid_val
+                    else:
+                        return finder(mid_val, min_val)
                 else:
-                    return finder(mid_val, min_val)
-            else:
-                return finder(max_val, mid_val)
+                    return finder(max_val, mid_val)
 
-        best = finder(max_val, min_val)
+            best = finder(max_val, min_val)
 
     ret =  dict({param:best,
                  "ssd":get_ssd(best),
                  "player_types":player_types,
                  "target":target},**kwargs)
+    print ret
+    
     return ret
 
 
@@ -367,20 +373,23 @@ def compare_param_v_rounds(param, player_types, opponent_types, direct, rounds, 
         dfs.append(df[df['type']==player_type.short_name("agent_types")])
     return pd.concat(dfs,ignore_index = True)
 
-@plotter(param_v_rounds)
-def param_v_rounds_heat(param, player_types, experiment=param_v_rounds, data=[], **kwargs):
+@plotter(ssd_v_xy)
+def param_v_rounds_heat(x_param, y_param, x_vals, y_vals, player_types, data=[], **kwargs):
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop('data')
-        d = data.pivot(index=args[1], columns=args[0], values=args[2])
-        sns.heatmap(d, **kwargs)
+        d = data.pivot(index=y_param, columns=x_param, values='proportion')
+        ax = sns.heatmap(d, **kwargs)
+        ax.invert_yaxis()
         
     g = sns.FacetGrid(data = data, col = 'type')
-    g.map_dataframe(draw_heatmap, param, 'rounds', 'proportion',  cbar=False, square=True,
+    g.map_dataframe(draw_heatmap, cbar=False,# square=True,
                     vmin=0,
                     vmax=1,
                     # vmax=data['frequency'].max(),
-                    cmap=plt.cm.gray_r,
-                    linewidths=.5)
+                    cmap=plt.cm.gray_r,)
+
+                    #linewidths=.5)
+
 
 @plotter(param_v_rounds)
 def param_v_rounds_plot(param, player_types, experiment=param_v_rounds, data=[], **kwargs):
