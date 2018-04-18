@@ -9,6 +9,7 @@ from experiment_utils import fun_call_labeler
 from inspect import getargspec
 #import random
 import itertools
+import utils
 #from explore import *
 
 COST = 1
@@ -295,7 +296,7 @@ def RandomDictator(cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
     # initialize set of choices with the zero-action
     choices = [np.zeros(N_players)]
     
-     for p in xrange(1, N_players):
+    for p in xrange(1, N_players):
         choice = np.zeros(N_players)
         choice[0] = -cost
         choice[p] = cost * benefit
@@ -926,6 +927,57 @@ class IndefiniteMatchup(DecisionSeq):
                     failures = 0
                     yield (game,[decider]+list(participants))
 
+class RandomizedMatchup(DecisionSeq):
+    def __init__(self, rounds, game, deterministic = False, **kwargs):
+        self.rounds = rounds
+        self.game = game
+        self.deterministic = deterministic
+        self.name = self._name = "RandomizedMatchup("+str(rounds)+", "+game.name+")"
+
+    def matchups(self, participants):
+        player_count = len(participants)
+        indices = np.arange(player_count)
+        counts = np.zeros(shape=(player_count, player_count))
+        partners = np.zeros(player_count)
+        if self.deterministic:
+            for i,j in combinations(range(player_count),2):
+                counts[i,j] = counts[j,i] = self.rounds+1
+        else:
+            for i,j in combinations(range(player_count),2):
+                counts[i,j] = counts[j,i] = np.random.geometric(1.0/self.rounds)
+
+        for i,row in enumerate(counts):
+            partners[i] = sum(row>=1)
+
+        #while there is anyone that has more than two partners remaining
+        while True:
+            game = self.game.next_game()
+            N_players = game.N_players
+
+            #decider_pool is the indices of those agents that have enough partners left to play the game
+
+            decider_pool = indices[partners>=N_players-1]
+            decider_pool_size = len(decider_pool)
+
+            if 0 == decider_pool_size:
+                break
+
+            decider = decider_pool[np.random.choice(decider_pool_size)]
+
+            recipient_pool = indices[counts[decider]>0]
+            recipient_pool_size = len(recipient_pool)
+
+            recipients = recipient_pool[np.random.choice(recipient_pool_size, N_players-1, replace=False)]
+
+            for recipient in recipients:
+                counts[decider, recipient] -= 1
+                counts[recipient, decider] -= 1
+
+            for i,row in enumerate(counts):
+               partners[i] = sum(row>=1)
+
+            yield (game,[decider]+list(recipients))
+
 @literal
 def AnnotatedCircular(game):
     return Annotated(Circular(game))
@@ -1278,6 +1330,34 @@ def game_engine(expected_interactions, observability, cost = 1, benefit = 10, in
     game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
     return game
 
+@literal
+def belief_game(rounds, observability, cost = 1, benefit = 10, intervals = 2, tremble = 0, **kwargs):
+    assert intervals>=0
+
+    def Gen():
+        N_actions = 1+np.random.poisson(intervals-1)
+        N_players = 2
+
+        # initialize set of choices with the zero-action
+        choices = [np.zeros(N_players)]
+        for n in range(intervals-1):
+            c = np.random.poisson(cost)
+            w = np.random.exponential(benefit/2)
+            e = np.random.exponential(benefit/2)
+            for p in xrange(1,N_players):
+                choice = np.zeros(N_players)
+                choice[0] = -c
+                choice[p] = c*w+e
+                choices.append(copy(choice))
+        decision = Decision(OrderedDict((str(p),p) for p in choices))
+        decision.tremble = tremble
+
+        return decision
+
+    dictator = Dynamic(Gen)
+    dictator.name = "dynamic"
+    game = AnnotatedGame(RandomizedMatchup(rounds, AllNoneObserve(observability, dictator) ,**kwargs))
+    return game
 
 @literal
 def manual(gamma, cost = COST, benefit = BENEFIT, tremble = 0, observability = 0, intervals = 2, followers = True, **kwargs):
