@@ -1,10 +1,13 @@
 import inspect
 import numpy as np
 import seaborn as sns
+from itertools import product
 
 import agents as ag
 from evolve import limit_param_plot, complete_sim_plot
 from experiment_utils import MultiArg
+from experiments import plot_beliefs
+from utils import splits
 
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 TRIALS = 10
@@ -39,7 +42,7 @@ Evolution of Cooperation in the Game Engine:
 def game_engine():
     opponents = (ag.SelfishAgent(beta = BETA), ag.AltruisticAgent(beta = BETA))
     ToM = ('self',) + opponents
-    agents = (ag.WeAgent(prior = prior, beta = BETA, agent_types = ToM),) + opponents
+    agents = (ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ToM),) + opponents
 
     common_params = dict(
         game = "game_engine",
@@ -48,7 +51,9 @@ def game_engine():
         pop_size = 10,
         trials = TRIALS,
         stacked = True,
+        #benefit = 3,
         plot_dir = PLOT_DIR,
+        observability = 0,
         graph_kwargs = {'color' : color_list(agents)},
     )
 
@@ -212,11 +217,70 @@ def agent():
         file_name = 'n_action_info', 
         **common_params
     )
+
+def belief():
+
+    plot_dir = "./plots/belief_experiments/"
+    WA = ag.WeAgent
+    SA = ag.SelfishAgent
+    AA = ag.AltruisticAgent
+    everyone = (SA, AA)
+    ToM = ('self',) + everyone
+
+
+    agent = WA(prior = .5)
     
+
+    plot_beliefs(agent,
+                 (agent,)+everyone,
+                 (agent,)+everyone,
+                 tremble = 0,
+                 agent_types= ToM,
+                 plot_dir = plot_dir,
+                 game = 'belief_game',
+                 benefit = 3,
+                 rounds = 10,
+                 observability = 0,
+                 file_name = "belief",
+                 trials = 100,
+                 colors = color_list((agent,)+everyone, sort = False))
+
+def heatmaps():
+    from evolve import param_v_rounds_heat
+    plot_dir = "./plots/heatmaps/"
+    WA = ag.WeAgent
+    SA = ag.SelfishAgent
+    AA = ag.AltruisticAgent
+    everyone = (SA, AA)
+    ToM = ('self',) + everyone
+    player_types= (WA(prior = .5),)+everyone
+
+    param_v_rounds_heat(player_types = player_types,
+                        y_param = 'observability',
+                        y_vals = np.linspace(0,1,splits(2)),
+                        x_param = 'rounds',
+                        x_vals = [1,2,3,4,5],
+                        #x_vals = [1,3,5],
+                        agent_types= ToM,
+                        #deterministic = True,
+                        plot_dir = plot_dir,
+                        game = 'belief_game',
+                        #parallelized = False,
+                        benefit = 3,
+                        analysis_type = 'limit',
+                        s = 1,
+                        pop_size = 10,
+                        observability = 0,
+                        file_name = "heat",
+                        trials = 50,)
+    #colors = color_list((agent,)+everyone, sort = False))
+
+def main():
+    game_engine()
+    ipd()
+    agent()
+    belief()
 
 if __name__ == '__main__':
-    # game_engine()
-    # ipd()
-    agent()
-
-    
+    heatmaps()
+    #main()
