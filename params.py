@@ -151,7 +151,7 @@ def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_a
         'tremble':0,
         'y':1,
         'p':1,
-        'q':0
+        'q':0,
     }
 
     for key in extra_args:
