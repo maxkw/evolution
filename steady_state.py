@@ -312,10 +312,9 @@ def avg_payoff_per_type_from_sim(sim_data, agent_types, cog_cost, game = None, *
             # up with a warning in any case
             with np.errstate(divide='ignore', invalid='ignore'):
                 r = running_fitness/running_interactions
-                
+
             r[running_interactions==0] = 0
             fitness_per_round.append(r)
-        
 
     return fitness_per_round
 
@@ -330,7 +329,9 @@ def simulation(player_types, cog_cost = 0,  *args, **kwargs):
     active_players = [p for p in player_types if p[1] != 0]
     
     sim_data = matchup(player_types = active_players, *args, **kwargs)
-    raw_fitness_per_round = avg_payoff_per_type_from_sim(sim_data, types, cog_cost, **kwargs)
+    raw_fitness_per_round = avg_payoff_per_type_from_sim(**dict(kwargs,**dict(sim_data=sim_data,
+                                                                              agent_types = types,
+                                                                              cog_cost = cog_cost)))
 
     expanded_fitness_per_round = []
     for fitness in raw_fitness_per_round:
