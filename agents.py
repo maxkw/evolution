@@ -1105,6 +1105,7 @@ class WeAgent(Agent):
         self.shared_model = self.lattice = lattice = JoinLatticeModel(genome)
         self.me = me = lattice.model[lattice.top]
         self.belief = me.belief
+        self.pop_prior = me.pop_prior
         self.likelihood = me.likelihood
         self.models = me.models
         self.new_likelihoods = me.new_likelihoods
