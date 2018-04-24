@@ -13,23 +13,38 @@ from experiment_utils import plotter
 import matplotlib.pyplot as plt
 
 
-def grid_v_param(f, row_param, col_param, hue_param, col_vals, row_vals, hue_vals, **kwargs):
+def grid_v_param(f, row_param, row_vals,
+                 #col_param, col_vals,
+                 #hue_param, hue_vals,
+                 **kwargs):
     dfs = []
-    for row_val, col_val, hue_val in product(row_vals, col_vals, hue_vals):
+    #for row_val, col_val, hue_val in product(row_vals, col_vals, hue_vals):
+    for row_val in row_vals:
         dfs.append(f(**dict(kwargs,**{
             row_param       :row_val,
-            col_param       :col_val,
-            hue_param       :hue_val})))
+            #col_param       :col_val,
+            #hue_param       :hue_val
+            })))
+    return pd.DataFrame(dfs)
+
+def param_sweep(f,params,**kwargs):
+    dfs = []
+    keys = params.keys()
+    for vals in product(*[params[k] for k in keys]):
+        dfs.append(f(**dict(kwargs,**dict(zip(keys,vals)))))
     return pd.DataFrame(dfs)
 
 
-
 @plotter(grid_v_param, plot_exclusive_args = ['data', 'stacked'])
-def grid_param_plot(row_param, col_param, hue_param, data = [], **kwargs):
+def grid_param_plot(row_param,# col_param,
+                    #hue_param,
+                    data = [], **kwargs):
     #d = data.query('"WeAgent()" == type')
     #sns.factorplot(y = 'proportion', hue = hue_param, x = param, col = col_param, row = row_param, data = d)
-    sns.factorplot(y = "observability", x = "expected_interactions", hue = hue_param, data = data)
+    #sns.factorplot(y = "observability", x = "expected_interactions", hue = hue_param, data = data)
+    ax = data.plot(y = "observability", x = "expected_interactions")
     plt.ylim([0,1])
+    return ax
 
 @literal
 def dd_ci_sa(expected_interactions = 1, observability = 0, cost = 1, benefit = 3, intervals = 1, tremble = .1, variance = 1, **kwargs):
@@ -166,12 +181,13 @@ def compare_slopes():
                          pop_size = 10,
                          #benefit = 10,
                          tremble = 0,
+                         observability = 0,
                          #stacked = True,
                          #parallelized = False,
                          #expected_interactions = 1
     #                     )
-                         col_param = "beta", col_vals = (5,),
-                         row_param = "expected_interactions", row_vals = np.linspace(1,5,splits(2)),
+                         #col_param = "beta", col_vals = (5,),
+                         row_param = "expected_interactions", row_vals = np.linspace(1,5,splits(1)),
     #search_params = dict(
                          trials = 25,
                          benefit = 10,
@@ -194,16 +210,16 @@ def compare_slopes():
 
     sp = [
         #dict(hue_param = 'benefit', hue_vals = np.linspace(3,10, splits(2))),
-        dict(hue_param = 'tremble', hue_vals = [0,.02,
-                                                .04,
+        dict(#hue_param = 'tremble', #hue_vals = [0,#0,.02,
+                                                #.04,
                                                 #.06,
-                                                .08,#.1
-        ]
-             , trials = 100)
+                                                #.08,#.1
+             #]
+             trials = 100)
     ]
 
     for search_params in sp:
-        name = "topographic(hue = %s)" % search_params['hue_param']
+        name = "topographic"# % search_params['hue_param']
         #print ssd_param_search(trials = t,**dict(search_params, **common_params))
         #assert 0
         grid_param_plot(
