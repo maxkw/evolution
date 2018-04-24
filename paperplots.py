@@ -8,6 +8,9 @@ from evolve import limit_param_plot, complete_sim_plot
 from experiment_utils import MultiArg
 from experiments import plot_beliefs
 from utils import splits
+import matplotlib.pyplot as plt
+
+from evolve import param_v_rounds_heat, ssd_v_xy, ssd_param_search, ssd_v_params
 
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 TRIALS = 10
@@ -239,40 +242,115 @@ def belief():
                  plot_dir = plot_dir,
                  game = 'belief_game',
                  benefit = 3,
+                 extension = ".png",
+                 #deterministic = True,
                  rounds = 10,
                  observability = 0,
                  file_name = "belief",
                  trials = 100,
                  colors = color_list((agent,)+everyone, sort = False))
 
+def explore_param_dict():
+    opponents = (ag.SelfishAgent,ag.AltruisticAgent)
+    ToM = ('self',)+opponents
+    WE = ag.WeAgent(agent_types=ToM)
+    agents = (WE,)+opponents
+    common_params = dict(s=.5,
+                         f = ssd_param_search,
+                         #game='dynamic',
+                         game = "game_engine",
+                         #game = 'direct',
+                         #game = 'dd_ci_va',
+                         player_types = agents,
+                         #analysis_type = 'limit',
+                         #beta = 5,
+                         pop_size = 10,
+                         #benefit = 10,
+                         tremble = 0,
+                         observability = 0,
+                         row_param = "expected_interactions", row_vals = np.linspace(1,5,splits(1)),
+                         trials = 25,
+                         benefit = 10,
+                         param = "observability",
+                         param_lim = [0,1],
+                         target = WE,
+                         param_tol = .05,
+                         mean_tol = .1)
+
+    return common_params
+
 def heatmaps():
-    from evolve import param_v_rounds_heat
+    from explore import param_sweep, grid_v_param
     plot_dir = "./plots/heatmaps/"
+    
     WA = ag.WeAgent
     SA = ag.SelfishAgent
     AA = ag.AltruisticAgent
     everyone = (SA, AA)
     ToM = ('self',) + everyone
-    player_types= (WA(prior = .5),)+everyone
+    ra = WA(#prior = .5,
+            agent_types = ToM)
+    player_types= (ra,)+everyone
 
-    param_v_rounds_heat(player_types = player_types,
-                        y_param = 'observability',
-                        y_vals = np.linspace(0,1,splits(2)),
-                        x_param = 'rounds',
-                        x_vals = [1,2,3,4,5],
-                        #x_vals = [1,3,5],
-                        agent_types= ToM,
-                        #deterministic = True,
-                        plot_dir = plot_dir,
-                        game = 'belief_game',
-                        #parallelized = False,
-                        benefit = 3,
-                        analysis_type = 'limit',
-                        s = 1,
-                        pop_size = 10,
-                        observability = 0,
-                        file_name = "heat",
-                        trials = 50,)
+
+    y_param = 'observability'
+    y_vals = np.linspace(0, 1, splits(1))
+    x_vals = np.linspace(1,5,splits(1))
+    x_param = 'expected_interactions'
+
+    common_params = dict(player_types = player_types,
+                         game = 'game_engine',
+                         benefit = 10,
+                         analysis_type = 'limit',
+                         s = .5,
+                         pop_size = 10,
+                         observability = 0,
+                         trials = 200,
+                         tremble = 0,
+                         #agent_types = ToM,
+                         #parallelized = False,
+                         #deterministic = True,
+    )
+
+    heat_params = dict(y_param = y_param,
+                       #y_vals = np.linspace(0, 1, splits(1)),
+                       x_param = x_param,
+                       x_vals = x_vals)
+
+    search_params = dict(f = ssd_param_search,
+                         param = y_param,
+                         #params = {x_param: x_vals},
+                         #row_param = x_param, row_vals = x_vals,
+                         row_param = "expected_interactions", row_vals = np.linspace(1,5,splits(0)),
+                         param_lim = [0,1],
+                         target = WA,
+                         param_tol = .05,
+                         mean_tol = .1)
+
+    hmd = ssd_v_params(params = {y_param:y_vals, x_param:x_vals},**common_params)
+    hmd_ = hmd[hmd['type'] == ra]
+    ##import pdb;pdb.set_trace()
+    d = hmd_.pivot(index = y_param, columns = x_param, values = 'proportion')
+    ax = sns.heatmap(d,cbar = False,# square=True,
+                     vmin = 0,
+                     vmax = 1,
+                     square = True,
+                     # vmax=data['frequency'].max(),
+                     cmap = plt.cm.gray_r,)
+    ax.invert_yaxis()
+    
+    #sd = param_sweep(**dict(common_params, **search_params))
+    #sd = grid_v_param(**dict(common_params, **search_params))
+    #sd = grid_v_param(**explore_param_dict())
+
+    #sd.plot(ax = ax,
+    #        x = x_param, y = y_param)
+    #plt.ylim([0,1])
+
+    file_name = "topology"
+
+    plt.savefig(plot_dir+file_name)
+
     #colors = color_list((agent,)+everyone, sort = False))
 
 def main():
@@ -282,5 +360,7 @@ def main():
     belief()
 
 if __name__ == '__main__':
-    heatmaps()
-    #main()
+    #heatmaps()
+    #belief()
+    main()
+   
