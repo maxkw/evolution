@@ -296,7 +296,7 @@ def make_legend():
 
     return legend
 
-@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs', 'graph_funcs'])
+@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs', 'graph_funcs', 'legend'])
 def limit_param_plot(param, player_types, data = [], stacked = False, graph_funcs=None, graph_kwargs={}, **kwargs):
     fig, ax = plt.subplots(figsize = (3.5, 3))
 
@@ -311,7 +311,7 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_func
     if stacked:
         data.plot.area(stacked = True, ax=ax, ylim = [0, 1], legend=False, **graph_kwargs)
             
-        if 'legend' not in graph_kwargs or graph_kwargs['legend']:
+        if 'legend' not in kwargs or kwargs['legend']:
             legend = make_legend()
 
         if param == 'rounds':
@@ -357,11 +357,13 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_func
     plt.yticks([0, 0.5, 1])
     plt.ylabel('Frequency')
 
+    sns.despine()
+    plt.tight_layout()
+    
     if graph_funcs is not None:
         graph_funcs(ax)
     
-    sns.despine()
-    plt.tight_layout()
+
 
 def param_v_rounds(param, player_types, rounds, **kwargs):
     return ssd_v_param(param, player_types, return_rounds=True, rounds=rounds, **kwargs)
