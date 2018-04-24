@@ -105,6 +105,7 @@ def complete_sim_plot(generations, player_types, data =[], graph_kwargs={}, **kw
     
     plt.tight_layout()
 
+@experiment(unpack = 'record', verbose = 3)
 def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **kwargs):
     """
     This should be optimized to reflect the fact that
@@ -148,7 +149,7 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
                     'proportion': p
                 }, **record_params))
                 
-        return pd.DataFrame.from_records(record)
+        return record#pd.DataFrame.from_records(record)
 
     if 'param_vals' in kwargs:
         vals = kwargs['param_vals']
@@ -172,12 +173,12 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
                         'proportion': p
                     }, **record_params))
 
-        return pd.DataFrame.from_records(record)
+        return record#pd.DataFrame.from_records(record)
 
     else:
         raise Exception('`param_vals` %s is not defined. Pass this variable' % param)
 
-
+@experiment(unpack = 'record', verbose = 3)
 def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
     '''`params`: <dict> with <string> keys that name the parameter and
     values that are lists of the parameters to range over.
@@ -203,7 +204,7 @@ def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
                                     'proportion': p},
                                    **ps))
 
-    return pd.DataFrame.from_records(record)
+    return record#pd.DataFrame.from_records(record)
 
 def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
     return ssd_v_params(params= {x_param:x_vals, y_param:y_vals}, player_types = player_types, **kwargs)
@@ -268,10 +269,9 @@ def ssd_param_search(param, param_lim, player_types, target, param_tol, mean_tol
             best = finder(max_val, min_val)
 
     ret =  dict({param:best,
-                 "ssd":get_ssd(best),
+                 "proportion":get_ssd(best),
                  "player_types":player_types,
-                 "target":target},**kwargs)
-    print ret
+                 "type":target},**kwargs)
     
     return ret
 
