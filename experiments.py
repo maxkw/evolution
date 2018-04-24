@@ -56,7 +56,9 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
 @experiment(unpack = 'record', trials = 100, verbose = 3)
-def matchup(player_types, game, believed_types = None, **kwargs):
+def matchup(player_types, game, **kwargs):
+
+    believed_types = kwargs.get('believed_types', None)
 
     #print trials
     try:
@@ -180,7 +182,7 @@ def plot_beliefs(believer, opponent_types, believed_types, colors = None, data =
     color = {t:c for t,c in zip(type_names,colors)}
 
     prior_dat = pd.DataFrame.from_records(prior_data)
-    print prior_dat
+    
     data = pd.concat([prior_dat,data])
     scale = 5
     fig, axes = plt.subplots(figsize = (3.5*scale,scale))
@@ -194,6 +196,7 @@ def plot_beliefs(believer, opponent_types, believed_types, colors = None, data =
             return "Selfish"
         if "Altruistic" in t_n:
             return "Altruistic"
+
     for (believed,actual), d in data.groupby(['believed_type','actual_type']):
         ax = axes[actual]
         for trial,t in d.groupby(['trial']):
