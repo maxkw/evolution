@@ -167,26 +167,29 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
             dfs.append(data[data['type'] == b_name])
     return pd.concat(dfs, ignore_index = True)
 
-@plotter(beliefs, plot_exclusive_args =['data', 'colors'])
-def plot_beliefs(believer, opponent_types, believed_types, colors = None, data = [],**kwargs):
+@plotter(beliefs, plot_exclusive_args =['data', 'colors', 'traces'])
+def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors = None, data = [],**kwargs):
     WA_prior = believer.genome['prior']
     non_WA_prior = (1-WA_prior)/(len(believed_types)-1)
     prior_arr =  [WA_prior if t is believer else non_WA_prior for t in believed_types]
+    
     type_names = map(repr, believed_types)
     prior = dict(zip(type_names,prior_arr))
-    max_trials = max(data['trial'].unique())
-    prior_data = [{'trial':t,'round':0, 'value': prior[believed],'believed_type':believed,'actual_type':actual}
-                  for t,believed,actual in product(range(max_trials),type_names, type_names)]
+    max_trials = max(data['trial'])
+
+    prior_data = [{'trial':t,'round':0,
+                   'value': prior[believed],
+                   'believed_type':believed,
+                   'actual_type':actual} for t, believed, actual in product(range(max_trials),type_names, type_names)]
+    
     color = {t:c for t,c in zip(type_names,colors)}
 
     prior_dat = pd.DataFrame.from_records(prior_data)
-    print prior_dat
     data = pd.concat([prior_dat,data])
-    scale = 5
-    fig, axes = plt.subplots(figsize = (3.5*scale,scale))
-    type_names = map(repr, believed_types)
-    axes = {t:plt.subplot(1,3,type_names.index(t)+1) for t in type_names}
-    #color = {t:c for (t,c) in zip(type_names,"brg")}
+    
+    # scale = 5
+    # fig, axes = plt.subplots(figsize = (3.5 * scale, scale))
+
     def name(t_n):
         if 'We' in t_n:
             return "Reciprocal"
@@ -194,18 +197,33 @@ def plot_beliefs(believer, opponent_types, believed_types, colors = None, data =
             return "Selfish"
         if "Altruistic" in t_n:
             return "Altruistic"
+
+    fig, axes = plt.subplots()
+    axes = {t:plt.subplot(1,3,type_names.index(t)+1) for t in type_names}
+
     for (believed,actual), d in data.groupby(['believed_type','actual_type']):
         ax = axes[actual]
         for trial,t in d.groupby(['trial']):
-            if trial > 50:
+            if trial >= traces:
                 break
             t.plot(x='round', y='value', ax = ax, legend = False, color = color[believed], linestyle='-',alpha = .1)
+            
         dm = d.groupby('round').mean()
-        dm.plot(y='value', ax=ax, ylim=(0,1), xlim = (0,10), title = "vs %s" % name(actual), legend = (actual == type_names[-1]),label = name(believed), linewidth = 5, color = color[believed])
+        
+        dm.plot(y='value', ax=ax,
+                ylim=(0, 1), xlim = (0, d['round'].max()),
+                title = "vs %s" % name(actual),
+                legend = (actual == type_names[-1]),label = name(believed),
+                linewidth = 5,
+                color = color[believed])
+        
         if actual == type_names[0]:
             ax.set_ylabel('Belief')
-        ax.set_xlabel('Interactions')
+            
+        ax.set_xlabel('# of Interactions')
+    
     sns.despine()
+    plt.tight_layout()
 
 @memoize
 def matchup_grid(player_types,**kwargs):
