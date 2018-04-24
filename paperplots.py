@@ -10,7 +10,6 @@ from experiments import plot_beliefs
 from utils import splits
 
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
-TRIALS = 10
 BETA = 5
 PRIOR = 0.5
 
@@ -40,6 +39,8 @@ Evolution of Cooperation in the Game Engine:
 3. TODO what about b/c, what about # of actions?
 '''
 def game_engine():
+    TRIALS = 200
+    
     opponents = (ag.SelfishAgent(beta = BETA), ag.AltruisticAgent(beta = BETA))
     ToM = ('self',) + opponents
     agents = (ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ToM),) + opponents
@@ -78,15 +79,25 @@ def game_engine():
         file_name = 'game_engine_gamma',
         **common_params)
 
-    # # Vary tremble
-    # limit_param_plot(
-    #     param = 'tremble',
-    #     param_vals = np.round(np.linspace(0, 1, ticks), 2),
-    #     expected_interactions = 10,
-    #     analysis_type = 'limit',
-    #     file_name = 'game_engine_tremble',
-    #     **common_params)
+    # Vary tremble
+    limit_param_plot(
+        param = 'tremble',
+        param_vals = np.round(np.linspace(0, 1, ticks), 2),
+        expected_interactions = 10,
+        analysis_type = 'limit',
+        file_name = 'game_engine_tremble',
+        **common_params)
 
+    # Vary observability
+    limit_param_plot(
+        param = 'observability',
+        param_vals = np.round(np.linspace(0, 1, ticks), 2),
+        expected_interactions = 1,
+        analysis_type = 'complete',
+        file_name = 'game_engine_observability',
+        **common_params)
+
+    
     # # Agent Sim Plots
 
     # sim_params = dict(
@@ -112,6 +123,9 @@ def game_engine():
 
     
 def ipd():
+    TRIALS = 1000
+
+    
     old_pop = (ag.AllC,ag.AllD,ag.GTFT,ag.TFT,ag.WSLS)
     ToM = ('self',) + old_pop
     new_pop = old_pop + (ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ToM),)
@@ -128,38 +142,39 @@ def ipd():
         stacked = True,
     )
 
-    for label, player_types in zip(['wRA', 'woRA'], [old_pop, new_pop]):
-        # By expected rounds
-        limit_param_plot(
-            param = 'rounds',
-            rounds = 50,
-            tremble = 0.0,
-            player_types = player_types,
-            file_name = "ipd_rounds_%s" % label,
-            graph_kwargs = {'color' : color_list(player_types)},
-            **common_params)
+    # for label, player_types in zip(['woRA', 'wRA'], [old_pop, new_pop]):
+    #     # By expected rounds
+    #     limit_param_plot(
+    #         param = 'rounds',
+    #         rounds = 50,
+    #         tremble = 0.0,
+    #         player_types = player_types,
+    #         file_name = "ipd_rounds_%s" % label,
+    #         graph_kwargs = {'color' : color_list(player_types)},
+    #         **common_params)
 
-        # Tremble
-        limit_param_plot(
-            param = 'tremble',
-            param_vals = np.round(np.linspace(0, 0.4, 11), 2),
-            rounds = 10,
-            player_types = player_types,
-            file_name = "ipd_tremble_%s" % label,
-            graph_kwargs = {'color' : color_list(player_types)},
-            **common_params)
+    #     # Tremble
+    #     limit_param_plot(
+    #         param = 'tremble',
+    #         param_vals = np.round(np.linspace(0, 0.4, 11), 2),
+    #         rounds = 10,
+    #         player_types = player_types,
+    #         file_name = "ipd_tremble_%s" % label,
+    #         graph_kwargs = {'color' : color_list(player_types)},
+    #         **common_params)
 
     # Cognitive Costs
     def cog_cost_graph(ax):
         vals = ax.get_xticks()
         surplus = common_params['benefit'] - common_params['cost']
+        print vals, surplus, ['{:3.0f}%'.format(x / surplus * 100) for x in vals]
         ax.set_xticklabels(['{:3.0f}%'.format(x / surplus * 100) for x in vals])
         ax.set_xlabel('Cognitive Cost \n% of (b-c)')
     
     limit_param_plot(param = 'cog_cost',
-                     tremble = 0,
+                     tremble = .15,
                      rounds = 50,
-                     param_vals = np.linspace(0, .3, 50),
+                     param_vals = np.linspace(0, .5, 50),
                      file_name = "ipd_cogcosts",
                      player_types = new_pop,
                      graph_funcs = cog_cost_graph,
@@ -219,30 +234,20 @@ def agent():
     )
 
 def belief():
+    everyone = (ag.AltruisticAgent(beta = BETA), ag.SelfishAgent(beta = BETA))
+    agent = ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ('self',) + everyone)
 
-    plot_dir = "./plots/belief_experiments/"
-    WA = ag.WeAgent
-    SA = ag.SelfishAgent
-    AA = ag.AltruisticAgent
-    everyone = (SA, AA)
-    ToM = ('self',) + everyone
-
-
-    agent = WA(prior = .5)
-    
-
-    plot_beliefs(agent,
-                 (agent,)+everyone,
-                 (agent,)+everyone,
-                 tremble = 0,
-                 agent_types= ToM,
-                 plot_dir = plot_dir,
+    plot_beliefs(agent, (agent,)+everyone, (agent,)+everyone,
+                 tremble = 0.0,
+                 plot_dir = PLOT_DIR,
+                 deterministic = True,
                  game = 'belief_game',
-                 benefit = 3,
+                 # benefit = 10,
                  rounds = 10,
                  observability = 0,
-                 file_name = "belief",
-                 trials = 100,
+                 file_name = "intra_gen_belief",
+                 traces = 0,
+                 trials = 1000,
                  colors = color_list((agent,)+everyone, sort = False))
 
 def heatmaps():
@@ -276,11 +281,11 @@ def heatmaps():
     #colors = color_list((agent,)+everyone, sort = False))
 
 def main():
-    game_engine()
-    ipd()
-    agent()
+    # game_engine()
+    # ipd()
+    # agent()
     belief()
+    # heatmaps()
 
 if __name__ == '__main__':
-    heatmaps()
-    #main()
+    main()
