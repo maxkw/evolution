@@ -939,12 +939,13 @@ class RandomizedMatchup(DecisionSeq):
         indices = np.arange(player_count)
         counts = np.zeros(shape=(player_count, player_count))
         partners = np.zeros(player_count)
+        
         if self.deterministic:
             for i,j in combinations(range(player_count),2):
-                counts[i,j] = counts[j,i] = self.rounds+1
+                counts[i,j] = counts[j,i] = self.rounds
         else:
             for i,j in combinations(range(player_count),2):
-                counts[i,j] = counts[j,i] = np.random.geometric(1.0/self.rounds)
+                counts[i,j] = counts[j,i] = np.random.geometric(1.0 / self.rounds)
 
         for i,row in enumerate(counts):
             partners[i] = sum(row>=1)
@@ -1356,7 +1357,7 @@ def belief_game(rounds, observability, cost = 1, benefit = 10, intervals = 2, tr
 
     dictator = Dynamic(Gen)
     dictator.name = "dynamic"
-    game = AnnotatedGame(RandomizedMatchup(rounds, AllNoneObserve(observability, dictator) ,**kwargs))
+    game = AnnotatedGame(RandomizedMatchup(rounds, AllNoneObserve(observability, dictator), **kwargs))
     return game
 
 @literal
