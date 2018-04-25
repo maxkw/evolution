@@ -56,7 +56,9 @@ def binary_matchup(player_types, priors, Ks, **kwargs):
 
 @multi_call(unordered = ['player_types','agent_types'], verbose=3)
 @experiment(unpack = 'record', trials = 100, verbose = 3)
-def matchup(player_types, game, believed_types = None, **kwargs):
+def matchup(player_types, game, **kwargs):
+
+    believed_types = kwargs.get('believed_types', None)
 
     #print trials
     try:

@@ -204,13 +204,15 @@ def experiment(unpack = False, trials = None, overwrite = False, memoize = True,
                     trials = arg_dict['trials']
                 except KeyError:
                     trials = range(default_trials)
-                    #print "trials:%s" % len(trials)
 
                 try:
                     del arg_dict['trials']
                     call_data = fun_call_labeler(function,[],arg_dict)
                 except:
                     pass
+            else:
+                trials = [0]
+
 
             args = experiment_call._last_args = transform_arg_dict(call_data['valid_args'])
 
@@ -230,17 +232,18 @@ def experiment(unpack = False, trials = None, overwrite = False, memoize = True,
 
             
             cache_file =data_dir+str(arg_hash)+".pkl"
-            #
             if default_trials:
                 try:
                     assert memoized and not overwrite
                     print "Loading cache...",
                     cache = pd.read_pickle(cache_file)
-
                     cached_trials = list(cache['trial'].unique())
                     uncached_trials = [trial for trial in trials if trial not in cached_trials]
-                    #print "...cache loaded! Entries:%s, New Entries:%s" % (len(cache),len(uncached_trials))
 
+                    #import pdb;pdb.set_trace()
+
+                    print "cache loaded! cached:%s, need to compute:%s" % (len(cached_trials),len(uncached_trials))
+                    
                 except Exception as e:
                     print "No cache loaded."
                     if 'trial' in args.keys():
@@ -254,6 +257,7 @@ def experiment(unpack = False, trials = None, overwrite = False, memoize = True,
                     assert memoized and not overwrite
                     print "Loading cache...",
                     cache = pd.read_pickle(cache_file)
+                    uncached_trials = []
                 except Exception as e:
                     print "No cache loaded."
                     cols = args.keys()
