@@ -446,14 +446,12 @@ def plotter(experiment,
             return plot_fun_call_data
         
         def call(*args, **kwargs):
-            plot_dir = kwargs.get("plot_dir",default_plot_dir)
-            extension = kwargs.get("extension",default_extension)
-            file_name = kwargs.get('file_name',default_file_name)
-            plot_trials = kwargs.get('plot_trials', False)
-            for kw in ["plot_dir","file_name","extension", "plot_trials"]:
-                if kw in kwargs:
-                    del kwargs[kw]
-            
+            plot_dir = kwargs.pop("plot_dir",default_plot_dir)
+            extension = kwargs.pop("extension",default_extension)
+            file_name = kwargs.pop('file_name',default_file_name)
+            plot_trials = kwargs.pop('plot_trials', False)
+            close = kwargs.pop('close',True)
+
             #if not plot_name:
             #    save_file = plot_fun.__name__+"(%s).pdf"
             #else:
@@ -520,7 +518,10 @@ def plotter(experiment,
                 new_file_name = raw_input("Automatic Filename Too Long. Enter new one:")
                 save_file = plot_dir+new_file_name+extension
                 plt.savefig(save_file)
-            plt.close()
+
+            if close:
+                plt.close()
+                
             return ret
         call.make_arg_dicts = make_arg_dicts
         return call
