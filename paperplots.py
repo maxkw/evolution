@@ -272,7 +272,7 @@ def explore_param_dict():
                          tremble = 0,
                          observability = 0,
                          row_param = "expected_interactions", row_vals = np.linspace(1,5,splits(1)),
-                         trials = 25,
+                         trials = 100,
                          benefit = 10,
                          param = "observability",
                          param_lim = [0,1],
@@ -283,7 +283,7 @@ def explore_param_dict():
     return common_params
 
 def heatmaps():
-    from explore import param_sweep, grid_v_param
+    from explore import param_sweep, grid_v_param, grid_param_plot
     plot_dir = "./plots/heatmaps/"
     
     WA = ag.WeAgent
@@ -295,10 +295,10 @@ def heatmaps():
             agent_types = ToM)
     player_types= (ra,)+everyone
 
-
+    res = 2
     y_param = 'observability'
-    y_vals = np.linspace(0, 1, splits(1))
-    x_vals = np.linspace(1,5,splits(1))
+    y_vals = np.linspace(0, 1, splits(res))
+    x_vals = np.linspace(1,5,splits(res))
     x_param = 'expected_interactions'
 
     common_params = dict(player_types = player_types,
@@ -307,7 +307,7 @@ def heatmaps():
                          analysis_type = 'limit',
                          s = .5,
                          pop_size = 10,
-                         observability = 0,
+                         observability = 0.0,
                          trials = 200,
                          tremble = 0,
                          #agent_types = ToM,
@@ -322,32 +322,35 @@ def heatmaps():
 
     search_params = dict(f = ssd_param_search,
                          param = y_param,
-                         #params = {x_param: x_vals},
+                         params = {x_param: x_vals},
                          #row_param = x_param, row_vals = x_vals,
-                         row_param = "expected_interactions", row_vals = np.linspace(1,5,splits(0)),
+                         #row_param = "expected_interactions", row_vals = np.linspace(1,5,splits(0)),
                          param_lim = [0,1],
                          target = WA,
                          param_tol = .05,
                          mean_tol = .1)
 
-    hmd = ssd_v_params(params = {y_param:y_vals, x_param:x_vals},**common_params)
-    hmd_ = hmd[hmd['type'] == ra]
-    ##import pdb;pdb.set_trace()
-    d = hmd_.pivot(index = y_param, columns = x_param, values = 'proportion')
-    ax = sns.heatmap(d,cbar = False,# square=True,
-                     vmin = 0,
-                     vmax = 1,
-                     square = True,
-                     # vmax=data['frequency'].max(),
-                     cmap = plt.cm.gray_r,)
-    ax.invert_yaxis()
+    #hmd = ssd_v_params(params = {y_param:y_vals, x_param:x_vals},**common_params)
+    #hmd_ = hmd[hmd['type'] == ra.short_name('agent_types')]
+    ##hmd_ = hmd
+    ####import pdb;pdb.set_trace()
+    #d = hmd_.pivot(index = y_param, columns = x_param, values = 'proportion')
+    #print d
+    #ax = sns.heatmap(d,cbar = False,# square=True,
+    #                 vmin = 0,
+    #                 vmax = 1,
+    #                 square = True,
+    #                 #vmax=d['proportion'].max(),
+    #                 cmap = plt.cm.gray_r,)
+    #ax.invert_yaxis()
     
-    #sd = param_sweep(**dict(common_params, **search_params))
+    sd = param_sweep(**dict(common_params, **search_params))
     #sd = grid_v_param(**dict(common_params, **search_params))
     #sd = grid_v_param(**explore_param_dict())
+    #sd, ax = grid_param_plot(**explore_param_dict())
 
-    #sd.plot(ax = ax,
-    #        x = x_param, y = y_param)
+    sd.plot(#ax = ax,
+            x = x_param, y = y_param)
     #plt.ylim([0,1])
 
     file_name = "topology"
@@ -360,8 +363,8 @@ def main():
     # game_engine()
     # ipd()
     # agent()
-    belief()
-    # heatmaps()
+    #belief()
+    heatmaps()
 
 if __name__ == '__main__':
     main()
