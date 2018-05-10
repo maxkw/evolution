@@ -6,7 +6,7 @@ from itertools import product
 import agents as ag
 from evolve import limit_param_plot, complete_sim_plot
 from experiment_utils import MultiArg
-from experiments import plot_beliefs
+from experiments import plot_beliefs, population_beliefs
 from utils import splits
 import matplotlib.pyplot as plt
 
@@ -241,16 +241,19 @@ def belief():
     agent = ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ('self',) + everyone)
 
     plot_beliefs(agent, (agent,)+everyone, (agent,)+everyone,
+                 population = [3,3,3],
+                 experiment = population_beliefs,
                  tremble = 0.0,
                  plot_dir = PLOT_DIR,
-                 deterministic = True,
+                 #deterministic = True,
                  game = 'belief_game',
                  # benefit = 10,
-                 rounds = 10,
-                 observability = 0,
+                 rounds = 11,
+                 observability = .5,
                  file_name = "intra_gen_belief",
-                 traces = 0,
-                 trials = 1000,
+                 deterministic = True,
+                 #traces = 0,
+                 trials = 10,
                  colors = color_list((agent,)+everyone, sort = False))
 
 def explore_param_dict():
@@ -302,6 +305,7 @@ def heatmaps():
     x_param = 'expected_interactions'
 
     common_params = dict(player_types = player_types,
+
                          game = 'game_engine',
                          benefit = 10,
                          analysis_type = 'limit',
@@ -330,19 +334,19 @@ def heatmaps():
                          param_tol = .05,
                          mean_tol = .1)
 
-    #hmd = ssd_v_params(params = {y_param:y_vals, x_param:x_vals},**common_params)
-    #hmd_ = hmd[hmd['type'] == ra.short_name('agent_types')]
-    ##hmd_ = hmd
+    hmd = ssd_v_params(params = {y_param:y_vals, x_param:x_vals},**common_params)
+    hmd_ = hmd[hmd['type'] == ra.short_name('agent_types')]
+    #hmd_ = hmd
     ####import pdb;pdb.set_trace()
-    #d = hmd_.pivot(index = y_param, columns = x_param, values = 'proportion')
+    d = hmd_.pivot(index = y_param, columns = x_param, values = 'proportion')
     #print d
-    #ax = sns.heatmap(d,cbar = False,# square=True,
-    #                 vmin = 0,
-    #                 vmax = 1,
-    #                 square = True,
-    #                 #vmax=d['proportion'].max(),
-    #                 cmap = plt.cm.gray_r,)
-    #ax.invert_yaxis()
+    ax = sns.heatmap(d,cbar = False,# square=True,
+                     vmin = 0,
+                     vmax = 1,
+                     square = True,
+                     #vmax=d['proportion'].max(),
+                     cmap = plt.cm.gray_r,)
+    ax.invert_yaxis()
     
     sd = param_sweep(**dict(common_params, **search_params))
     #sd = grid_v_param(**dict(common_params, **search_params))
@@ -363,8 +367,8 @@ def main():
     # game_engine()
     # ipd()
     # agent()
-    #belief()
-    heatmaps()
+    belief()
+    #heatmaps()
 
 if __name__ == '__main__':
     main()
