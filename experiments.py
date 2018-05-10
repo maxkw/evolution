@@ -102,6 +102,8 @@ def matchup(player_types, game, **kwargs):
 
     record = []
     ids = [a.world_id for a in world.agents]
+
+    #import pdb; pdb.set_trace()
     for event in history:
         r = event['round']
         try:
@@ -115,34 +117,41 @@ def matchup(player_types, game, **kwargs):
             interactions[np.array(actors)] += 1
             decisions[actors[0]] += 1
 
+
         for t, a_id, p, b, l, n_l in zip(player_types, ids, event['payoff'], event['beliefs'], event['likelihoods'], event['new_likelihoods']):
             if believed_types:
                 atypes = genomes[a_id]['agent_types']
                 if b:
-                    o_id = (a_id+1)%2
-                    l = np.exp(l[o_id])
-                    n_l = np.exp(n_l[o_id])
-                    b = b[o_id]
-                    for believed_type in believed_types:
-                        bt_index = atypes.index(believed_type)
-                        try:
-                            attr_to_val = {
-                                'belief' : b[bt_index],
-                                #'likelihood': normalized(l[bt_index]),
-                                #'new_likelihood': n_l[bt_index]
-                            }
-                        except:
-                            print n_l
-                            raise
-                        for attr,val in attr_to_val.iteritems():
-                            record.append({'type' : repr(t),
-                                           'id' : a_id,
-                                           'round' : r,
-                                           'attribute' : attr,
-                                           'value' : val,
-                                           'believed_type':repr(believed_type),
-                                           'actual_type':repr(types[(o_id)%2]),
-                                           'fitness' : p})
+                    for o_id in ids:
+                        if o_id == a_id:
+                            continue
+                        #o_id = (a_id+1)%2
+
+                        #l = np.exp(l[o_id])
+                        #n_l = np.exp(n_l[o_id])
+                        bel = b[o_id]
+                        #print b
+                        actual_type = player_types[o_id]
+                        for believed_type in believed_types:
+                            bt_index = atypes.index(believed_type)
+                            try:
+                                attr_to_val = {
+                                    'belief' : bel[bt_index],
+                                    #'likelihood': normalized(l[bt_index]),
+                                    #'new_likelihood': n_l[bt_index]
+                                }
+                            except:
+                                #print n_l
+                                raise
+                            for attr,val in attr_to_val.iteritems():
+                                record.append({'type' : repr(t),
+                                               'id' : a_id,
+                                               'round' : r,
+                                               'attribute' : attr,
+                                               'value' : val,
+                                               'believed_type':repr(believed_type),
+                                               'actual_type':repr(actual_type),
+                                               'fitness' : p})
             else:
                 record.append({
                     'type' : repr(t),
@@ -182,7 +191,8 @@ def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors =
     prior_data = [{'trial':t,'round':0,
                    'value': prior[believed],
                    'believed_type':believed,
-                   'actual_type':actual} for t, believed, actual in product(range(max_trials),type_names, type_names)]
+                   'actual_type':actual} for t, believed, actual in product(range(max_trials), type_names, type_names)]
+
     
     color = {t:c for t,c in zip(type_names,colors)}
 
@@ -226,6 +236,15 @@ def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors =
     
     sns.despine()
     plt.tight_layout()
+
+def population_beliefs(believer, opponent_types, believed_types, population, **kwargs):
+    player_types = zip(opponent_types, population)
+    believer_repr = repr(believer)
+    data = matchup(player_types = player_types,
+                   believed_types = believed_types,
+                   per_round = True, unpack_beliefs = True, **kwargs)
+    #data = data[data['type'] == believer_repr]
+    return data
 
 @memoize
 def matchup_grid(player_types,**kwargs):
@@ -777,12 +796,14 @@ def belief_experiments():
         )
         
         for t in trembles:
-            for trial in [500]:
+            for trial in [10]:
                 plot_beliefs(agent,
                              (agent,)+everyone,
                              (agent,)+everyone,
+                             #experiment = population_beliefs,
                              tremble = tremble,
                              agent_types= ToM,
+                             #population = (3,3,3),
                              plot_dir = plot_dir,
                              game = 'belief_game',
                              #game = 'direct',
@@ -791,7 +812,10 @@ def belief_experiments():
                              observability = 0,
                              file_name = "belief",
                              extension = '.png',
+                             #colors = colors = color_list((agent,)+everyone, sort = False)),
                              trials = trial)
+
+
 @experiment(unpack = 'record', memoize=False)
 def coop_prob(cost=1, benefit=3, **kwargs):
     bd = BinaryDictator(cost = cost, benefit = benefit)
