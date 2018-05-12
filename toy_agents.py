@@ -5,16 +5,13 @@ from collections import defaultdict
 
 from utils import normalized, softmax
 
-def power_set(s):
+def powerset(s):
+    s = list(s)
     return chain.from_iterable(combinations(s,r) for r in range(len(s)+1))
-
-def powerset(top, sets):
-    observers_minus_top = set(o for o in observers if o is not top)
-    return (s.add(top) for s in power_set(observers_minus_top))
 
 def subsets_with(base_set, common):
     assert  common <= base_set
-    subsets = power_set(base_set-common)
+    subsets = powerset(base_set-common)
     return map(common.union, subsets)
 
 def add_tremble(p, tremble):
@@ -55,6 +52,9 @@ class model_node(object):
             self.belief[agent_id] = copy(common_knowledge['prior'])
             self.likelihood[agent_id] = np.zeros(len(agent_types))
 
+            # self.model and the code below is only necessary for
+            # other models that implement observe in a different way
+            # i.e., anything that is not a subclass of RationalAgent
             self.model[agent_id] = {}
             for agent_type in agent_types:
                 if not issubclass(agent_type, RationalAgent):
@@ -82,6 +82,7 @@ class RationalAgent(Agent):
         self.likelihood = me.likelihood
 
     def act(self, game, participant_ids):
+        # TODO: Check if it should just be self.likelihood_of : https://stackoverflow.com/questions/136097/what-is-the-difference-between-staticmethod-and-classmethod-in-python
         action_likelihoods = self.__class__.likelihood_of(game, participant_ids, self.belief, self.common_knowledge)
         return np.random.choice(game.actions, p = action_likelihoods)
 
@@ -89,41 +90,42 @@ class RationalAgent(Agent):
         agent_set = self.agent_set
         agent_types = self.common_knowledge['agent_types']
 
-        #this is a map of type set(id)->id->array
-        #it keeps track of the likelihoods that need updating for which subsets of observers
-        new_likelihoods = defaultdict(lambda: defaultdict(lambda:np.zeros_like(self.common_knowledge['prior'])))
+        # this is a map of type set(id)->id->array
+        # it keeps track of the likelihoods that need updating for which subsets of observers
+        new_likelihoods = defaultdict(lambda: defaultdict(lambda: np.zeros_like(self.common_knowledge['prior'])))
 
         for observation in simultaneous_observations:
             #actor is in participants whose elements are a subset of observers
             participants, observers = [observation[attr] for attr in ['participant_ids','observer_ids']]
             actor = participants[0]
 
-            if not(agent_set <= observers):
-                continue
-
-            for subset in subsets_with(observers, agent_set):
-                joint = self.lattice[subset.union(set([actor]))]
+            for subset in subsets_with(observers, frozenset([self.agent_id, actor]):
+                joint = self.lattice[subset]
 
                 type_likelihoods = []
                 for potential_type in agent_types:
-                    if not issubclass(potential_type, RationalAgent):
-                        likelihood = joint.model[actor][potential_type].likelihood_of(**observation)
-                    else:
+                    if issubclass(potential_type, RationalAgent):
                         likelihood = potential_type.likelihood_of(belief = joint.belief,
                                                                   common_knowledge = self.common_knowledge,
                                                                   **observation)
+                    else:
+                        # Get the likelihood of the non-rational types. 
+                        likelihood = joint.model[actor][potential_type].likelihood_of(**observation)
+                        
                     type_likelihoods.append(likelihood)
 
-                new_likelihoods[subset][actor]+= np.log(type_likelihoods)
+                new_likelihoods[subset][actor] += np.log(type_likelihoods)
 
 
-        #update lattice beliefs using new_likelihoods
-        for observers, actor_likelihood in new_likelihoods.iteritems():
+        # update lattice beliefs using new_likelihoods
+        for observers, actors_likelihood in new_likelihoods.iteritems():
             joint = self.lattice[observers]
-            for actor, new_likelihood in actor_likelihood.iteritems():
+                                      
+            for actor, new_likelihood in actors_likelihood.iteritems():
                 joint.likelihood[actor] += new_likelihood
                 joint.belief[actor] = normalized(np.exp(common_knowledge['prior']+joint.likelihood[actor]))
 
+            # Update the non-rational types
             for agent_type in agent_types:
                 if not issubclass(agent_type, RationalAgent):
                     for observer in observers:
