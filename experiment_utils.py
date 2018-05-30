@@ -521,7 +521,7 @@ def plotter(experiment,
 
             if close:
                 plt.close()
-                
+
             return ret
         call.make_arg_dicts = make_arg_dicts
         return call
