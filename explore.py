@@ -209,5 +209,190 @@ def compare_slopes():
 def main():
     compare_slopes()
 
+
+import inspect
+import numpy as np
+import seaborn as sns
+from itertools import product
+
+import agents as ag
+from evolve import limit_param_plot, complete_sim_plot
+from experiment_utils import MultiArg
+from experiments import plot_beliefs, population_beliefs
+from utils import splits
+import matplotlib.pyplot as plt
+
+from evolve import param_v_rounds_heat, ssd_v_xy, ssd_param_search, ssd_v_params
+
+PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
+BETA = 5
+PRIOR = 0.5
+
+
+def color_list(agent_list, sort = True):
+    '''takes a list of agent types `agent_list` and returns the correctly
+    ordered color mapping for plots
+    '''
+    def lookup(a):
+        a = str(a)
+        if 'WeAgent' in a: return 'C0'
+        if 'ReciprocalAgent' in a: return 'C0'
+        if 'AltruisticAgent' in a or 'AllC' in a: return 'C2'
+        if 'SelfishAgent' in a or 'AllD' in a: return 'C3'
+        if 'WSLS' in a: return 'C1'
+        if 'GTFT' in a: return 'C4'
+        if 'TFT' in a: return 'C5'
+        raise('Color not defined for agent %s' % a)
+    
+    if sort:
+        return sns.color_palette([lookup(a) for a in sorted(agent_list, key=str)])
+    else: 
+        return sns.color_palette([lookup(a) for a in agent_list])
+
+def belief():
+    everyone = (ag.AltruisticAgent(beta = BETA), ag.SelfishAgent(beta = BETA))
+    A = ag.WeAgent
+    A = ag.ReciprocalAgent
+    agent = A(prior = PRIOR, beta = BETA, agent_types = ('self',) + everyone)
+
+    plot_beliefs(agent, (agent,)+everyone, (agent,)+everyone,
+                 #population = [3,3,3],
+                 #population = [
+                 #    3,3,3
+                 #    #5,5,5
+                 #],
+                 #experiment = population_beliefs,
+                 tremble = 0.0,
+                 plot_dir = PLOT_DIR,
+                 #deterministic = True,
+                 game = 'belief_game',
+                 # benefit = 10,
+                 rounds = 1,
+                 observability = 1,
+                 file_name = "intra_gen_belief",
+                 #deterministic = True,
+                 extension = '.png',
+                 traces = 0,
+                 trials = 100,
+                 colors = color_list((agent,)+everyone, sort = False))
+
+def game_engine():
+    TRIALS = 10#200
+    
+    opponents = (ag.SelfishAgent(beta = BETA), ag.AltruisticAgent(beta = BETA))
+    ToM = ('self',) + opponents
+    agents = (ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ToM),) + opponents
+
+    common_params = dict(
+        game = "game_engine",
+        player_types = agents,
+        s = .5,
+        pop_size = 10,
+        trials = TRIALS,
+        stacked = True,
+        #benefit = 3,
+        plot_dir = PLOT_DIR,
+        observability = 0,
+        graph_kwargs = {'color' : color_list(agents)},
+    )
+
+    ticks = 50
+    
+    # from evolve import params_heat
+    # params = {'expected_interactions': np.round(np.linspace(1, 4, ticks)),
+    #           'observability': np.round(np.linspace(0, 1, ticks), 2)}
+    
+    # # Heatmap based on gamma vs. observability
+    # params_heat(params,
+    #             tremble = 0,
+    #             file_name = 'game_engine_indirect_direct',
+    #             **common_params)
+    
+    # Expected number of interactions
+    def gamma_plot():
+        limit_param_plot(
+            param = 'expected_interactions',
+            param_vals = np.round(np.linspace(1, 10, splits(4)), 2),
+            tremble = 0.0, 
+            analysis_type = 'limit',
+            file_name = 'game_engine_gamma',
+            **common_params)
+
+    def tremble_plot():
+        # Vary tremble
+        limit_param_plot(
+            param = 'tremble',
+            param_vals = np.round(np.linspace(0, 1, ticks), 2),
+            expected_interactions = 10,
+            analysis_type = 'limit',
+            file_name = 'game_engine_tremble',
+            **common_params)
+
+    def observe_plot():
+        # Vary observability
+        limit_param_plot(
+            param = 'observability',
+            param_vals = np.round(np.linspace(0, 1, ticks), 2),
+            expected_interactions = 1,
+            analysis_type = 'complete',
+            file_name = 'game_engine_observability',
+            **common_params)
+
+    gamma_plot()
+
+def gaussian_test():
+    from scipy.ndimage.filters import gaussian_filter1d as gfilter
+    a = np.array([[0.0,1,0],
+                  [0,1,0],
+                  [1,0,0],
+                  [0,0,1]])
+    print a
+    print np.round(gfilter(a,.5,0),2)
+
+
+def compare():
+    from games import BinaryDictator
+    bd = BinaryDictator(cost = 1, benefit = 10)
+    def observation(participant_ids, action, game = bd, observer_ids = None, tremble = 0):
+        if observer_ids == None:
+            observer_ids = participant_ids
+        return dict(locals(),**dict(observer_ids = frozenset(observer_ids)))
+
+    def PD_obs(actions, participants = "AB", tremble = 0):
+        return [observation(participants, actions[0], bd, participants, tremble),
+                observation(list(reversed(participants)), actions[1], bd, participants, tremble)]
+
+    tft_obs = [PD_obs(["keep","give"]), PD_obs(["give","keep"]), PD_obs(["give","give"])]
+
+    def test_agent(RA):
+        genome = dict(type = RA, agent_types = [RA, ag.SelfishAgent, ag.TFT], prior = .33, beta = 5)
+        agent = RA(genome, "A")
+        print "\n\n\n", RA
+        print agent.belief['B']
+        for o in tft_obs:
+            for os in o:
+                #print os
+                #print "l", agent.likelihood_of(**os)
+                pass
+            agent.observe(o)
+            print agent.belief['B']
+
+    RAs = [ag.WeAgent, ag.ReciprocalAgent]
+
+    for RA in RAs:
+        test_agent(RA)
+
 if __name__ == "__main__":
-    main()
+    #compare()
+    belief()
+    #game_engine()
+    #gaussian_test()
+    #a = foo("a","ab")
+    #print a.name
+    #print a.me
+    #print [i.me for i in a.lattice]
+    #print bar().like()
+    #main()
+    #test()
+
+
