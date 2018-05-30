@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import product, permutations, izip
+from scipy.ndimage.filters import gaussian_filter1d
 
 import agents as ag
 
@@ -296,15 +297,24 @@ def make_legend():
 
     return legend
 
-@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs', 'graph_funcs'])
-def limit_param_plot(param, player_types, data = [], stacked = False, graph_funcs=None, graph_kwargs={}, **kwargs):
-    fig, ax = plt.subplots(figsize = (3.5, 3))
+def gaussian_filter(df, sigma = 1):
+    """takes a dataframe where columns are agent types, indices are a parameter, and values are proportions"""
+    index = df.index
+    columns = df.columns
+    filtered = gaussian_filter1d(df.values, sigma, axis = 0, mode = 'nearest')
+    return pd.DataFrame(filtered, columns = columns, index = index)
 
+@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs', 'graph_funcs', 'sigma'])
+def limit_param_plot(param, player_types, data = [], stacked = False, graph_funcs=None, sigma = 0, graph_kwargs={}, **kwargs):
+    fig, ax = plt.subplots(figsize = (3.5, 3))
     # TODO: Investigate this, some weird but necessary data cleaning
     data[data['proportion']<0] = 0
     data = data[data['type']!=0]
 
+
     data = data[[param, 'proportion', 'type']].pivot(columns='type', index=param, values='proportion')
+
+    data = gaussian_filter(data, sigma = 0)
     type_order = dict(map(reversed,enumerate([t.short_name('agent_types') for t in player_types])))
     data.reindex(sorted(data.columns, key = lambda t:type_order[t]), axis = 1)
 
