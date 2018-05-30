@@ -59,6 +59,84 @@ class model_node(object):
             for agent_type in agent_types:
                 if not issubclass(agent_type, RationalAgent):
                     self.model[agent_id][agent_type] = agent_type(agent_id, common_knowledge)
+class FullLattice(dict):
+    def __init__(self, agent_set, common_knowledge):
+        agent_ids = common_knowledge['agent_ids']
+        for subset in subsets_with(agent_ids, agent_set):
+            lattice[subset] = model_node(subset, common_knowledge)
+
+class UniverseSet(frozenset):
+    def __contains__(self,x):
+        return True
+    def __and__(self,s):
+        return s
+    def __rand__(self,s):
+        return s
+    def __or__(self,s):
+        return self
+    def __ror__(self,s):
+        return self
+    def __len__(self):
+        # TODO: This needs to be infinity but using approx infinity
+        # for now due to some other bug somewhere
+        return 10000000
+    def __le__(self,other):
+        return False
+    def __lt__(self,other):
+        return False
+    def __ge__(self,other):
+        return True
+    def __gt__(self,other):
+        return True
+    def issuperset(self,other):
+        return True
+    def issubset(self,other):
+        return False
+    def __rsub__(self,other):
+        return other-other
+Universe = UniverseSet()
+
+class ObserverLattice(object):
+    class ModelDict(dict):
+        def __init__(self, common_knowledge):
+            self.model_types = [t for t in common_knowledge['agent_types'] if not issubclass(t, RationalAgent)]
+        def __missing__(self, agent_id):
+            model_dict = {model_type : model_type(agent_id, common_knowledge) for model_type in self.model_types}
+            self[agent_id] = model_dict
+            return model_dict
+
+    class JointState(object):
+        def __init__(self, common_knowledge):
+            agent_types = common_knowledge['agent_types']
+            prior = common_knowledge['prior']
+            self.belief = defaultdict(lambda:copy(prior))
+            self.likelihood = defaultdict(lambda:np.zeros_like(prior))
+            self.model = ModelDict(common_knowledge)
+
+    def __init__(self, common_knowledge):
+        self[Universe] = JointState(common_knowledge)
+
+    def insert(self, new_set):
+        known_sets = list(self.keys())
+        new_sets = defaultdict(list)
+
+        for known_set in known_sets
+            intersect = known_set&new_set
+            if intersect not in known_sets:
+                new_sets[intersect].append(known_set)
+
+        for new_set, supersets in new_sets:
+            smallest_superset = sorted(supersets, key = len)[0]
+            self[new_set] = deepcopy(self[smallest_superset])
+
+    def __missing__(self, agent_set):
+        """
+        when asked for the joint state of an uknown set,
+        return the state of the smallest superset of the given set
+        because this is a join-semilattice, there is guaranteed to be a least upper bound
+        """
+        smallest_superset = sorted(filter(lambda s: s > agent_set, self.keys()), key = len)[0]
+        return self[smallest_superset]
 
 class RationalAgent(Agent):
     """
@@ -73,9 +151,7 @@ class RationalAgent(Agent):
         self.beta = common_knowledge['beta']
         agent_ids = common_knowledge['agent_ids']
 
-        lattice = self.lattice = {}
-        for subset in subsets_with(agent_ids, self.agent_set):
-            lattice[subset] = model_node(agent_id, common_knowledge)
+        lattice = self.lattice = FullLattice(agent_set, common_knowledge)
 
         me = lattice[self.agent_set]
         self.belief = me.belief

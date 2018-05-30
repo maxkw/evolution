@@ -74,31 +74,36 @@ def game_engine():
     #             **common_params)
     
     # Expected number of interactions
-    limit_param_plot(
-        param = 'expected_interactions',
-        param_vals = np.round(np.linspace(1, 10, ticks), 2),
-        tremble = 0.0, 
-        analysis_type = 'limit',
-        file_name = 'game_engine_gamma',
-        **common_params)
+    def gamma_plot():
+        limit_param_plot(
+            param = 'expected_interactions',
+            param_vals = np.round(np.linspace(1, 10, ticks), 2),
+            tremble = 0.0, 
+            analysis_type = 'limit',
+            file_name = 'game_engine_gamma',
+            **common_params)
 
-    # Vary tremble
-    limit_param_plot(
-        param = 'tremble',
-        param_vals = np.round(np.linspace(0, 1, ticks), 2),
-        expected_interactions = 10,
-        analysis_type = 'limit',
-        file_name = 'game_engine_tremble',
-        **common_params)
+    def tremble_plot():
+        # Vary tremble
+        limit_param_plot(
+            param = 'tremble',
+            param_vals = np.round(np.linspace(0, 1, ticks), 2),
+            expected_interactions = 10,
+            analysis_type = 'limit',
+            file_name = 'game_engine_tremble',
+            **common_params)
 
-    # Vary observability
-    limit_param_plot(
-        param = 'observability',
-        param_vals = np.round(np.linspace(0, 1, ticks), 2),
-        expected_interactions = 1,
-        analysis_type = 'complete',
-        file_name = 'game_engine_observability',
-        **common_params)
+    def observe_plot():
+        # Vary observability
+        limit_param_plot(
+            param = 'observability',
+            param_vals = np.round(np.linspace(0, 1, ticks), 2),
+            expected_interactions = 1,
+            analysis_type = 'complete',
+            file_name = 'game_engine_observability',
+            **common_params)
+
+    
 
     
     # # Agent Sim Plots
@@ -124,7 +129,9 @@ def game_engine():
     #     seed = 0,
     #     **sim_params)
 
-    
+    gamma_plot()
+    #tremble_plot()
+    #observe_plot()
 def ipd():
     TRIALS = 1000
 
@@ -241,19 +248,24 @@ def belief():
     agent = ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ('self',) + everyone)
 
     plot_beliefs(agent, (agent,)+everyone, (agent,)+everyone,
-                 population = [3,3,3],
+                 #population = [3,3,3],
+                 population = [
+                     #3,3,3
+                     5,5,5
+                 ],
                  experiment = population_beliefs,
                  tremble = 0.0,
                  plot_dir = PLOT_DIR,
                  #deterministic = True,
                  game = 'belief_game',
                  # benefit = 10,
-                 rounds = 11,
-                 observability = .5,
+                 rounds = 1,
+                 observability = 1,
                  file_name = "intra_gen_belief",
-                 deterministic = True,
-                 #traces = 0,
-                 trials = 10,
+                 #deterministic = True,
+                 extension = '.png',
+                 traces = 0,
+                 trials = 50,
                  colors = color_list((agent,)+everyone, sort = False))
 
 def explore_param_dict():
@@ -284,6 +296,11 @@ def explore_param_dict():
                          mean_tol = .1)
 
     return common_params
+def proportion_df_to_kdeable(x,y,z,data):
+    res = []
+    for i in data:
+        res.extend([(i[x],i[y])]*int(i[z])*100)
+    return zip(*res)
 
 def heatmaps():
     from explore import param_sweep, grid_v_param, grid_param_plot
@@ -336,8 +353,11 @@ def heatmaps():
 
     hmd = ssd_v_params(params = {y_param:y_vals, x_param:x_vals},**common_params)
     hmd_ = hmd[hmd['type'] == ra.short_name('agent_types')]
+
+
     #hmd_ = hmd
     ####import pdb;pdb.set_trace()
+    #seaborn.jointplot(x = '')
     d = hmd_.pivot(index = y_param, columns = x_param, values = 'proportion')
     #print d
     ax = sns.heatmap(d,cbar = False,# square=True,
@@ -347,14 +367,16 @@ def heatmaps():
                      #vmax=d['proportion'].max(),
                      cmap = plt.cm.gray_r,)
     ax.invert_yaxis()
+
     
-    sd = param_sweep(**dict(common_params, **search_params))
+    
+    #sd = param_sweep(**dict(common_params, **search_params))
     #sd = grid_v_param(**dict(common_params, **search_params))
     #sd = grid_v_param(**explore_param_dict())
     #sd, ax = grid_param_plot(**explore_param_dict())
 
-    sd.plot(#ax = ax,
-            x = x_param, y = y_param)
+    #sd.plot(#ax = ax,
+    #        x = x_param, y = y_param)
     #plt.ylim([0,1])
 
     file_name = "topology"
@@ -364,10 +386,10 @@ def heatmaps():
     #colors = color_list((agent,)+everyone, sort = False))
 
 def main():
-    # game_engine()
+    game_engine()
     # ipd()
     # agent()
-    belief()
+    #belief()
     #heatmaps()
 
 if __name__ == '__main__':

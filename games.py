@@ -102,10 +102,10 @@ class Playable(object):
             'game':decision,
             'action':action,
             'participant_ids':array(participant_ids),
-            'observer_ids':array(observer_ids),
+            'observer_ids':frozenset(observer_ids),
             'payoffs':array(payoffs)}]
         
-        observations = [(decision,participant_ids,observer_ids,action)]
+        #observations = [(decision,participant_ids,observer_ids,action)]
         return payoffs, observations, None
     
     def next_game(self):
@@ -814,10 +814,10 @@ class AnnotatedGame(AnnotatedDS):
     def annotate(self,participants,payoff,observations,record,notes):
         note = {
             'round':self.current_round,
-            'actions':tuple(observation[3] for observation in observations),
-            'actors':tuple(observation[1] for observation in observations),
+            'actions':tuple(observation['action'] for observation in observations),
+            'actors':tuple(observation['participant_ids'] for observation in observations),
             'payoff': copy(payoff),
-            'games':tuple(observation[0] for observation in observations),
+            'games':tuple(observation['game'] for observation in observations),
             'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
             'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
             'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
