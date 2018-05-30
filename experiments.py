@@ -178,6 +178,15 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
             dfs.append(data[data['type'] == b_name])
     return pd.concat(dfs, ignore_index = True)
 
+def population_beliefs(believer, opponent_types, believed_types, population, **kwargs):
+    player_types = zip(opponent_types, population)
+    believer_repr = repr(believer)
+    data = matchup(player_types = player_types,
+                   believed_types = believed_types,
+                   per_round = True, unpack_beliefs = True, **kwargs)
+    #data = data[data['type'] == believer_repr]
+    return data
+
 @plotter(beliefs, plot_exclusive_args =['data', 'colors', 'traces'])
 def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors = None, data = [],**kwargs):
     WA_prior = believer.genome['prior']
@@ -204,6 +213,8 @@ def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors =
 
     def name(t_n):
         if 'We' in t_n:
+            return "Reciprocal"
+        if 'Reciprocal' in t_n:
             return "Reciprocal"
         if "Selfish" in t_n:
             return "Selfish"
@@ -237,14 +248,7 @@ def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors =
     sns.despine()
     plt.tight_layout()
 
-def population_beliefs(believer, opponent_types, believed_types, population, **kwargs):
-    player_types = zip(opponent_types, population)
-    believer_repr = repr(believer)
-    data = matchup(player_types = player_types,
-                   believed_types = believed_types,
-                   per_round = True, unpack_beliefs = True, **kwargs)
-    #data = data[data['type'] == believer_repr]
-    return data
+
 
 @memoize
 def matchup_grid(player_types,**kwargs):
