@@ -229,12 +229,12 @@ class AllNoneObserve(Playable):
                 else:
                     non_overmind_players.add(i)
 
-            self.overmind_players = frozenset(overmind_players)
-            self.non_overmind_players = frozenset(non_overmind_players)
+            self.overmind_indices = frozenset(overmind_players)
+            self.non_overmind_indices = frozenset(non_overmind_players)
             
         else:
-            self.overmind_players = frozenset()
-            self.non_overmind_players = frozenset(range(1000))
+            self.overmind_indices = frozenset()
+            self.non_overmind_indices = frozenset(range(1000))
             pass
 
     def next_game(self):
@@ -252,15 +252,18 @@ class AllNoneObserve(Playable):
 
         observers = frozenset(list(observers)+list(participants))
 
-        overmind_observers = self.overmind_players & observers
-        if overmind_observers:
-            self.overmind.observe(obvervations)
-            for o in overmind_observers:
-                o.point_to_top()
+        id_to_observer = {observer.world_id:observer for observer in observers}
+        observer_indices = frozenset(id_to_observer.keys())
+        overmind_observer_indices = observer_indices & self.overmind_indices
 
-        for non_overmind_player in self.non_overmind_players & observers:
-            non_overmind_player.observe(observations)
-            
+        if overmind_observer_indices:
+            self.overmind.observe(obvervations)
+            for o in overmind_observer_indices:
+                id_to_observer[o].point_to_top()
+
+        for non_overmind_index in observer_indices - self.overmind_indices:
+            id_to_observer[non_overmind_index].observe(observations)
+
         return payoffs, observations, notes
 
 """
