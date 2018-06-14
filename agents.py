@@ -1241,9 +1241,13 @@ class RationalAgent(Agent):
     This subclasses of RationalAgent can simulate Agent sublcasses and other RationalAgent subclasses
     Rational subclasses only require a 'utility' method to be defined
     """
-    def __init__(self, genome, world_id):
-        self.agent_id = self.world_id = agent_id = world_id
-        agent_set = self.agent_set = frozenset([agent_id])
+    def __init__(self, genome, world_id = None):
+        if world_id:
+            self.agent_id = self.world_id = agent_id = world_id
+            agent_set = self.agent_set = frozenset([agent_id])
+        else:
+            self.agent_id = self.world_id = "Overmind"
+            agent_set = self.agent_set = frozenset()
 
         self.common_knowledge = common_knowledge = genome
         self.beta = common_knowledge['beta']
@@ -1253,11 +1257,13 @@ class RationalAgent(Agent):
         except:
             pass
 
-        lattice = self.lattice = ObserverLattice(self.prior, common_knowledge)
+        try:
+            lattice = common_knowledge['overmind'].lattice
+        except KeyError:
+            lattice = ObserverLattice(self.prior, common_knowledge)
 
-        me = lattice[self.agent_set]
-        self.belief = me.belief
-        self.likelihood = me.likelihood
+        self.lattice = lattice
+        self.point_to_top()
 
     def decide(self, game, participant_ids):
         return self.act(game, participant_ids)
@@ -1265,6 +1271,11 @@ class RationalAgent(Agent):
     def act(self, game, participant_ids):
         action_likelihoods = self.__class__._likelihood_of(game, participant_ids, self.belief, self.common_knowledge)
         return np.random.choice(game.actions, p = action_likelihoods)
+
+    def point_to_top(self):
+        me = self.lattice[self.agent_set]
+        self.belief = me.belief
+        self.likelihood = me.likelihood
 
     def observe(self, simultaneous_observations):
         agent_set = self.agent_set
@@ -1320,9 +1331,8 @@ class RationalAgent(Agent):
                 if not issubclass(real_type, RationalAgent):
                     for observer in observers:
                         joint.model[observer][agent_type].observe(simultaneous_observations)
-        me = self.lattice[self.agent_set]
-        self.belief = me.belief
-        self.likelihood = me.likelihood
+
+        self.point_to_top()
 
     def likelihood_of(self, game, participant_ids, belief = None, common_knowledge = None, tremble = 0, action = None, **kwargs):
         if belief == None:
