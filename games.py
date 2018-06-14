@@ -139,7 +139,7 @@ class RandomlyObserved(Playable):
     these observers are passed down into _play
     selected observers and all participants observe
     """
-    def __init__(self,observability, playable):
+    def __init__(self, observability, playable):
         self.name = "RandomlyObserved(%s,%s)" % (observability, playable.name)
         self.observability = observability
         self.N_players = playable.N_players
@@ -193,6 +193,13 @@ class ObservedByFollowers(Playable):
 
         return payoffs, observations, notes
 
+class Overmind(Playable):
+    def __init__(self, observability, playable, lattice = None, player_types):
+
+        
+        self.__dict__.update(locals().pop('self'))
+        
+
 class AllNoneObserve(Playable):
     """
     randomly selects a specified percent of the provided observers
@@ -200,11 +207,37 @@ class AllNoneObserve(Playable):
     these observers are passed down into _play
     selected observers and all participants observe
     """
-    def __init__(self,observability, playable):
+    def __init__(self,observability, playable, **kwargs):
         self.name = "AllNoneObserve(%s,%s)" % (observability, playable.name)
         self.observability = observability
         self.N_players = playable.N_players
-        self.playable=playable
+        self.playable = playable
+        try:
+            self.overmind, player_types = (kwargs[k] for k in ('overmind', 'player_types'))
+            try:
+                types, pop = zip(*player_types)
+            except TypeError:
+                pop = tuple(1 for t in player_types)
+                types = player_types
+
+            type_order = []
+            for t, p in zip(types, pop):
+                type_order.extend([t]*p)
+
+            rationals = set()
+            irrationals = set()
+            for i,t in enumerate(type_order):
+                real_type = getattr(t,'type',t)
+                if issubclass(real_type, RationalAgent):
+                    rationals.add(i)
+                else:
+                    irrationals.add(i)
+
+            self.rationals = frozenset(rationals)
+            self.irrationals = frozenset(irrationals)
+        except Exception as e:
+            print e
+            pass
 
     def next_game(self):
         g = self.playable.next_game()
@@ -216,13 +249,19 @@ class AllNoneObserve(Playable):
             observers = observers
         else:
             observers = []
-        #try:
-        #    payoffs, observations, notes = self.playable.current_game.play(participants, observers, tremble)
-        #except:
+
         payoffs, observations, notes = self.playable.play(participants, observers, tremble)
-        
-        for observer in set(list(observers)+list(participants)):
-            observer.observe(observations)
+
+        observers = frozenset(list(observers)+list(participants))
+
+        rational_observers = self.rationals & observers:
+        if rational_observers:
+            self.overmind.observe(obvervations)
+            for o in rational_observers:
+                o.point_to_top()
+
+        for irrational_observer in self.irrationals & observers:
+            irrational_observer.observe(observations)
             
         return payoffs, observations, notes
 
@@ -1357,7 +1396,8 @@ def belief_game(rounds, observability, cost = 1, benefit = 10, intervals = 2, tr
 
     dictator = Dynamic(Gen)
     dictator.name = "dynamic"
-    game = AnnotatedGame(RandomizedMatchup(rounds, AllNoneObserve(observability, dictator), **kwargs))
+
+    game = AnnotatedGame(RandomizedMatchup(rounds, AllNoneObserve(observability, dictator, **kwargs), **kwargs))
     return game
 
 @literal
