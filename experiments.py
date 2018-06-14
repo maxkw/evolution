@@ -68,7 +68,15 @@ def matchup(player_types, game, **kwargs):
         pop = tuple(1 for t in player_types)
         types = player_types
 
+    if 'overmind' in kwargs:
+        if not kwargs['overmind']:
+            del kwargs['overmind']
+        else:
+            kwargs['overmind'] = RationalAgent(default_genome(player_types = types, **kwargs))
+
     condition = dict(player_types = types, **kwargs)
+
+    
     params = default_params(**condition)
 
     try:
@@ -79,7 +87,7 @@ def matchup(player_types, game, **kwargs):
         except:
             for n,k in enumerate(sorted(games.__dict__.keys())):
                 print n,k
-            raise Exception("Game must be a valid game or must be specified in the 'games' dict in 'games.py'")
+            raise Exception("Game must be a valid game or must be specified in the scope of 'games.py'")
         
     params['games'] = g
 
@@ -89,7 +97,7 @@ def matchup(player_types, game, **kwargs):
     
     genomes = [default_genome(agent_type = t, **condition) for t in player_types]
 
-    world = World(params,genomes)
+    world = World(params, genomes)
     fitness, history = world.run()
 
     beliefs = []
