@@ -1254,7 +1254,7 @@ class RationalAgent(Agent):
 
         try:
             self.prior = self.__class__.make_prior(common_knowledge)
-        except:
+        except Exception as e:
             pass
 
         try:
@@ -1362,6 +1362,15 @@ class RationalAgent(Agent):
         This is a class method for the same reason 'likelihood_of' is
         """
         raise Warning("RationalAgent is a non-functional ABC. Create a subclass with 'utility' method defined")
+
+    @staticmethod
+    def make_prior(common_knowledge):
+        me = common_knowledge['type']
+        prior = common_knowledge['prior']
+        agent_types = common_knowledge['agent_types']
+
+        outgroup_prior = (1-prior)/(len(agent_types)-1)
+        return  np.array([prior if issubclass(getattr(t,'type',t),RationalAgent) else outgroup_prior for t in agent_types])
 
 ### The Rational Agent of interest
 class ReciprocalAgent(RationalAgent):
