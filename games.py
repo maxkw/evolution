@@ -205,7 +205,9 @@ class AllNoneObserve(Playable):
         self.observability = observability
         self.N_players = playable.N_players
         self.playable = playable
-        try:
+        
+        # This is the special case of when the overmind is active
+        if 'overmind' in kwargs and 'player_types' in kwargs:
             self.overmind = kwargs['overmind']
             player_types = kwargs['player_types']
             try:
@@ -218,20 +220,21 @@ class AllNoneObserve(Playable):
             for t, p in zip(types, pop):
                 type_order.extend([t]*p)
 
-            rationals = set()
-            irrationals = set()
-            for i,t in enumerate(type_order):
+            overmind_players = set()
+            non_overmind_players = set()
+            for i, t in enumerate(type_order):
                 real_type = getattr(t,'type',t)
                 if issubclass(real_type, RationalAgent):
-                    rationals.add(i)
+                    overmind_players.add(i)
                 else:
-                    irrationals.add(i)
+                    non_overmind_players.add(i)
 
-            self.rationals = frozenset(rationals)
-            self.irrationals = frozenset(irrationals)
-        except KeyError as err:
-            self.rationals = frozenset()
-            self.irrationals = frozenset(range(1000))
+            self.overmind_players = frozenset(overmind_players)
+            self.non_overmind_players = frozenset(non_overmind_players)
+            
+        else:
+            self.overmind_players = frozenset()
+            self.non_overmind_players = frozenset(range(1000))
             pass
 
     def next_game(self):
@@ -249,14 +252,14 @@ class AllNoneObserve(Playable):
 
         observers = frozenset(list(observers)+list(participants))
 
-        rational_observers = self.rationals & observers
-        if rational_observers:
+        overmind_observers = self.overmind_players & observers
+        if overmind_observers:
             self.overmind.observe(obvervations)
-            for o in rational_observers:
+            for o in overmind_observers:
                 o.point_to_top()
 
-        for irrational_observer in self.irrationals & observers:
-            irrational_observer.observe(observations)
+        for non_overmind_player in self.non_overmind_players & observers:
+            non_overmind_player.observe(observations)
             
         return payoffs, observations, notes
 
