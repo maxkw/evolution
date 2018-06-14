@@ -193,13 +193,6 @@ class ObservedByFollowers(Playable):
 
         return payoffs, observations, notes
 
-class Overmind(Playable):
-    def __init__(self, observability, playable, lattice = None, player_types):
-
-        
-        self.__dict__.update(locals().pop('self'))
-        
-
 class AllNoneObserve(Playable):
     """
     randomly selects a specified percent of the provided observers
@@ -213,7 +206,8 @@ class AllNoneObserve(Playable):
         self.N_players = playable.N_players
         self.playable = playable
         try:
-            self.overmind, player_types = (kwargs[k] for k in ('overmind', 'player_types'))
+            self.overmind = kwargs['overmind']
+            player_types = kwargs['player_types']
             try:
                 types, pop = zip(*player_types)
             except TypeError:
@@ -235,8 +229,9 @@ class AllNoneObserve(Playable):
 
             self.rationals = frozenset(rationals)
             self.irrationals = frozenset(irrationals)
-        except Exception as e:
-            print e
+        except KeyError as err:
+            self.rationals = frozenset()
+            self.irrationals = frozenset(range(1000))
             pass
 
     def next_game(self):
@@ -254,7 +249,7 @@ class AllNoneObserve(Playable):
 
         observers = frozenset(list(observers)+list(participants))
 
-        rational_observers = self.rationals & observers:
+        rational_observers = self.rationals & observers
         if rational_observers:
             self.overmind.observe(obvervations)
             for o in rational_observers:
@@ -1367,7 +1362,7 @@ def game_engine(expected_interactions, observability, cost = 1, benefit = 10, in
     dictator = Dynamic(Gen)
     dictator.name = "dynamic"
     gamma = 1-1/expected_interactions
-    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
+    game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator, **kwargs)))
     return game
 
 @literal
