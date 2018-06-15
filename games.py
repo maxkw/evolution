@@ -221,21 +221,15 @@ class AllNoneObserve(Playable):
                 type_order.extend([t]*p)
 
             overmind_players = set()
-            non_overmind_players = set()
             for i, t in enumerate(type_order):
                 real_type = getattr(t,'type',t)
                 if issubclass(real_type, RationalAgent):
                     overmind_players.add(i)
-                else:
-                    non_overmind_players.add(i)
 
             self.overmind_indices = frozenset(overmind_players)
-            self.non_overmind_indices = frozenset(non_overmind_players)
             
         else:
             self.overmind_indices = frozenset()
-            self.non_overmind_indices = frozenset(range(1000))
-            pass
 
     def next_game(self):
         g = self.playable.next_game()
@@ -760,11 +754,11 @@ class Repeated(AnnotatedDS):
 
     def annotate(self,participants,payoff,observations,record,notes):
         note = {
-            'round':self.current_round,
-            'actions':tuple(observation[3] for observation in observations),
-            'actors':tuple(observation[1] for observation in observations),
+            'round': self.current_round,
+            'actions': tuple(observation['action'] for observation in observations),
+            'actors':tuple(observation['participant_ids'] for observation in observations),
             'payoff': copy(payoff),
-            'games':tuple(observation[0] for observation in observations),
+            'games':tuple(observation['game'] for observation in observations),
             'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
             'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
             'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),
@@ -792,10 +786,10 @@ class Annotated(AnnotatedDS):
     def annotate(self,participants,payoff,observations,record,notes):
         note = {
             'round':self.current_round,
-            'actions':tuple(observation[3] for observation in observations),
-            'actors':tuple(observation[1] for observation in observations),
+            'actions':tuple(observation['action'] for observation in observations),
+            'actors':tuple(observation['participant_id'] for observation in observations),
             'payoff': copy(payoff),
-            'games':tuple(observation[0] for observation in observations),
+            'games':tuple(observation['game'] for observation in observations),
             'beliefs': tuple(copy(getattr(agent, 'belief', None)) for agent in participants),
             'likelihoods' :tuple(deepcopy(getattr(agent,'likelihood', None)) for agent in participants),
             'new_likelihoods':tuple(copy(getattr(agent, 'new_likelihoods', None)) for agent in participants),

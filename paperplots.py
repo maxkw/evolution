@@ -58,10 +58,11 @@ def game_engine():
         #benefit = 3,
         plot_dir = PLOT_DIR,
         observability = 0,
+        overmind = True,
         graph_kwargs = {'color' : color_list(agents)},
     )
 
-    ticks = 50
+    ticks = 3
     
     # from evolve import params_heat
     # params = {'expected_interactions': np.round(np.linspace(1, 4, ticks)),
@@ -134,7 +135,6 @@ def game_engine():
     #observe_plot()
 def ipd():
     TRIALS = 1000
-
     
     old_pop = (ag.AllC,ag.AllD,ag.GTFT,ag.TFT,ag.WSLS)
     ToM = ('self',) + old_pop
@@ -153,25 +153,26 @@ def ipd():
     )
 
     # for label, player_types in zip(['woRA', 'wRA'], [old_pop, new_pop]):
-    #     # By expected rounds
-    #     limit_param_plot(
-    #         param = 'rounds',
-    #         rounds = 50,
-    #         tremble = 0.0,
-    #         player_types = player_types,
-    #         file_name = "ipd_rounds_%s" % label,
-    #         graph_kwargs = {'color' : color_list(player_types)},
-    #         **common_params)
+    for label, player_types in zip(['woRA'], [old_pop]):
+        # By expected rounds
+        limit_param_plot(
+            param = 'rounds',
+            rounds = 50,
+            tremble = 0.0,
+            player_types = player_types,
+            file_name = "ipd_rounds_%s" % label,
+            graph_kwargs = {'color' : color_list(player_types)},
+            **common_params)
 
-    #     # Tremble
-    #     limit_param_plot(
-    #         param = 'tremble',
-    #         param_vals = np.round(np.linspace(0, 0.4, 11), 2),
-    #         rounds = 10,
-    #         player_types = player_types,
-    #         file_name = "ipd_tremble_%s" % label,
-    #         graph_kwargs = {'color' : color_list(player_types)},
-    #         **common_params)
+        # Tremble
+        limit_param_plot(
+            param = 'tremble',
+            param_vals = np.round(np.linspace(0, 0.25, 11), 2),
+            rounds = 10,
+            player_types = player_types,
+            file_name = "ipd_tremble_%s" % label,
+            graph_kwargs = {'color' : color_list(player_types)},
+            **common_params)
 
     # Cognitive Costs
     def cog_cost_graph(ax):
@@ -247,27 +248,43 @@ def belief():
     everyone = (ag.AltruisticAgent(beta = BETA), ag.SelfishAgent(beta = BETA))
     agent = ag.WeAgent(prior = PRIOR, beta = BETA, agent_types = ('self',) + everyone)
 
-    plot_beliefs(agent, (agent,)+everyone, (agent,)+everyone,
-                 #population = [3,3,3],
-                 population = [
-                     #3,3,3
-                     5,5,5
-                 ],
-                 experiment = population_beliefs,
-                 tremble = 0.0,
-                 plot_dir = PLOT_DIR,
-                 #deterministic = True,
-                 game = 'belief_game',
-                 # benefit = 10,
-                 rounds = 1,
-                 observability = 1,
-                 file_name = "intra_gen_belief",
-                 #deterministic = True,
-                 extension = '.png',
-                 traces = 0,
-                 trials = 50,
-                 colors = color_list((agent,)+everyone, sort = False))
+    common_params = dict(
+        believer = agent,
+        opponent_types = (agent,)+everyone,
+        believed_types = (agent,)+everyone,
 
+        
+        tremble = 0.0,
+        plot_dir = PLOT_DIR,
+        deterministic = True,
+        game = 'belief_game',
+
+        traces = 0,
+        trials = 200,
+        overmind = True, 
+        colors = color_list((agent,)+everyone, sort = False)
+    )
+
+    population = [4, 3, 3]
+    
+    # Private Interactions. Not we do not set the experiment or
+    # population for this experiment.
+    plot_beliefs(
+        observability = 0,
+        rounds = sum(population)*(sum(population)-1) / 2 / 3,
+        file_name = "intra_gen_belief_private",
+        **common_params)
+
+    # Public Interactions. We must set the experiment and the
+    # population for this experiment.
+    plot_beliefs(
+        experiment = population_beliefs,
+        population = population,
+        rounds = 1,
+        observability = 1,
+        file_name = "intra_gen_belief_public",
+        **common_params)
+    
 def explore_param_dict():
     opponents = (ag.SelfishAgent,ag.AltruisticAgent)
     ToM = ('self',)+opponents
@@ -386,12 +403,37 @@ def heatmaps():
     #colors = color_list((agent,)+everyone, sort = False))
 
 def main():
-    game_engine()
-    # ipd()
-    # agent()
-    #belief()
-    #heatmaps()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--belief", action="store_true")
+    parser.add_argument("--ipd", action="store_true")
+    parser.add_argument("--agent", action="store_true")
+    parser.add_argument("--engine", action="store_true")
+    parser.add_argument("--heatmaps", action="store_true")
+    parser.add_argument("--all", action="store_true")
+    args = parser.parse_args()
 
+    if args.all:
+        game_engine()
+        belief()
+        ipd()
+        agent()
+        heatmaps()
+    
+    if args.belief:
+        belief()
+
+    if args.ipd:
+        ipd()
+
+    if args.agent:
+        agent()
+
+    if args.engine:
+        game_engine()
+
+    if args.heatmaps:
+        heatmaps()
+    
 if __name__ == '__main__':
     main()
-

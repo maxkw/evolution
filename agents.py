@@ -532,8 +532,8 @@ class HyperAgent(Agent):
         # Can only judge a case where there are two observations
         # TODO: This will not work on sequential PD since it requires two simultaneous observations
         obs1, obs2 = observations
-        actions = (obs1[3], obs2[3])
-        players = (obs1[1][0], obs2[1][0])
+        actions = (obs1['action'], obs2['action'])
+        players = (obs1['participant_ids'][0], obs2['participant_ids'][0])
         me = self.world_id
         if me in players:
             if me == players[1]:
@@ -651,8 +651,8 @@ class Pavlov(ClassicAgent):
         # Can only judge a case where there are two observations
         # TODO: This will not work on sequential PD since it requires two simultaneous observations
         obs1, obs2 = observations
-        actions = [obs1[3], obs2[3]]
-        players = [obs1[1][0], obs2[1][0]]
+        actions = [obs1['action'], obs2['action']]
+        players = [obs1['participant_ids'][0], obs2['participant_ids'][0]]
         me = self.world_id
         if me in players:
             a = players.index(me)

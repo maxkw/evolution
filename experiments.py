@@ -199,7 +199,10 @@ def population_beliefs(believer, opponent_types, believed_types, population, **k
     return data
 
 @plotter(beliefs, plot_exclusive_args =['data', 'colors', 'traces'])
-def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors = None, data = [],**kwargs):
+def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors = None, data = [], **kwargs):
+    if kwargs['observability'] != 0 and kwargs['observability'] != 1:
+        raise Warning('Observability must be 0 or 1 for the axes to make sense')
+    
     WA_prior = believer.genome['prior']
     non_WA_prior = (1-WA_prior)/(len(believed_types)-1)
     prior_arr =  [WA_prior if t is believer else non_WA_prior for t in believed_types]
@@ -218,10 +221,12 @@ def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors =
 
     prior_dat = pd.DataFrame.from_records(prior_data)
     data = pd.concat([prior_dat,data])
-    
-    # scale = 5
-    # fig, axes = plt.subplots(figsize = (3.5 * scale, scale))
 
+    # Rescale the x-axis so that its number of interaction with
+    # each type in the case where the population is specified.
+    if 'population' in kwargs:
+        data['round'] = data['round'] / len(believed_types)
+    
     def name(t_n):
         if 'We' in t_n:
             return "Reciprocal"
@@ -232,7 +237,7 @@ def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors =
         if "Altruistic" in t_n:
             return "Altruistic"
 
-    fig, axes = plt.subplots()
+    fig, axes = plt.subplots(figsize = (8, 3))
     axes = {t:plt.subplot(1,3,type_names.index(t)+1) for t in type_names}
 
     for (believed,actual), d in data.groupby(['believed_type','actual_type']):
@@ -243,23 +248,24 @@ def plot_beliefs(believer, opponent_types, believed_types, traces = 50, colors =
             t.plot(x='round', y='value', ax = ax, legend = False, color = color[believed], linestyle='-',alpha = .1)
             
         dm = d.groupby('round').mean()
-        
+            
         dm.plot(y='value', ax=ax,
                 ylim=(0, 1), xlim = (0, d['round'].max()),
                 title = "vs %s" % name(actual),
-                legend = (actual == type_names[-1]),label = name(believed),
+                legend = (actual == type_names[-1]), label = name(believed),
                 linewidth = 5,
                 color = color[believed])
         
         if actual == type_names[0]:
             ax.set_ylabel('Belief')
             
-        ax.set_xlabel('# of Interactions')
+        if 'population' in kwargs:
+            ax.set_xlabel('# of Observations')
+        else:        
+            ax.set_xlabel('# of Interactions')
     
     sns.despine()
     plt.tight_layout()
-
-
 
 @memoize
 def matchup_grid(player_types,**kwargs):

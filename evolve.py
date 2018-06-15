@@ -313,8 +313,8 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_func
 
 
     data = data[[param, 'proportion', 'type']].pivot(columns='type', index=param, values='proportion')
-
-    data = gaussian_filter(data, sigma = 0)
+    # data = gaussian_filter(data, sigma = 1)
+    
     type_order = dict(map(reversed,enumerate([t.short_name('agent_types') for t in player_types])))
     data.reindex(sorted(data.columns, key = lambda t:type_order[t]), axis = 1)
 

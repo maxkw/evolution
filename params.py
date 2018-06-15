@@ -4,7 +4,7 @@ from utils import _issubclass
 import seaborn as sns
 #from frozendict import frozendict
 
-sns.set_style('white')
+sns.set_style('ticks')
 sns.set_context('paper', font_scale=1.5)
 
 def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 10, tremble = 0, rounds = 10, **kwargs):
