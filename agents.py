@@ -705,7 +705,10 @@ class gTFT(ClassicAgent):
             self.cooperated = action is "give"
 
 TFT = gTFT(y=1, p=1, q=0, subtype_name = "TFT")
-GTFT = gTFT(y=1, p=1, q=.33, subtype_name = "GTFT")
+# benefit = 3.; cost = 1.
+# q = min(1 - (benefit - (benefit - cost)) / (benefit - cost - -cost), (benefit - cost - 0) / (benefit - 0))
+# print q
+GTFT = gTFT(y=1, p=1, q=.66, subtype_name = "GTFT")
 
 class AllC(ClassicAgent):
     def decide_likelihood(self, game, agents=None, tremble=None):
