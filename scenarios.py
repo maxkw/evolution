@@ -25,18 +25,17 @@ agent_to_label = {ReciprocalAgent: 'Reciprocal',
 
 @multi_call()
 @experiment(unpack='record', unordered=['agent_types'], memoize=False)
-def scenarios(scenario_func, agent_types, **kwargs):
+def scenarios(scenarios, agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
-    game = BinaryDictator()
-
-    scenario_dict = scenario_func()
 
     record = []
-    for name, observations in scenario_dict.iteritems():
+
+    for name, observations in enumerate(scenarios):
+    # for name, observations in scenario_dict.iteritems():
         observer = WeAgent(genome=default_genome(agent_type = WeAgent(**condition), **condition), world_id="O")
         
         for observation in observations:
-            observer.observe(observation)
+            observer.observe([observation])
 
         for agent_type in  observer._type_to_index:
             record.append({
@@ -44,23 +43,23 @@ def scenarios(scenario_func, agent_types, **kwargs):
                 'belief': observer.belief_that('A', agent_type),
                 'type': lookup_agent(agent_type),
             })
-            
+             
     return record
 
-@plotter(scenarios, plot_exclusive_args=['data', 'color', 'graph_kwargs', 'titles'])
-def scene_plot(agent_types, titles = None, data=[], color = sns.color_palette(['C5', 'C0', 'C1']), graph_kwargs={}):
+@plotter(scenarios, plot_exclusive_args=['data', 'color', 'graph_kwargs'])
+def scene_plot(agent_types, titles=None,  data=[], color = sns.color_palette(['C5', 'C0', 'C1']), graph_kwargs={}):
     sns.set_context("talk", font_scale=1)
 
     order = ["Reciprocal", "Altruistic", "Selfish"]
-    f_grid = sns.factorplot(data=data, y="type", x='belief', col='scenario', 
+    f_grid = sns.catplot(data=data, y="type", x='belief', col='scenario', 
                             kind='bar', orient='h', order=order,
                             palette=color,
-                            aspect=.9, size=3, 
+                            aspect=.9, height=3, 
                             sharex=False, sharey=False,
                             **graph_kwargs
     )
-
-    if 'Prior' in titles[0]:
+    
+    if titles is not None  and 'Prior' in titles[0]:
         f_grid.set_xlabels(" ")
     else:
         f_grid.set_xlabels("Belief")
@@ -83,50 +82,23 @@ def scene_plot(agent_types, titles = None, data=[], color = sns.color_palette(['
 
     plt.tight_layout()
 
-
-def make_dict_from_scenarios(scenarios, observers, scenario_dict=None):
+def make_observations_from_scenario(scenario, **kwargs):
+    '''
+    Scenario is a dict with keys `actions` and `title`
+    '''
     letter_to_action = {"C": 'give', "D": 'keep'}
-    if scenario_dict is None:
-        scenario_dict = OrderedDict()
+    observations = list()
 
-    game = BinaryDictator()
-    for scenario in scenarios:
-        scenario_dict[scenario[1]] = list()
-        for players, action in zip(*scenario):
-            scenario_dict[scenario[1]].append(
-                [(game, players, observers, letter_to_action[action])]
-            )
+    game = BinaryDictator(**kwargs)
+    for players, action in zip(*scenario):
+        observations.append({
+            'game': game,
+            'action': letter_to_action[action],
+            'participant_ids': players,
+            'observer_ids': 'ABO',
+        })
 
-    return scenario_dict
-
-
-def reciprocal_scenarios_0():
-    scenarios = [
-        [["AB"], "C"],
-        [["AB"], "D"],
-    ]
-
-    scenario_dict = OrderedDict()
-    # Make the prior a scenario with no observations
-    scenario_dict['prior'] = list()
-    scenario_dict = make_dict_from_scenarios(scenarios, "ABO", scenario_dict)
-
-    return scenario_dict
-
-
-def reciprocal_scenarios_1():
-    scenarios = [
-        [["BA", "AB"], "DD"],
-        [["BA", "AB"], "DC"],
-        [["BA", "AB"], "CD"],
-        # [["AB", "BA", "AB"], "CDC"],
-    ]
-
-    scenario_dict = OrderedDict()
-    scenario_dict = make_dict_from_scenarios(scenarios, "ABO", scenario_dict)
-
-    return scenario_dict
-
+    return observations
 
 def false_belief_scenarios():
     game = BinaryDictator()
@@ -289,28 +261,6 @@ def main(prior = 0.5, beta = 5, **kwargs):
     #     RA_K=1,
     #     tremble=0.05,
     #     file_name='first_impressions', **kwargs)
-
-    # scene_plot(
-    #     scenario_func=reciprocal_scenarios_0,
-    #     titles = ['Prior', r'$j$ cooperates w/ $k$', r'$j$ defects on $k$'],
-    #     agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
-    #     RA_prior=prior,
-    #     RA_K=MultiArg([1]),
-    #     beta=beta,
-    #     plot_dir = './writing/evo_cogsci18/figures/',
-    #     file_name='scene_reciprocal_0', **kwargs)
-
-    # scene_plot(
-    #     scenario_func=reciprocal_scenarios_1,
-    #     agent_types=(ReciprocalAgent, SelfishAgent, AltruisticAgent),
-    #     titles = [r'$k$ defects on $j$ $\rightarrow$ $j$ defects on $k$',
-    #               r'$k$ defects on $j$ $\rightarrow$ $j$ cooperates w/ $k$', 
-    #               r'$k$ cooperates w/ $j$ $\rightarrow$ $j$ defects on $k$'],
-    #     RA_prior=prior,
-    #     RA_K=MultiArg([1]),
-    #     beta=beta,
-    #     plot_dir = './writing/evo_cogsci18/figures/',
-    #     file_name='scene_reciprocal_1', **kwargs)
 
     # scene_plot(
     #     scenario_func=false_belief_scenarios,

@@ -313,7 +313,7 @@ def experiment(unpack = False, trials = None, overwrite = False, memoize = True,
                 else:
                     print ""
             #consolidate new and old results and save
-            cache = pd.concat([cache,pd.DataFrame(results)])
+            cache = pd.concat([cache,pd.DataFrame(results)], sort=True)
             if memoized:
                 cache.to_pickle(cache_file)
             
