@@ -61,67 +61,6 @@ def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 
 
     return values
 
-
-def prior_generator(agent_type, agent_types, RA_prior=False):
-    """
-    if RA_prior is False it generates a uniform prior over types
-    if RA_prior is a dict from agent_type to a number it assigns those types
-    the corresponding number
-    if RA_prior is a number it divides that number uniformly among all rational types
-    """
-
-    if (not RA_prior) or (not agent_types):
-        Warning("Either 'agent_types' or 'RA_prior' was false when supplied to prior_generator. Returning None.")
-        return None
-    
-    size = len(agent_types)
-    if _issubclass(agent_type,IngroupAgent):
-        agent_types = tuple(agent_types)
-        type2index = dict(map(reversed,enumerate(agent_types)))
-        rational_types = filter(lambda t: _issubclass(t,RationalAgent),agent_types)
-        a_ingroup = agent_type.ingroup()
-        ingroup = [t for t in agent_types if t in a_ingroup]
-        if not (RA_prior or ingroup):
-            return np.array(np.ones(size)/size)
-        else:
-            try:
-                normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
-                prior = [RA_prior[agent_type] if agent_type in RA_prior
-                         else normal_prior for agent_type in agent_types]
-                #print prior
-            except AttributeError:
-                ingroup_size = len(ingroup)
-                ingroup_prior = RA_prior/float(ingroup_size)
-                outgroup_prior = (1.0-RA_prior)/(size-ingroup_size)
-                prior = [ingroup_prior if agent_type in ingroup
-                         else outgroup_prior
-                         for agent_type in agent_types]
-
-    elif _issubclass(agent_type,RationalAgent):
-        rational_types = filter(lambda t: _issubclass(t,RationalAgent),agent_types)
-        if not (RA_prior or rational_types):
-            return np.array(np.ones(size)/size)
-        try:
-            normal_prior = (1.0-sum(RA_prior.values()))/(size-len(RA_prior))
-            prior = [RA_prior.get(agent_type,normal_prior) for agent_type in agent_types]
-        except AttributeError:
-            rational_count = len(rational_types)
-            rational_prior = RA_prior/float(rational_count)
-            irrational_prior = (1.0-RA_prior)/(size-rational_count)
-            prior = [rational_prior if agent_type in rational_types
-                     else irrational_prior
-                     for agent_type in agent_types]
-            
-    else:
-        return None
-
-    assert len(prior) == len(agent_types)
-    return np.array(prior)
-
-
-
-#assert prior_generator(ReciprocalAgent, (ReciprocalAgent,SelfishAgent), .75)[0] == 0.75
-
 def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_args):
 
     if not agent_types:
