@@ -181,7 +181,9 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
         data = matchup(player_types = (believer,opponent),
                        #actual_type = repr(opponent),
                        believed_types = believed_types,
-                       per_round = True, unpack_beliefs = True, **kwargs)
+                       per_round = True,
+                       unpack_beliefs = True,
+                       **kwargs)
                        
         if believer == opponent:
             dfs.append(data[data['id'] == 0])
@@ -337,6 +339,41 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost = 0, **kwargs):
         p /= r
         
     return list(enumerate(payoffs_list,start=1))
+
+@plotter(matchup_matrix_per_round, plot_exclusive_args = ['data'])
+def payoff_heatmap(player_types, max_rounds, cog_cost = 0, data = [], **kwargs):
+    data = data[-1][1]
+    fig, ax = plt.subplots()
+    im = ax.imshow(data,
+                   vmin = min(-kwargs['cost'], data[:].min()),
+                   vmax = max(kwargs['benefit'], data.max()),
+                   cmap = 'viridis_r'
+    )
+    cbar = ax.figure.colorbar(im, ax=ax)
+
+    names = []
+    for t in player_types:
+        if 'We' in str(t):
+            names.append('Reciprocal')
+        else:
+            names.append(str(t))
+
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(len(player_types)))
+    ax.set_yticks(np.arange(len(player_types)))
+    # ... and label them with the respective list entries
+    ax.set_xticklabels(names)
+    ax.set_yticklabels(names)
+    ax.xaxis.tick_top()
+
+    # Loop over data dimensions and create text annotations.
+    for i in range(len(player_types)):
+        for j in range(len(player_types)):
+            text = ax.text(j, i, round(data[i, j],2),
+                           ha="center", va="center", color="w")
+
+    # ax.set_title("Harvest of local farmers (in tons/year)")
+    fig.tight_layout()
 
 @plotter(matchup_grid, plot_exclusive_args = ['data'])
 def matchup_plot(data = [],**kwargs):
@@ -616,9 +653,6 @@ def minimal_ratios(ratio_dict):
     return {k:int(v/divisor) for k,v in ratio_dict.iteritems()}
 
 memo_bin_matchup = memoize(binary_matchup)
-
-def mean(*numbers):
-    return sum(numbers)/len(numbers)
 
 def test_matchup_matrix(RA):
     
@@ -905,20 +939,19 @@ def test_standing(**kwargs):
 
 
 if __name__ == "__main__":
-    belief_experiments()
+    # belief_experiments()
     #test_standing()
     #plot_coop_prob(extension = ".png")
-    assert 0
-    RA = ReciprocalAgent
-    TFT = gTFT(y=1,p=1,q=0)
-    GTFT = gTFT(y=1,p=.99,q=.33)
-    Ks = tuple(RA(RA_K = k) for k in [0,1,2])
-    As = tuple(WeAgent(beta = b) for b in [1,3,5,10])
+    # assert 0
+    # RA = ReciprocalAgent
+    # TFT = gTFT(y=1,p=1,q=0)
+    # GTFT = gTFT(y=1,p=.99,q=.33)
+    # Ks = tuple(RA(RA_K = k) for k in [0,1,2])
+    # As = tuple(WeAgent(beta = b) for b in [1,3,5,10])
 
     matchup_plot(player_types = (WeAgent, AllD), agent_types = ('self', AllD))
-    belief_experiments()
+    # belief_experiments()
 
-    
     assert 0
     for t in [t*10 for t in range(1,11)]:
         self_pay_plot(200, player_types = As, agent_types = ('self', AllD, AllC, TFT, GTFT, Pavlov), RA_prior = .5,  e_trials = t, extension = '.png', tremble = .05)

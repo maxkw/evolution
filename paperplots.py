@@ -15,7 +15,8 @@ from evolve import param_v_rounds_heat, ssd_v_xy, ssd_param_search, ssd_v_params
 PLOT_DIR = "./plots/"+inspect.stack()[0][1][:-3]+"/"
 BETA = np.Inf
 PRIOR = 0.5
-TREMBLE_RANGE = lambda ticks: np.round(np.geomspace(0.01, .26, ticks)- .01, 3)
+MIN_TREMBLE = 0.01
+TREMBLE_RANGE = lambda ticks: np.round(np.geomspace(MIN_TREMBLE, .26, ticks)- MIN_TREMBLE, 3)
 
 def color_list(agent_list, sort = True):
     '''takes a list of agent types `agent_list` and returns the correctly
@@ -80,7 +81,7 @@ def game_engine():
         limit_param_plot(
             param = 'expected_interactions',
             param_vals = np.round(np.linspace(1, 10, ticks), 2),
-            tremble = 0.01, 
+            tremble = MIN_TREMBLE, 
             analysis_type = 'limit',
             file_name = 'game_engine_gamma',
             **common_params)
@@ -180,7 +181,7 @@ def ipd():
         limit_param_plot(
             param = 'rounds',
             rounds = 50,
-            tremble = 0.01,
+            tremble = MIN_TREMBLE,
             player_types = player_types,
             file_name = "ipd_rounds_%s" % label,
             graph_kwargs = {'color' : color_list(player_types)},
@@ -228,7 +229,7 @@ def agent():
     )
 
     game_params = dict(
-        tremble = 0.01,
+        tremble = MIN_TREMBLE,
         benefit = 3,
         cost = 1
     )
@@ -246,7 +247,7 @@ def agent():
 
     scene_plot(
         scenarios=reciprocal_scenarios_0,
-        titles = titles_0,
+        # titles = titles_0,
         file_name='scene_reciprocal_0',
         **common_params)
 
@@ -262,7 +263,7 @@ def agent():
     reciprocal_scenarios_1 = [make_observations_from_scenario(s, **game_params) for s in reciprocal_scenarios_1]
     scene_plot(
         scenarios=reciprocal_scenarios_1,
-        titles = titles_1,
+        # titles = titles_1,
         file_name='scene_reciprocal_1',
         **common_params)
 
@@ -297,7 +298,7 @@ def belief():
         opponent_types = (agent,)+everyone,
         believed_types = (agent,)+everyone,
 
-        tremble = 0.01,
+        tremble = MIN_TREMBLE,
         plot_dir = PLOT_DIR,
         deterministic = True,
         game = 'belief_game',

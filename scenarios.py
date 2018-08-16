@@ -48,13 +48,13 @@ def scenarios(scenarios, agent_types, **kwargs):
 
 @plotter(scenarios, plot_exclusive_args=['data', 'color', 'graph_kwargs'])
 def scene_plot(agent_types, titles=None,  data=[], color = sns.color_palette(['C5', 'C0', 'C1']), graph_kwargs={}):
-    sns.set_context("talk", font_scale=1)
+    sns.set_context("talk", font_scale=.8)
 
     order = ["Reciprocal", "Altruistic", "Selfish"]
     f_grid = sns.catplot(data=data, y="type", x='belief', col='scenario', 
                             kind='bar', orient='h', order=order,
                             palette=color,
-                            aspect=.9, height=3, 
+                            aspect=1.5, height=1.8, 
                             sharex=False, sharey=False,
                             **graph_kwargs
     )

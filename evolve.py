@@ -305,7 +305,7 @@ def gaussian_filter(df, sigma = 1):
     return pd.DataFrame(filtered, columns = columns, index = index)
 
 @plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs', 'graph_funcs', 'sigma'])
-def limit_param_plot(param, player_types, data = [], stacked = False, graph_funcs=None, sigma = 0, graph_kwargs={}, **kwargs):
+def limit_param_plot(param, player_types, data = [], stacked = False, graph_funcs=None, graph_kwargs={}, **kwargs):
     fig, ax = plt.subplots(figsize = (3.5, 3))
     # TODO: Investigate this, some weird but necessary data cleaning
     data[data['proportion']<0] = 0
@@ -327,6 +327,7 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_func
         if param == 'rounds':
             plt.xlim([1, kwargs['rounds']])
         else:
+            print kwargs['param_vals']
             plt.xlim([min(kwargs['param_vals']), max(kwargs['param_vals'])])
             
             

@@ -286,7 +286,7 @@ class Decision(Playable):
         self.payoffs = payoffDict
         self.tremble = tremble
 
-    def __call__(self,action):
+    def __call__(self, action):
         self.last_action = action
         return array(self.payoffs[action])
 
@@ -306,47 +306,6 @@ def BinaryDictator(endowment = 0, cost = COST, benefit = BENEFIT, tremble = 0):
     decision.tremble = tremble
     decision.name = decision._name = "BinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))
     return decision
-
-@literal
-def GradatedBinaryDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
-    ratio = cost/benefit
-    benefits = np.linspace(0,benefit,intervals)
-    costs = benefits*ratio
-    decision_names = [str(p) for p in zip(endowment-costs,benefits)]
-    decision_names[0] = 'keep'
-    decision_names[-1] = 'give'
-    decision_dict = dict(zip(decision_names, zip(endowment-costs,benefits)))
-    decision = Decision(decision_dict)
-    decision.tremble = tremble
-    
-    
-    #decision._name = "GradatedBinaryDictator(%s)" % ",".join(map(str,[endowment,cost,benefit]))"
-    return decision
-
-@literal
-def RandomDictator(cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0):
-    N_players = 2
-    
-    # initialize set of choices with the zero-action
-    choices = [np.zeros(N_players)]
-    
-    for p in xrange(1, N_players):
-        choice = np.zeros(N_players)
-        choice[0] = -cost
-        choice[p] = cost * benefit
-        choices.append(copy(choice))
-
-    for n in range(intervals-2):
-        c = np.random.random_integers(-cost, cost)
-        w = np.random.uniform(0, benefit/2)
-        e = np.random.uniform(0, benefit/2)
-        for p in xrange(1, N_players):
-            choice = np.zeros(N_players)
-            choice[0] = -c
-            choice[p] = min(c*w+e, benefit - cost)
-            choices.append(copy(choice))
-            
-    return Decision(OrderedDict((str(p),p) for p in choices), tremble)
 
 @literal
 def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, intervals = 2, tremble = 0, **kwargs):
@@ -372,17 +331,6 @@ def SocialDictator(endowment = ENDOWMENT, cost = COST, benefit = BENEFIT, interv
     else:
         decision = Decision(OrderedDict((str(p),p) for p in payoffs))
 
-    decision.tremble = tremble
-    return decision
-
-@literal
-def TernaryDictator(endowment = 0, cost = COST, benefit1 = BENEFIT, benefit2 = BENEFIT, tremble = 0):
-    payoffs = [
-        (endowment,0,0),
-        (endowment-cost,benefit1,0),
-        (endowment-cost,0,benefit2)
-    ]
-    decision = Decision(dict((str(p),p) for p in payoffs))
     decision.tremble = tremble
     return decision
 
@@ -1066,26 +1014,19 @@ class Dynamic(Playable):
     whenever it's 'play' method is called, it generates
     new arguments and serves up a playable made with them
     """
-    def __init__(self,playable_constructor,gen = lambda:()):
+    def __init__(self, playable_constructor):
         self.constructor = playable_constructor
-        self.arg_gen = gen
-        #instance = playable_constructor(**gen())
-        #self.N_players = instance.N_players
-        #self.shuffle_game()
         self.next_game()
 
     def new(self):
         return self.constructor(**self.arg_gen())
 
-    def shuffle_game(self):
-        self.current_version = self.constructor(**self.arg_gen())
-        return self.current_version
-
     def next_game(self):
-        try:
-            g = self.current_game = self.constructor(**self.arg_gen())
-        except TypeError:
-            g = self.current_game = apply(self.constructor,self.arg_gen())
+        # import pdb; pdb.set_trace()
+        g = self.current_game = self.constructor()
+        # try:
+        # except TypeError as e:
+        #     g = self.current_game = apply(self.constructor,self.arg_gen())
 
         self.N_players = g.N_players
         return g
@@ -1113,165 +1054,6 @@ def SocialGameGen(N_players_gen, N_actions_gen, cwe, tremble_gen):
     d.tremble = tremble_gen()
 
     return d
-
-@literal
-def SocialGame(cost = 1, weight = 5, endowment = 5, intervals = 2, tremble = .1, **kwargs):
-    assert intervals>=0
-    N_players_gen = lambda: np.random.choice([2,3])
-    N_actions_gen = lambda: 1 + np.random.poisson(intervals-1)
-    tremble_gen = lambda: np.random.beta(tremble, 10)
-
-    def cwe():
-        c = np.random.poisson(cost)
-        w = np.random.exponential(weight)
-        e = np.random.exponential(endowment)
-
-        return c, w, e
-
-    return Dynamic(SocialGameGen, lambda:(N_players_gen, N_actions_gen, cwe, tremble_gen))
-
-
-class OrGame(Playable):
-    def __init__(self,*games):
-        self.name = "OrGame(%s)" % ", ".join(g.name for g in sorted(games))
-        self.games = games
-        self.next_game()
-
-    def next_game(self):
-        g = self.current_game = np.random.choice(self.games)
-        self.N_players = g.N_players
-        return g
-
-    def play(self, participants, observers = [], tremble=0):
-        playable = self.current_game
-        return playable.play(participants, observers, tremble)
-
-def exponential(scale,gamma=1):
-    return np.random.exponential(gamma)*scale
-
-def constant(val,**kwargs):
-    return val
-
-def poisson():
-    pass
-def normal():
-    pass
-
-def dict_map(f,d, **kwargs):
-    """
-    given a function and a dictionary of argnames to argvals
-    (and optionally any keyword args that also correspond to arg name-val pairs)
-    the function is called using the keyword args as default values and overwriting them with the provided dict
-    """
-    ret_dict = {}
-    for key,val in d.iteritems():
-        try:
-            ret_dict[key] = f(**dict(kwargs,**val))
-        except:
-            ret_dict[key] = f(val,**kwargs)
-    return ret_dict
-
-def dist_apply(dist,**kwargs):
-    """the same as 'apply' but does not accept positional parameters"""
-    return dist(**kwargs)
-
-def dist_dict(d,dist,**kwargs):
-
-    ret_dict = {}
-    for key,val in d.iteritems():
-        try:
-            ret_dict[key] = dist_apply(**dict(kwargs,**val))
-        except:
-            ret_dict[key] = dist(val,**kwargs)
-    return ret_dict
-
-def thunk_apply(func,**kwargs):
-    """
-    given some function f and some arguments for it
-    make an object t that when called feeds the arguments to f
-    and returns the result
-    a new call to f is made each time t is called
-    if f and its arguments define a distribution
-    then a call to t is a sampling of that distribution
-    """
-    return thunk(func,**kwargs)
-
-def thunk_dict(d,func,**kwargs):
-    """
-    this function is meant to return a dictionary with arguments for some function F
-    it is given a dictionary A whose keys are argnames and whose vals are dicts that are
-    used to create the values that will actually be passed down to F.
-
-
-    This functon takes a function D as one of it's parameters.
-
-    This function is simple but the logic is obtuse.
-    Basically, the dictionaries at the second level can provide their own distribution and arguments,
-    if not then that dictionary is assumed to contain arguments for a distribution found at the first level.
-
-    In greater detail.
-
-    If some key K in A maps to a dict B that doesn't have 'dist' as a key, then we assume that B
-    is a dict of valid arguments for D, and we let K map to D(**B) in the return dict.
-
-    Let B = A[K] once more. If 'dist' is a key in B, then we assume B['dist'] is some function H.
-    If C is the dict B without the key 'dist' then we assume that C is valid mapping of arguments for H.
-    We let K map to H(**C) in the return dict.
-
-    """
-    ret_dict = {}
-    for key,val in d.iteritems():
-        try:
-            ret_dict[key] = thunk_apply(**dict(kwargs,**val))
-        except:
-            ret_dict[key] = thunk(func,val,**kwargs)
-    return ret_dict
-
-def dict_thunker(d):
-    """
-    given a dict where all values are thunks
-    generates a dictionary with the same key but
-    where the value is generated by calling the thunk
-    """
-    return {key:val() for key,val in d.iteritems()}
-
-@implicit
-def Randomly(game,*args,**kwargs):
-    """
-    if any explicitly named argument of 'game' is passed in as a dict containing the 'dist' key
-    then any additional parameters required by the distribution should also be provided either
-    in that same dictionary or in the greater function call
-    """
-    call_data = fun_call_labeler(game,args,kwargs)
-    game_args = call_data['defined_args']
-
-    dist_args = dict({'func':constant},**call_data['undefined_args'])
-    return Dynamic(game,thunk(dict_thunker,thunk_dict(game_args,**dist_args)))
-                   #thunk(dist_dict,game_args,**dist_args))game = Randomly(PrisonersDilemma)
-
-
-
-"""
-example:
-
-Randomly(GradatedBinaryDictator,
-         cost = dict(func = exponential, gamma = 5, scale = 1),
-         benefit = dict(func = normal, mean = 5, variance = 2),
-         intervals = 5)
-"""
-
-
-@implicit
-def Exponential(game,gamma=1,*args,**kwargs):
-    return Randomly(game, func = exponential, gamma = gamma, *args, **kwargs)
-
-
-"""
-example:
-
-Exponential(PrisonersDilemma, cost = {'gamma':9,'scale':3}, benefit = {'gamma':3,'scale':4})
-
-"""
 
 @literal
 def RepeatedPrisonersTournament(rounds = ROUNDS, cost=COST, benefit=BENEFIT, tremble = 0, intervals = 2, **kwargs):
@@ -1335,31 +1117,31 @@ def cog_sci_dynamic(expected_interactions = 1, observability=0, cost = 1, benefi
     game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator)))
     return game
 
+def engine_gen(intervals, max_players, benefit, cost, tremble):
+    N_actions = 1+np.random.poisson(intervals-1)
+    N_players = np.random.choice(range(2, max_players + 1))
+
+    # initialize set of choices with the zero-action
+    choices = [np.zeros(N_players)]
+    for n in range(intervals-1):
+        c = np.random.poisson(cost)
+        w = np.random.exponential(benefit/2)
+        e = np.random.exponential(benefit/2)
+        for p in xrange(1,N_players):
+            choice = np.zeros(N_players)
+            choice[0] = -c
+            choice[p] = c*w+e
+            choices.append(copy(choice))
+    decision = Decision(OrderedDict((str(p),p) for p in choices))
+    decision.tremble = tremble
+
+    return decision
+    
 @literal
-def game_engine(expected_interactions, observability, cost = 1, benefit = 10, intervals = 2, tremble = 0, **kwargs):
+def game_engine(expected_interactions, observability, cost = 1, benefit = 10, intervals = 2, tremble = 0, max_players = 3, **kwargs):
     assert intervals>=0
-
-    def Gen():
-        N_actions = 1+np.random.poisson(intervals-1)
-        N_players = np.random.choice([2,3])
-
-        # initialize set of choices with the zero-action
-        choices = [np.zeros(N_players)]
-        for n in range(intervals-1):
-            c = np.random.poisson(cost)
-            w = np.random.exponential(benefit/2)
-            e = np.random.exponential(benefit/2)
-            for p in xrange(1,N_players):
-                choice = np.zeros(N_players)
-                choice[0] = -c
-                choice[p] = c*w+e
-                choices.append(copy(choice))
-        decision = Decision(OrderedDict((str(p),p) for p in choices))
-        decision.tremble = tremble
-
-        return decision
-
-    dictator = Dynamic(Gen)
+    
+    dictator = Dynamic(lambda: engine_gen(intervals, max_players, benefit, cost, tremble))
     dictator.name = "dynamic"
     gamma = 1-1/expected_interactions
     game = AnnotatedGame(IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator, **kwargs)))
@@ -1369,27 +1151,7 @@ def game_engine(expected_interactions, observability, cost = 1, benefit = 10, in
 def belief_game(rounds, observability, cost = 1, benefit = 10, intervals = 2, tremble = 0, **kwargs):
     assert intervals>=0
 
-    def Gen():
-        N_actions = 1+np.random.poisson(intervals-1)
-        N_players = 2
-
-        # initialize set of choices with the zero-action
-        choices = [np.zeros(N_players)]
-        for n in range(intervals-1):
-            c = np.random.poisson(cost)
-            w = np.random.exponential(benefit/2)
-            e = np.random.exponential(benefit/2)
-            for p in xrange(1,N_players):
-                choice = np.zeros(N_players)
-                choice[0] = -c
-                choice[p] = c*w+e
-                choices.append(copy(choice))
-        decision = Decision(OrderedDict((str(p),p) for p in choices))
-        decision.tremble = tremble
-
-        return decision
-
-    dictator = Dynamic(Gen)
+    dictator = Dynamic(lambda: engine_gen(intervals, 2, benefit, cost, tremble))
     dictator.name = "dynamic"
 
     game = AnnotatedGame(RandomizedMatchup(rounds, AllNoneObserve(observability, dictator, **kwargs), **kwargs))

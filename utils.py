@@ -34,7 +34,10 @@ def int_logspace(start, stop, samples, base=2):
 
 def softmax(vector, beta):
     ''' returns the softmax of the vector,'''
-    e_x = np.exp(beta * (np.array(vector)-max(vector)))
+    if beta == np.Inf:
+        e_x = np.array(vector) == max(vector)
+    else:
+        e_x = np.exp(beta * (np.array(vector)-max(vector)))
     return e_x / e_x.sum()
 
 def sample_softmax(utility, beta):

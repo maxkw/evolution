@@ -48,6 +48,7 @@ def mm_to_limit_mcp(payoff,pop_size):
 @memoize
 def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
+    import ipdb; ipdb.set_trace()
     rmcp = np.array([mm_to_limit_mcp(payoff, pop_size) for r,payoff in payoffs])
     return rmcp
 
