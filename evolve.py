@@ -6,17 +6,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import product, permutations, izip
 from scipy.ndimage.filters import gaussian_filter1d
-
 import agents as ag
-
 from utils import excluding_keys, softmax, memoize
 from experiment_utils import experiment, plotter
-from experiments import matchup_matrix
 from params import default_params
 from agents import WeAgent
 from steady_state import evo_analysis, simulation
 from steady_state import simulation_from_dict, matchups_and_populations
 from multiprocessing import Pool
+from tqdm import tqdm
 
 
 def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kwargs):
@@ -69,7 +67,6 @@ def complete_sim_live(player_types, start_pop, s=1, mu = .000001, seed = 0, **kw
         (b,d) = actions[action_index]
         pop = map(int,pop + I[b]-I[d])
 
-@experiment(unpack = 'record', memoize = False)
 def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0, trials = 100, **kwargs):
     populations = complete_sim_live(player_types, start_pop, s, seed = seed, trials = trials, **kwargs)
     record = []
@@ -82,7 +79,7 @@ def complete_agent_simulation(generations, player_types, start_pop, s, seed = 0,
                            'type' : t.short_name('agent_types'),
                            'population' : p})
             
-    return record
+    return pd.DataFrame(record)
 
 @plotter(complete_agent_simulation, plot_exclusive_args = ['data', 'graph_kwargs', 'stacked'])
 def complete_sim_plot(generations, player_types, data =[], graph_kwargs={}, **kwargs):
@@ -106,8 +103,7 @@ def complete_sim_plot(generations, player_types, data =[], graph_kwargs={}, **kw
     
     plt.tight_layout()
 
-@experiment(unpack = 'record', verbose = 3)
-def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **kwargs):
+def ssd_v_param(param, player_types, return_rounds=False, record_params={}, **kwargs):
     """
     This should be optimized to reflect the fact that
     in terms of complexity
@@ -122,41 +118,25 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
 
 
     """
-    # Test to make sure each agent interacts with a new agent each
-    # time. Otherwise its not true 'indirect' reciprocity.
+    records = []
 
-    # Xs = {
-    #     # 'RA_prior': np.linspace(0,1,21)[1:-1],
-    #     'RA_prior': np.linspace(0, 1, 21),
-    #     'benefit': np.linspace(2, 10, 5),
-    #     'beta': np.linspace(1, 11, 6),
-    #     'pop_size': np.unique(np.geomspace(2, 2**10, 100, dtype=int)),
-    #     's': logspace(start = .001, stop = 1, samples = 100),
-    #     'observability': np.round(np.linspace(0, 1, 11),2),
-    #     'tremble': np.round(np.linspace(0, 0.4, 41),2),
-    #     'expected_interactions': np.linspace(1, 10, 10),
-    #     'intervals' : [2, 4, 8],
-    # }
-    
-    record = []
-
-    if param == "rounds" and 'param_vals' not in kwargs:
+    if param == "rounds" and 'param_vals' not in kwargs: 
         expected_pop_per_round = evo_analysis(player_types = player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start = 1):
             for t, p in zip(player_types, pop):
-                record.append(dict({
+                records.append(dict({
                     'rounds': r,
                     'type': t.short_name('agent_types'),
                     'proportion': p
                 }, **record_params))
                 
-        return record#pd.DataFrame.from_records(record)
+        return pd.DataFrame(records)
 
     if 'param_vals' in kwargs:
         vals = kwargs['param_vals']
         del kwargs['param_vals']
 
-        for x in vals:
+        for x in tqdm(vals):
             expected_pop_per_round = evo_analysis(player_types = player_types, **dict(kwargs,**{param:x}))
 
             # Only return all of the rounds if return_rounds is True
@@ -167,26 +147,26 @@ def ssd_v_param(param, player_types, return_rounds=False, record_params ={}, **k
 
             for r, pop in enumerate(expected_pop_per_round[start:], start = 1):
                 for t, p in zip(player_types, pop):
-                    record.append(dict({
+                    records.append(dict({
                         param: x,
                         'rounds': r,
                         'type': t.short_name('agent_types'),
                         'proportion': p
                     }, **record_params))
 
-        return record#pd.DataFrame.from_records(record)
+        return pd.DataFrame(records)
 
     else:
         raise Exception('`param_vals` %s is not defined. Pass this variable' % param)
 
-@experiment(unpack = 'record', verbose = 3)
+
 def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
     '''`params`: <dict> with <string> keys that name the parameter and
     values that are lists of the parameters to range over.
 
     '''
     
-    record = []
+    records = []
     
     for pvs in product(*params.values()):
         ps = dict(zip(params, pvs))
@@ -200,12 +180,12 @@ def ssd_v_params(params, player_types, return_rounds = False, **kwargs):
 
         for r, pop in enumerate(expected_pop_per_round[start:], start = start):
             for t, p in zip(player_types, pop):
-                record.append(dict({'rounds': r,
+                records.append(dict({'rounds': r,
                                     'type': t.short_name('agent_types'),
                                     'proportion': p},
                                    **ps))
 
-    return record#pd.DataFrame.from_records(record)
+    return pd.DataFrame(records)
 
 def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
     return ssd_v_params(params= {x_param:x_vals, y_param:y_vals}, player_types = player_types, **kwargs)
@@ -297,15 +277,15 @@ def make_legend():
 
     return legend
 
-def gaussian_filter(df, sigma = 1):
-    """takes a dataframe where columns are agent types, indices are a parameter, and values are proportions"""
-    index = df.index
-    columns = df.columns
-    filtered = gaussian_filter1d(df.values, sigma, axis = 0, mode = 'nearest')
-    return pd.DataFrame(filtered, columns = columns, index = index)
+# def gaussian_filter(df, sigma = 1):
+#     """takes a dataframe where columns are agent types, indices are a parameter, and values are proportions"""
+#     index = df.index
+#     columns = df.columns
+#     filtered = gaussian_filter1d(df.values, sigma, axis = 0, mode = 'nearest')
+#     return pd.DataFrame(filtered, columns = columns, index = index)
 
-@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'graph_kwargs', 'graph_funcs', 'sigma'])
-def limit_param_plot(param, player_types, data = [], stacked = False, graph_funcs=None, graph_kwargs={}, **kwargs):
+@plotter(ssd_v_param, plot_exclusive_args = ['experiment','data', 'stacked', 'legend', 'graph_kwargs', 'graph_funcs'])
+def limit_param_plot(param, player_types, data = [], stacked = False, legend = True, graph_funcs=None, graph_kwargs={}, **kwargs):
     fig, ax = plt.subplots(figsize = (3.5, 3))
     # TODO: Investigate this, some weird but necessary data cleaning
     data[data['proportion']<0] = 0
@@ -319,10 +299,8 @@ def limit_param_plot(param, player_types, data = [], stacked = False, graph_func
     data.reindex(sorted(data.columns, key = lambda t:type_order[t]), axis = 1)
 
     if stacked:
-        data.plot.area(stacked = True, ax=ax, ylim = [0, 1], legend=False, **graph_kwargs)
-            
-        if 'legend' not in graph_kwargs or graph_kwargs['legend']:
-            legend = make_legend()
+        data.plot.area(stacked = True, ax=ax, ylim = [0, 1], legend = False, **graph_kwargs)
+        if legend: make_legend()
 
         if param == 'rounds':
             plt.xlim([1, kwargs['rounds']])

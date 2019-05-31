@@ -7,7 +7,7 @@ from copy import copy, deepcopy
 from utils import HashableDict, _issubclass
 from itertools import chain, product, combinations
 import networkx as nx
-
+from scipy.misc import logsumexp
 
 PRETTY_KEYS = {"RA_prior": "prior",
                "RA_K": 'K'}
@@ -17,7 +17,6 @@ def add_tremble(p, tremble):
         return p
     else:
         return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
-
 
 class HashableSet(set):
     def __hash__(self):
@@ -44,10 +43,6 @@ class AgentType(type):
 
     def short_name(cls, *args):
         return cls.__name__
-
-    # def __reduce__(self):
-    #    return (eval,(self.__name__,))
-
 
 class Agent(object):
     __metaclass__ = AgentType
@@ -429,89 +424,128 @@ class ReciprocalAgent(IngroupAgent):
     def ingroup():
         return [ReciprocalAgent]
 
-
-
-### feasible
-# kappa | 0 <= kappa <= B-C
-# chi | -1 <= max((kap-B)/(kap+C),(kap+C)/(kap-B)) <= chi <= 1
-# phi | 0 < phi <= chi*B/(chi*B/chi*C+B)
-# lamda |
-# (chi+1)/C + (B-C) <= lambda <= (chi+1)/(-B) + (B-C)
-# -(chi*B+C)<= lambda <= (B+chi*C)
-
-### robust
-# X is robust against mutant Y
-# if the odds off Y replacing X are <1/N
-# for N->inf robustness reduces to ESS
-
-### extortion
-# kap = 0 = P
-# chi > 0
-
-### cooperative
-# kappa = R = B-C
-
-### generous
-# cooperative
-# chi > 0
-
-### good
-# cooperative
-#
-#(lambda > -(B-C)*chi AND lambda > -(B+C)*chi)
-# OR
-#lambda | -(chi*B+C) <= lambda <= (B+chi*C)
-
-### Good+Robust (in pop = N)
-# feasible
-# cooperative (implied)
-# lambda |
-# lambda >(B-C)/(3N)* (N+1-(2n-1)*chi)
-# AND
-# lambda >(B+C)/(N-2)*(N+1-(2n-1)*chi)
-
-### robust ZD for N>2
-# cooperative
-# generous (implied)
-# 1 > chi >= (N+1)/(2N-1)
-
-### ZD
-# lambda = 0
-
-### WSLS at least has
-# chi = -C/B < 0
-
-
 class HyperAgent(Agent):
-    ####ONLY WORKS FOR THE DEFAULT CASE
-    def __init__(self, genome, world_id=None):
-        defaults = dict(chi=2/3, kap = None, lam = 0, phi = 3/11)
-        keys = ["B","C","chi","kap","lam",'phi']
-        B,C,chi,kap,lam,phi = [genome[k] if k in genome else defaults[k] for k in keys]
-        self.world_id = world_id
+    '''
+    NOTE: ONLY WORKS FOR THE DEFAULT CASE
 
+    FEASIBLE:
+    kappa | 0 <= kappa <= B-C
+    chi | -1 <= max((kap-B)/(kap+C),(kap+C)/(kap-B)) <= chi <= 1
+    phi | 0 < phi <= chi*B/(chi*B/chi*C+B)
+    lamda |
+    (chi+1)/C + (B-C) <= lambda <= (chi+1)/(-B) + (B-C)
+    -(chi*B+C)<= lambda <= (B+chi*C)
+
+    ROBUST:
+    X is robust against mutant Y
+    if the odds off Y replacing X are <1/N
+    for N->inf robustness reduces to ESS
+
+    EXTORTION:
+    kap = 0 = P
+    chi > 0
+
+    COOPERATIVE:
+    kappa = R = B-C
+
+    GENEROUS:
+    cooperative
+    chi > 0
+
+    GOOD:
+    COOPERATIVE
+
+    (lambda > -(B-C)*chi AND lambda > -(B+C)*chi)
+    OR
+    lambda | -(chi*B+C) <= lambda <= (B+chi*C)
+
+    GOOD+ROBUST (IN POP = N)
+    FEASIBLE
+    COOPERATIVE (IMPLIED)
+    lambda |
+    lambda >(B-C)/(3N)* (N+1-(2n-1)*chi)
+    AND
+    lambda >(B+C)/(N-2)*(N+1-(2n-1)*chi)
+
+    ROBUST ZD FOR N>2
+    COOPERATIVE
+    GENEROUS (IMPLIED)
+    1 > chi >= (N+1)/(2N-1)
+
+    ZD
+    lambda = 0
+
+    WSLS AT LEAST HAS
+    chi = -C/B < 0
+    '''
+
+    def __init__(self, genome, world_id=None):
+        defaults = dict(chi=2/3, kap = None, lam = 0, phi = 3/11, N = None, varient = None)
+        keys = ["B","C","chi","kap","lam",'phi', 'pop_size', 'varient']
+        B,C,chi,kap,lam,phi,pop_size,varient = [genome[k] if k in genome else defaults[k] for k in keys]
+        R = B - C; T = B; S = -C; P = 0
+
+        self.world_id = world_id
+        
+        # From Stewart & Plotkin 2013
         if kap == None:
-            # make strategies cooperative
+            # Make strategies "Cooperative"
             kap = B-C
 
-        assert 0 <= kap and kap <= B-C
-        assert max((kap-B)/(kap+C),(kap+C)/(kap-B)) <= chi and chi <= 1
-
-        if phi == None:
-            #max out phi, at bottom it's TFT
-            #phi = (chi*B)/(chi*C+B)
-            phi = C/(C+chi*B)
-
-        #print phi
-        #assert (0 < phi) and (phi <= (chi*B)/(chi*C+B))
-        #assert (0 < phi) and (phi <= C/(chi*B+C))
-        #assert (lam > -(B-C)*chi) and (lam > -(B+C)*chi)
-        assert (lam >= -B*(chi+1)+B-C) and (lam <= C*(chi+1)+B-C)
-        p_vec= (1-phi*(1-chi)*(B-C-kap),
-                1-phi*(chi*C+B-kap*(1-chi)+lam),
-                phi*(chi*B+C+(1-chi)*kap-lam),
-                phi*(1-chi)*kap)
+        assert 0 <= kap <= B-C
+        assert max((kap - B)/(kap + C), (kap + C)/(kap - B)) <= chi <= 1
         
+        # if phi == None:
+        #     #max out phi, at bottom it's TFT
+        #     #phi = (chi*B)/(chi*C+B)
+        #     phi = C / (C + chi * B)
+
+        assert lam >= -B * (chi + 1) + B - C
+        assert lam <= C * (chi + 1) + B - C
+
+        if varient == 'extortion':
+            assert kap == P
+            assert chi > 0
+            
+        if varient == 'ZD-robust':
+            assert 1 > chi >= (pop_size+1) / (2*pop_size-1)
+            assert 0 < phi <= chi * B / (chi * C + B)
+            assert kap == B-C
+            
+        
+        p_vec = (
+            1 - phi * (1 - chi) * (B - C - kap),
+            1 - phi * (chi * C + B - (1 - chi) * kap + lam),
+            phi * (chi * B + C + (1 - chi) * kap - lam),
+            phi * (1 - chi) * kap
+        )
+
+        # # From Press & Dyson
+        # assert chi >= 1
+        # p_vec = (
+        #     1 - phi * (chi - 1) * (R-P)/(P-S),
+        #     1 - phi * (1 + chi * (T-P)/(P-S)),
+        #     phi * (chi + (T-P)/(P-S),
+        #     0
+        # )
+
+        # # From Hilbe Chatterjee & Nowak
+        # chi = 1/2
+        # beta = -1/4
+        # alpha = -chi * beta
+        # gamma = beta * (chi-1) * P
+
+        # # If -beta / alpha > 1 its an extortion strategy
+        # assert P == 0
+        # assert 0 < chi < 1
+        # assert beta != 0
+        
+        # p_vec = (
+        #     alpha * R + beta * R + gamma + 1,
+        #     alpha * S + beta * T + gamma + 1,
+        #     alpha * T + beta * S + gamma,
+        #     alpha * P + beta * P + gamma,
+        # )
 
         for i,p in enumerate(p_vec):
             if not p<=1 and p>=0:
@@ -547,6 +581,7 @@ class HyperAgent(Agent):
         assert me == self.world_id
         return add_tremble(np.array([self.reaction[self.memory[other]][action] for action in game.actions]), tremble)
 
+    
 class ClassicAgent(Agent):
     
     def decide(self, game, agent_ids):
@@ -814,12 +849,11 @@ class ModelNode(object):
         self.beliefs = None
         self.likelihood = None
         
-        
         #route to the 'everyone' by default
         self.models = defaultdict(lambda: self)
 
-        self.genome = genome = genome
-        self.need_to_observe = True#gTFT in genome['agent_types'] or Pavlov in genome['agent_types']
+        self.genome = genome
+        self.need_to_observe = True
 
         self.beta = genome['beta']
 
@@ -829,16 +863,13 @@ class ModelNode(object):
         tmp_genome = dict(genome)
         tmp_genome['agent_types'] = tuple(a_type for a_type in tmp_genome['agent_types'] if a_type != genome['type'])
         self.other_models = wAgentDict(tmp_genome)
+        
+        non_WA_prior = (1 - genome['prior']) / (len(genome['agent_types']) - 1)
+        self.pop_prior = np.array([genome['prior'] if t is genome['type'] else non_WA_prior for t in genome['agent_types']])
 
-        #print genome['agent_types']
-        prior = genome['prior']
-        non_WA_prior = (1-prior)/(len(genome['agent_types'])-1)
-        self.pop_prior = prior = np.array([prior if t is genome['type'] else non_WA_prior for t in genome['agent_types']])
-
-        self.belief = ConstantDefaultDict(prior)
-        self.likelihood = ConstantDefaultDict(np.zeros_like(prior))
-        self.new_likelihoods = ConstantDefaultDict(np.zeros_like(prior))
-        #self.new_likelihoods = defaultdict(int)
+        self.belief = ConstantDefaultDict(self.pop_prior)
+        self.likelihood = ConstantDefaultDict(np.zeros_like(self.pop_prior))
+        self.new_likelihoods = ConstantDefaultDict(np.zeros_like(self.pop_prior))
         
     def copy(self,new_id_set):
         cpy = copy(self)
@@ -873,7 +904,6 @@ class ModelNode(object):
         return add_tremble(softmax(Us, self.beta), tremble)
 
     def observe(self, observations):
-        #print self.ids
         agent_types = self.genome['agent_types']
         self.new_likelihoods = ConstantDefaultDict(np.zeros_like(self.pop_prior))
 
@@ -890,20 +920,17 @@ class ModelNode(object):
                     model = self
                 else:
                     model = self.other_models[decider_id][agent_type]
+                    
                 likelihood.append(model.decide_likelihood(game,participants,tremble)[action_index])
 
             self.new_likelihoods[decider_id] += np.log(likelihood)
-        #self.nl_cache = copy(new_likelihoods)
 
         prior = np.log(self.pop_prior)
         for decider_id, new_likelihood in self.new_likelihoods.iteritems():
             self.likelihood[decider_id] += new_likelihood
-            likelihood = self.likelihood[decider_id]
-            #print 'prior', prior
-            #print 'likelihood', likelihood
-            self.belief[decider_id] = np.exp(prior+likelihood)
+            
+            self.belief[decider_id] = np.exp(prior+self.likelihood[decider_id])
             self.belief[decider_id] = normalized(self.belief[decider_id])
-        #self.l_cache = deepcopy(self.likelihood)
 
         if self.need_to_observe:
             for model in self.other_models.itervalues():
@@ -1395,13 +1422,4 @@ class ReciprocalAgent(RationalAgent):
 
         outgroup_prior = (1-prior)/(len(agent_types)-1)
         return  np.array([prior if t is me else outgroup_prior for t in agent_types])
-
-#class SelfishAgent(RationalAgent):
-#"""must change default_genome"""
-#    @classmethod
-#    def utility(cls, payoffs, participant_ids, belief, common_knowledge):
-#        weights = [0 for p_id in participant_ids]
-#        weights[0] = 1
-#        return np.dot(payoffs,weights)
-
 

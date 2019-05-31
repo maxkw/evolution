@@ -6,7 +6,7 @@ from math import factorial
 import numpy as np
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 from functools import partial
-from utils import memoize
+from utils import memoize, memory
 from multiprocessing import Pool
 from experiments import matchup,matchup_matrix_per_round
 from copy import copy
@@ -45,10 +45,9 @@ def mm_to_limit_mcp(payoff,pop_size):
     mcp_matrix = np.array(mcp_lists)
     return mcp_matrix
 
-@memoize
+@memory.cache
 def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
-    import ipdb; ipdb.set_trace()
     rmcp = np.array([mm_to_limit_mcp(payoff, pop_size) for r,payoff in payoffs])
     return rmcp
 
@@ -269,6 +268,7 @@ def steady_state(matrix):
         steady_states = steady_states[1]
         
     except Exception as e:
+        import pdb; pdb.set_trace()
         print Warning("Multiple Steady States")
         return steady_states[0][1]
         raise e

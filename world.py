@@ -21,12 +21,8 @@ class World(object):
             self.id_to_agent[world_id] = agent
         self.agents = np.array(self.agents)
 
-    def run(self, agents=None, observers=None, notes={}):
+    def run(self):
         agents = np.array(self.agents)
-        if notes:
-            payoff, observations, record = self.game.play(
-                agents, agents, tremble=self.params['tremble'], notes=notes)
-        else:
-            payoff, observations, record = self.game.play(
-                agents, agents, tremble=self.params['tremble'])
+        payoff, observations, record = self.game.play(agents, agents, tremble=self.params['tremble'])
+        
         return payoff, record

@@ -1,13 +1,16 @@
 from __future__ import division
 import numpy as np
+import scipy as sp
 import itertools
 import random
 import pandas as pd
 from functools import wraps, reduce
 from pickle import load, dump
 from copy import deepcopy
+from joblib import Memory
+memory = Memory(cachedir='./memo_cache', verbose=0)
 
-pd.set_option('precision',5)
+pd.set_option('precision', 5)
 
 def splits(n):
     """
@@ -36,9 +39,10 @@ def softmax(vector, beta):
     ''' returns the softmax of the vector,'''
     if beta == np.Inf:
         e_x = np.array(vector) == max(vector)
+        return e_x / e_x.sum()
     else:
-        e_x = np.exp(beta * (np.array(vector)-max(vector)))
-    return e_x / e_x.sum()
+        # e_x = np.exp(beta * (np.array(vector)-max(vector)))
+        return sp.special.softmax(beta*vector)
 
 def sample_softmax(utility, beta):
     
@@ -177,6 +181,7 @@ def pickled(obj,path,mode = "w"):
     with open(path,mode) as file:
         dump(obj,file)
         return obj
+    
 def unpickled(path,mode = "r"):
     with open(path,mode) as file:
         return load(file)
@@ -193,9 +198,6 @@ class HashableDict(dict):
     def __hash__(self):
         return dict_hash(self)
 
-def dict_to_kwarg_str(d):
-    return "(%s)" % ",".join(["%s=%s" % (key,val) for key,val in d.iteritems()])
-
 _issubclass = issubclass
 def _issubclass(C,B):
     try:
@@ -208,10 +210,3 @@ def _issubclass(C,B):
 
 def excluding_keys(d,*keys):
     return dict((k,v) for k,v in d.iteritems() if k not in keys)
-
-def justcaps(t):
-    return filter(str.isupper,t.__name__)
-
-def compose(*funcs):
-    return reduce(lambda f,g: lambda x: f(g(x)), funcs, lambda x: x)
-

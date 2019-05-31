@@ -6,7 +6,7 @@ from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
 from params import default_genome
 from agents import AltruisticAgent, RationalAgent, ReciprocalAgent, SelfishAgent, WeAgent
-from games import BinaryDictator, RandomDictator
+from games import BinaryDictator
 import matplotlib.pyplot as plt
 from itertools import product
 
@@ -24,7 +24,7 @@ agent_to_label = {ReciprocalAgent: 'Reciprocal',
 }
 
 @multi_call()
-@experiment(unpack='record', unordered=['agent_types'], memoize=False)
+@experiment(unordered=['agent_types'], memoize=False)
 def scenarios(scenarios, agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
 
@@ -122,7 +122,7 @@ def false_belief_scenarios():
 
 
 @multi_call()
-@experiment(unordered=['agent_types'], unpack='record', memoize=False)
+@experiment(unordered=['agent_types'], memoize=False)
 def first_impressions(agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
     genome = default_genome(agent_type=WeAgent, **condition)
@@ -185,73 +185,73 @@ def forgive_plot(p, data=[], label=''):
         
     plt.tight_layout()
 
-@experiment(unordered=['agent_types'], unpack='record', memoize=False)
-def n_action_info(agent_types, **kwargs):
-    condition = dict(locals(), **kwargs)
-    genome = default_genome(agent_type=WeAgent, **condition)
-    trials = 100
-    record = []
+# @experiment(unordered=['agent_types'], memoize=False)
+# def n_action_info(agent_types, **kwargs):
+#     condition = dict(locals(), **kwargs)
+#     genome = default_genome(agent_type=WeAgent, **condition)
+#     trials = 100
+#     record = []
 
-    # build args
-    args = []
-    # for b in [2,3,4, 10]:
-    #     args.append(dict(cost = 1, benefit = b, tremble = 0))
-    for t in np.linspace(0, .15, 4):
-        args.append(dict(cost = 1, benefit = 3, tremble = t))
+#     # build args
+#     args = []
+#     # for b in [2,3,4, 10]:
+#     #     args.append(dict(cost = 1, benefit = b, tremble = 0))
+#     for t in np.linspace(0, .15, 4):
+#         args.append(dict(cost = 1, benefit = 3, tremble = t))
         
-    for arg in args:
-        for i in range(2, 17, 2):
-            for k in xrange(trials):
-                game = RandomDictator(cost = arg['cost'], benefit = arg['benefit'], tremble = arg['tremble'], intervals = i)
+#     for arg in args:
+#         for i in range(2, 17, 2):
+#             for k in xrange(trials):
+#                 game = RandomDictator(cost = arg['cost'], benefit = arg['benefit'], tremble = arg['tremble'], intervals = i)
 
-                for t in agent_types:
-                    if t == 'self':
-                        actor = WeAgent(genome=genome, world_id='A')
-                    else:
-                        actor = t(genome=genome, world_id = 'A')
+#                 for t in agent_types:
+#                     if t == 'self':
+#                         actor = WeAgent(genome=genome, world_id='A')
+#                     else:
+#                         actor = t(genome=genome, world_id = 'A')
                         
-                    E_KL = 0
+#                     E_KL = 0
                      
-                    for a_id, likelihood in enumerate(actor.decide_likelihood(game, 'AB')):
-                        observer = WeAgent(genome=genome, world_id='O')
-                        q = observer.belief['A']
-                        observer.observe([(game, 'AB', 'ABO', game.actions[a_id])])
-                        p = observer.belief['A']
-                        E_KL += likelihood * sp.stats.entropy(p, q, base = 2)
+#                     for a_id, likelihood in enumerate(actor.decide_likelihood(game, 'AB')):
+#                         observer = WeAgent(genome=genome, world_id='O')
+#                         q = observer.belief['A']
+#                         observer.observe([(game, 'AB', 'ABO', game.actions[a_id])])
+#                         p = observer.belief['A']
+#                         E_KL += likelihood * sp.stats.entropy(p, q, base = 2)
                         
-                    record.append({
-                        '# Actions': i,
-                        'bits': E_KL,
-                        'tremble': arg['tremble'],
-                        'b/c': arg['benefit'] / arg['cost'],
-                        'type': lookup_agent(actor)
-                    })
+#                     record.append({
+#                         '# Actions': i,
+#                         'bits': E_KL,
+#                         'tremble': arg['tremble'],
+#                         'b/c': arg['benefit'] / arg['cost'],
+#                         'type': lookup_agent(actor)
+#                     })
 
-    return record
+#     return record
 
-@plotter(n_action_info, plot_exclusive_args=['data', 'color', 'graph_kwargs', 'titles'])
-def n_action_plot(data=[], color=sns.color_palette(['C5', 'C0', 'C1'])):
-    sns.set_context('notebook')
+# @plotter(n_action_info, plot_exclusive_args=['data', 'color', 'graph_kwargs', 'titles'])
+# def n_action_plot(data=[], color=sns.color_palette(['C5', 'C0', 'C1'])):
+#     sns.set_context('notebook')
 
-    fig, axs = plt.subplots(3, 1, figsize = (3.5, 9), sharex=True, sharey=False)
-    means = data.groupby(['# Actions', 'type']).mean().unstack()['bits']
-    means = means.reindex(['Reciprocal', 'Altruistic', 'Selfish'], axis=1)
-    means.plot(ax=axs[0], color=color, legend = True)
+#     fig, axs = plt.subplots(3, 1, figsize = (3.5, 9), sharex=True, sharey=False)
+#     means = data.groupby(['# Actions', 'type']).mean().unstack()['bits']
+#     means = means.reindex(['Reciprocal', 'Altruistic', 'Selfish'], axis=1)
+#     means.plot(ax=axs[0], color=color, legend = True)
     
-    means = data[data['tremble'] == 0].groupby(['# Actions', 'b/c']).mean().unstack()['bits']
-    means.plot(ax=axs[1], color= sns.color_palette("Blues"), legend = True)
+#     means = data[data['tremble'] == 0].groupby(['# Actions', 'b/c']).mean().unstack()['bits']
+#     means.plot(ax=axs[1], color= sns.color_palette("Blues"), legend = True)
 
-    means = data[data['b/c'] == 3].groupby(['# Actions', 'tremble']).mean().unstack()['bits']
-    means.plot(ax=axs[2], color=sns.color_palette("Blues_r"), legend = True)
+#     means = data[data['b/c'] == 3].groupby(['# Actions', 'tremble']).mean().unstack()['bits']
+#     means.plot(ax=axs[2], color=sns.color_palette("Blues_r"), legend = True)
 
-    for ax in axs:
-        ax.set_ylabel('bits')
+#     for ax in axs:
+#         ax.set_ylabel('bits')
     
-    plt.xlabel('# of Options')
-    plt.xticks(2**np.arange(1, np.log2(max(means.index))+1))
+#     plt.xlabel('# of Options')
+#     plt.xticks(2**np.arange(1, np.log2(max(means.index))+1))
 
-    sns.despine()
-    plt.tight_layout()
+#     sns.despine()
+#     plt.tight_layout()
 
 def main(prior = 0.5, beta = 5, **kwargs):
     # first_impressions_plot(
