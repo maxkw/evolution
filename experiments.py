@@ -1,6 +1,7 @@
 from __future__ import division
 import pandas as pd
 import seaborn as sns
+from tqdm import tqdm
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
 from params import default_params, default_genome
@@ -43,7 +44,7 @@ import games
 @multi_call(unordered=["player_types", "agent_types"], verbose=3)
 @experiment(verbose=3)
 def matchup(player_types, game, **kwargs):
-    np.random.seed(kwargs["trial"])
+    # np.random.seed(kwargs["trial"])
     
     believed_types = kwargs.get("believed_types", None)
 
@@ -101,6 +102,48 @@ def matchup(player_types, game, **kwargs):
     record = []
     ids = [a.world_id for a in world.agents]
 
+    # This is the special case for doing "direct" i.e., IPD style
+    # analysis very efficiently. It should only apply when we aren't
+    # doing per_round analysis but are doing IPD. One example of this
+    # is the tremble condition for the IPD.
+    if kwargs['per_round'] == False and type(g) == type(RepeatedPrisonersTournament()) :
+        for t, f in zip(player_types, fitness):
+            record.append({
+                "player_types": tuple(player_types),
+                "type": repr(t),
+                "fitness": f,
+                # "round": kwargs['rounds']
+            })
+        return record
+    
+    # This is the case of the `game_engine` problems. We want the "end
+    # values" of fitness over types and don't care about rounds. The
+    # key things we need are the total number of interactions per type
+    # and the total fitness per type. 
+    elif kwargs['per_round'] == False:
+        # We have the summed fitnesses per type but need the summed
+        # interactions and decisions per type which requires iterating
+        # through the event log.
+        interactions = np.zeros(len(player_types))
+        decisions = np.zeros(len(player_types))
+        for event in history:
+            for actors in event["actors"]:
+                interactions[np.array(actors)] += 1
+                decisions[actors[0]] += 1
+            
+        for t, a_id, f in zip(player_types, ids, fitness):
+            record.append({
+                    "player_types": tuple(player_types),
+                    "type": repr(t),
+                    "id": a_id,
+                    "interactions": interactions[a_id],
+                    "decisions": decisions[a_id],
+                    "fitness": f,
+            })
+            
+        return record
+    
+    
     for event in history:
         try:
             assert len(player_types) == len(ids) and len(player_types) == len(
@@ -113,12 +156,13 @@ def matchup(player_types, game, **kwargs):
             )
 
         r = event["round"]
+
         interactions = np.zeros(len(player_types))
         decisions = np.zeros(len(player_types))
         for actors in event["actors"]:
             interactions[np.array(actors)] += 1
             decisions[actors[0]] += 1
-
+            
         for t, a_id, p, b, l, n_l in zip(
             player_types,
             ids,
@@ -144,6 +188,7 @@ def matchup(player_types, game, **kwargs):
                         for attr, val in attr_to_val.iteritems():
                             record.append(
                                 {
+                                    "player_types": tuple(player_types),
                                     "type": repr(t),
                                     "id": a_id,
                                     "round": r,
@@ -156,13 +201,15 @@ def matchup(player_types, game, **kwargs):
                             )
 
             else:
+                # assert 0
                 record.append(
                     {
+                        "player_types": tuple(player_types),
                         "type": repr(t),
                         "id": a_id,
                         "round": r,
-                        "interactions": interactions[a_id],
-                        "decisions": decisions[a_id],
+                        # "interactions": interactions[a_id],
+                        # "decisions": decisions[a_id],
                         "fitness": p,
                     }
                 )
@@ -174,7 +221,7 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
     """ Use this for the private belief games"""
     dfs = []
     b_name = repr(believer)  # .short_name('agent_types')
-    for opponent in opponent_types:
+    for opponent in tqdm(opponent_types):
         data = matchup(
             player_types=(believer, opponent),
             # actual_type = repr(opponent),
@@ -183,10 +230,12 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
             unpack_beliefs=True,
             **kwargs
         )
-
+        
         if believer == opponent:
             dfs.append(data[data["id"] == 0])
         else:
+            # idx = pd.IndexSlice
+            # dfs.append(data.loc[idx[:, :, b_name, :], :])
             dfs.append(data[data["type"] == b_name])
 
     return pd.concat(dfs, ignore_index=True)
@@ -220,8 +269,8 @@ def plot_beliefs(
 
     type_names = map(repr, believed_types)
     prior = dict(zip(type_names, prior_arr))
-    max_trials = max(data["trial"])
-
+    max_trials = kwargs['trials'] - 1
+    
     prior_data = [
         {
             "trial": t,
@@ -305,21 +354,36 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **
     params = default_params(**condition)
 
     player_combos = MultiArg(combinations_with_replacement(player_types, 2))
-    all_data = matchup(player_combos, per_round=True, rounds=max_rounds, **kwargs)
+    all_data = matchup(player_combos, rounds=max_rounds, **kwargs)
 
-    means = all_data.groupby(["round", "player_types", "type"])["fitness"].mean()
+    per_round = kwargs['per_round']
+    if per_round:
+        groupby_keys = ["player_types", "type", "round"]
+    else:
+        groupby_keys = ["player_types", "type"]
 
-    if sem:
-        var_mean = all_data.groupby(["round", "player_types", "type"])["fitness"].var()
-        payoffs_var = np.zeros((len(player_types),) * 2)
-        payoffs_var_list = []
+    means = all_data.groupby(groupby_keys)["fitness"].mean()
 
-    player_combos = means.index.levels[1]
+    # Do the calculations for computing standard errors of the mean.
+    # When going by round need to do it by summing up variances when
+    # not per_round can just compute SEM directly.
+    var_mean = all_data.groupby(groupby_keys)["fitness"].var()
+    sem_mean = all_data.groupby(groupby_keys)["fitness"].sem()
+    payoffs_var = np.zeros((len(player_types),) * 2)
+    payoffs_var_list = []
+
+    player_combos = means.index.levels[0]
     index = dict(map(reversed, enumerate(player_types)))
-    
+
     payoffs_list = []
     payoffs = np.zeros((len(player_types),) * 2)
-    for r in range(1, max_rounds + 1):
+    
+    if per_round:
+        rounds = range(1, max_rounds + 1)
+    else:
+        rounds = [max_rounds]
+
+    for r in rounds:
         for combination in player_combos:
             for players in set(permutations(combination)):
                 player, opponent = players
@@ -330,27 +394,31 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **
                 else:
                     c = 0
 
-                payoffs[p, o] += means[(r, combination, player)] - c
-
-                if sem:
-                    payoffs_var[p, o] += var_mean[(r, combination, player)]
+                if per_round:
+                    payoffs[p, o] += means[(combination, player, r)] - c
+                    payoffs_var[p, o] += var_mean[(combination, player, r)]
+                        
+                else:
+                    payoffs[p, o] = means[(combination, player)] - c * max_rounds
+                    payoffs_var[p, o] = sem_mean[(combination, player)]
 
         payoffs_list.append(copy(payoffs))
-        if sem:
+        
+        # TODO: These two formula should be equivalent but they are not!
+        if per_round:
+            # Need to change the variances into SEs
             payoffs_var_list.append(np.sqrt((payoffs_var / r ** 2) / kwargs["trials"]))
+        else:
+            payoffs_var_list.append(payoffs_var)
 
-    for r, p in enumerate(payoffs_list, start=1):
+    for r, p in zip(rounds, payoffs_list):
         p /= r
 
     if sem:
-        return (
-            list(enumerate(payoffs_list, start=1)),
-            list(enumerate(payoffs_var_list, start=1)),
-        )
+        return zip(rounds, payoffs_list), zip(rounds, payoffs_var_list) 
 
-    return list(enumerate(payoffs_list, start=1))
-
-
+    return zip(rounds, payoffs_list)
+        
 @plotter(matchup_matrix_per_round, plot_exclusive_args=["data"])
 def payoff_heatmap(player_types, max_rounds, cog_cost=0, sem=True, data=[], **kwargs):
     # Get the last round

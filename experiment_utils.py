@@ -11,7 +11,9 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 import sys
 from tqdm import tqdm
+import joblib
 from joblib import Parallel, delayed
+import params
 
 def product_of_vals(orderedDict):
     keys, val_lists = orderedDict.keys(), orderedDict.values()
@@ -177,7 +179,7 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
 
             try:
                 # Try to hash the arg dict to get a unique file name for caching. 
-                arg_hash = hash(str(tuple(sorted(args.iteritems()))))
+                arg_hash = joblib.hash(str(tuple(sorted(args.iteritems()))))
                 # if verbose >= 1: print "\nExperiment " + str(call_data["call"])
             except TypeError as te:
                 print "these are the provided args\n", args
@@ -185,14 +187,10 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
 
             cache_file = data_dir + str(arg_hash) + ".pkl"
             
-            try:
-                # If we aren't loading the memoized data or we want to
-                # overwrite it then fail.
-                assert memoized and not overwrite
-
+            if os.path.exists(cache_file) and memoized and not overwrite:
                 # print "Loading cache...",
                 cache = pd.read_pickle(cache_file)
-                cached_trials = list(cache["trial"].unique())
+                cached_trials = cache.index.levels[cache.index.names.index('trial')].tolist()
                 uncached_trials = [
                     trial for trial in trials if trial not in cached_trials
                 ]
@@ -201,33 +199,35 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
                 #     len(cached_trials),
                 #     len(uncached_trials),
                 # )
-
-            except Exception as e:
+            else:
+                # except Exception as e:
                 # print "No cache loaded. "
-                cols = args.keys() + ["trial"]
-                cache = pd.DataFrame(columns=cols)
+                # cols = args.keys() + ["trial"]
+                # cache = pd.DataFrame(columns=cols)
+                cache = pd.DataFrame()
                 uncached_trials = trials
 
-            # results = []
-            # # for trial in tqdm(uncached_trials, disable=(verbose == 0)):
-            # for trial in uncached_trials:
-            #     np.random.seed(trial)
-            #     result = function(**copy(args))
-            #     for d in result:
-            #         d['trial'] = trial
-            #         results.append(dict(args, **d))
-
-            trial_args = []
-            for trial in uncached_trials:
-                trial_args.append(
-                    dict(args, **{'trial': trial})
-                )
-
-            rs = Parallel(n_jobs=4)(delayed(function)(**targs) for targs in tqdm(trial_args))
             results = []
-            for r, targ in zip(rs, trial_args):
-                for d in r:
-                    results.append(dict(targ, **d))
+            # for trial in tqdm(uncached_trials, disable=(verbose == 0)):
+            for trial in tqdm(uncached_trials, disable=params.n_jobs > 1):
+                np.random.seed(trial)
+                result = function(**copy(args))
+                for d in result:
+                    d['trial'] = trial
+                    # results.append(dict(args, **d))
+                    results.append(d)
+
+            # trial_args = []
+            # for trial in uncached_trials:
+            #     trial_args.append(
+            #         dict(args, **{'trial': trial})
+            #     )
+
+            # rs = Parallel(n_jobs=4)(delayed(function)(**targs) for targs in tqdm(trial_args))
+            # results = []
+            # for r, targ in zip(rs, trial_args):
+            #     for d in r:
+            #         results.append(dict(targ, **d))
                     
             # results = []
             # for targ in tqdm(trial_args, disable=(verbose == 0)):
@@ -236,11 +236,17 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
             #         results.append(dict(targ, **d))
             
             # consolidate new and old results and save
-            cache = pd.concat([cache, pd.DataFrame(results)], sort=True)
-            if memoized:
-                cache.to_pickle(cache_file)
+            if results:
+                # Index these values since it acts as a quick form of
+                # compression since these fields have massively
+                # repeated values.
+                results = pd.DataFrame(results).set_index(['trial', 'player_types', 'type'])
+                cache = pd.concat([cache, results])
+                if memoized:
+                    cache.to_pickle(cache_file)
 
-            return cache.query("trial in %s" % trials)
+            # return cache.query("trial in %s" % trials).reset_index(level=['trial', 'player_types', 'type', 'round'])
+            return cache.query("trial in %s" % trials).reset_index(level=cache.index.names)
 
         experiment_call._decorator = "experiment"
         return experiment_call
@@ -298,9 +304,10 @@ def multi_call(unpack=False, verbose=2, **kwargs):
                 arg_calls = [static_args]
                 return function(**static_args)
 
-            dfs = []
-            for arg_call in tqdm(arg_calls, disable=(verbose == 0)):
-                dfs.append(function(**arg_call))
+            dfs = Parallel(n_jobs=params.n_jobs)(delayed(function)(**arg_call) for arg_call in tqdm(arg_calls, disable=params.disable_tqdm))
+            # dfs = []
+            # for arg_call in tqdm(arg_calls, disable=(verbose == 0)):
+            #     dfs.append(function(**arg_call))
 
             ret = pd.concat(dfs)
             return ret

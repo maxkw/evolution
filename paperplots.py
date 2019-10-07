@@ -21,6 +21,7 @@ PRIOR = 0.5
 MIN_TREMBLE = 0.01
 TREMBLE_RANGE = lambda ticks: np.round(
     np.geomspace(MIN_TREMBLE, 0.26, ticks) - MIN_TREMBLE, 3
+    # np.geomspace(MIN_TREMBLE, 0.26, ticks), 3
 )
 
 
@@ -62,7 +63,7 @@ Evolution of Cooperation in the Game Engine:
 
 
 def game_engine():
-    TRIALS = 1
+    TRIALS = 10
 
     opponents = (ag.SelfishAgent(beta=BETA), ag.AltruisticAgent(beta=BETA))
     ToM = ("self",) + opponents
@@ -84,7 +85,7 @@ def game_engine():
         graph_kwargs={"color": color_list(agents)},
     )
 
-    ticks = 20
+    ticks = 5
 
     # from evolve import params_heat
     # params = {'expected_interactions': np.round(np.linspace(1, 4, ticks)),
@@ -163,7 +164,7 @@ def ipd():
     BENEFIT = 3
     COST = 1
     # 10000 puts SEM around 0.001-0.002
-    TRIALS = 10000
+    TRIALS = 10
 
     Extortion = ag.HyperAgent(
         kap=0,
@@ -183,14 +184,14 @@ def ipd():
         ag.GTFT,
         ag.WSLS,
         ag.TFT,
-        Extortion,
+        # Extortion,
     )
     ToM = ("self",) + old_pop
     new_pop = old_pop + (ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM),)
 
     common_params = dict(
         game="direct",
-        s=2,
+        s=.5,
         benefit=BENEFIT,
         cost=COST,
         pop_size=100,
@@ -201,42 +202,25 @@ def ipd():
     )
     tremble_ticks = 10
 
-    from experiments import matchup_matrix_per_round, payoff_heatmap
+    # from experiments import matchup_matrix_per_round, payoff_heatmap
 
-    # payoffs = matchup_matrix_per_round(player_types = new_pop,
-    #                                    max_rounds = 50,
-    #                                    game = 'direct',
-    #                                    tremble = 0,
-    #                                    benefit = 3,
-    #                                    trials = TRIALS,
-    #                                    cost = 1)
     # tremble = MIN_TREMBLE
     # payoffs = payoff_heatmap(
     #     player_types=new_pop,
-    #     max_rounds=10,
+    #     max_rounds=20,
     #     game="direct",
     #     tremble=MIN_TREMBLE,
     #     benefit=BENEFIT,
     #     trials=TRIALS,
     #     cost=COST,
-    #     memoized=True,
+    #     memoized=False,
     #     plot_dir=PLOT_DIR,
+    #     per_round = True,
     #     file_name="ipd_payoffs_tremble_%0.2f" % tremble,
     # )
-
     # assert 0
+    
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
-        # By expected rounds
-        limit_param_plot(
-            param="rounds",
-            rounds=50,
-            tremble=MIN_TREMBLE,
-            player_types=player_types,
-            legend=True,
-            file_name="ipd_rounds_%s" % label,
-            graph_kwargs={"color": color_list(player_types)},
-            **common_params
-        )
 
         # Tremble
         limit_param_plot(
@@ -250,26 +234,38 @@ def ipd():
             **common_params
         )
 
-    # # Cognitive Costs
-    # def cog_cost_graph(ax):
-    #     vals = ax.get_xticks()
-    #     surplus = common_params["benefit"] - common_params["cost"]
-    #     print vals, surplus, ["{:3.0f}%".format(x / surplus * 100) for x in vals]
-    #     ax.set_xticklabels(["{:3.0f}%".format(x / surplus * 100) for x in vals])
-    #     ax.set_xlabel("Cognitive Cost \n% of (b-c)")
+        # By expected rounds
+        limit_param_plot(
+            param="rounds",
+            rounds=50,
+            tremble=MIN_TREMBLE,
+            player_types=player_types,
+            legend=True,
+            file_name="ipd_rounds_%s" % label,
+            graph_kwargs={"color": color_list(player_types)},
+            **common_params
+        )
+        
+    # Cognitive Costs
+    def cog_cost_graph(ax):
+        vals = ax.get_xticks()
+        surplus = common_params["benefit"] - common_params["cost"]
+        print vals, surplus, ["{:3.0f}%".format(x / surplus * 100) for x in vals]
+        ax.set_xticklabels(["{:3.0f}%".format(x / surplus * 100) for x in vals])
+        ax.set_xlabel("Cognitive Cost \n% of (b-c)")
 
-    # limit_param_plot(
-    #     param="cog_cost",
-    #     tremble=MIN_TREMBLE,
-    #     rounds=5,
-    #     param_vals=np.linspace(0, 0.5, 50),
-    #     file_name="ipd_cogcosts",
-    #     player_types=new_pop,
-    #     graph_funcs=cog_cost_graph,
-    #     legend=False,
-    #     graph_kwargs={"color": color_list(new_pop)},
-    #     **common_params
-    # )
+    limit_param_plot(
+        param="cog_cost",
+        tremble=MIN_TREMBLE,
+        rounds=50,
+        param_vals=np.linspace(0, 0.5, 50),
+        file_name="ipd_cogcosts",
+        player_types=new_pop,
+        graph_funcs=cog_cost_graph,
+        legend=False,
+        graph_kwargs={"color": color_list(new_pop)},
+        **common_params
+    )
 
 
 def agent():
@@ -532,6 +528,7 @@ def main():
     parser.add_argument("--heatmaps", action="store_true")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    # parser.add_argument("--jobs")
     args = parser.parse_args()
 
     if args.all:
@@ -557,9 +554,7 @@ def main():
         heatmaps()
 
     if args.debug:
-        import pdb
-
-        pdb.set_trace()
+        import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":

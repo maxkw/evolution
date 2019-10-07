@@ -2,12 +2,14 @@ import numpy as np
 from agents import IngroupAgent, RationalAgent
 from utils import _issubclass
 import seaborn as sns
-#from frozendict import frozendict
 
 sns.set_style('ticks')
 sns.set_context('paper', font_scale=1.5)
 
-def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 10, tremble = 0, rounds = 10, **kwargs):
+n_jobs = 1
+disable_tqdm = False
+
+def default_params(agent_types = None, RA_prior = None, games = None, tremble = 0, rounds = 10, **kwargs):
     """
     generates clean dict containing rules that determine agent qualities
     this dict provides a simple way to change conditions of experiments
@@ -43,12 +45,10 @@ def default_params(agent_types = None, RA_prior = None, games = None, N_agents= 
     given_values.update(kwargs)
     
     values =  {
-        'N_agents' : N_agents,
         # 'games': games,
         'agent_types' : agent_types,
         'moran_beta' : .1,
         'tremble' : tremble,
-        'agent_types_world': agent_types,
         'pop_size' : 100,
         's' : 1,
         'mu' : .01,
@@ -83,7 +83,7 @@ def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_a
         'type': agent_type,
         'prior': prior,
         'prior_precision': 0,
-        'beta': 5,
+        'beta': np.Inf,
         #'prior': prior_generator(agent_type, agent_types, RA_prior = prior),
         "agent_types": agent_types,
         'RA_K':0,

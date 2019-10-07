@@ -39,6 +39,7 @@ def scenarios(scenarios, agent_types, **kwargs):
 
         for agent_type in  observer._type_to_index:
             record.append({
+                'player_types': None, 
                 'scenario': name,
                 'belief': observer.belief_that('A', agent_type),
                 'type': lookup_agent(agent_type),

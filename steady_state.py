@@ -11,6 +11,9 @@ from multiprocessing import Pool
 from experiments import matchup,matchup_matrix_per_round
 from copy import copy
 from complete import all_partitions, fixed_length_partitions
+from joblib import Parallel, delayed
+import params
+from tqdm import tqdm
 
 ###
 # Limit
@@ -45,15 +48,11 @@ def mm_to_limit_mcp(payoff,pop_size):
     mcp_matrix = np.array(mcp_lists)
     return mcp_matrix
 
-@memory.cache
+# @memory.cache
 def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     payoffs = matchup_matrix_per_round(player_types = player_types, max_rounds = rounds, **kwargs)
     rmcp = np.array([mm_to_limit_mcp(payoff, pop_size) for r,payoff in payoffs])
     return rmcp
-
-def mcp_to_ssd(mcp,s):
-    transition = mcp_to_invasion(np.exp(s*mcp))
-    return steady_state(transition)
 
 def mcp_to_invasion(mcp, type_count):
     """
@@ -102,11 +101,18 @@ def limit_analysis(player_types, s, direct = False, **kwargs):
     else:
         rmcp = sim_to_rmcp(player_types, analysis_type = 'limit', **kwargs)
 
-    rmcp = np.exp(s * rmcp)
     ssds = []
-    for mcp in rmcp:
-        ssds.append(steady_state(mcp_to_invasion(mcp, len(player_types))))
+    rmcp = np.exp(s * rmcp)
 
+    # This is for the case that it is calculated per_round so need to
+    # compute steady state for each round independently. 
+    if len(rmcp.shape) == 4:
+        for mcp in rmcp:
+            ssds.append(steady_state(mcp_to_invasion(mcp, len(player_types))))
+
+    else:
+        ssds.append(steady_state(mcp_to_invasion(rmcp, len(player_types))))
+        
     return np.array(ssds)
 
 
@@ -276,74 +282,44 @@ def steady_state(matrix):
     return np.array(normalized([n.real for n in steady_states]))
 
 def avg_payoff_per_type_from_sim(sim_data, agent_types, cog_cost, game = None, **kwargs):
-    type_to_index = dict(map(reversed, enumerate(agent_types)))
+    # For now, do not implement cognitive costs. Its not clear how
+    # they should be applied. Should they be done on a per-interaction
+    # per-type basis?
+    assert cog_cost == 0
     
+    type_to_index = dict(map(reversed, enumerate(agent_types)))
     type_count = len(agent_types)
-    running_fitness = 0
-    running_interactions = 0
-    fitness_per_round = []
-    pop_size = max(sim_data['id'].unique())+1
-
-    for r, r_d in sim_data.groupby('round'):
-        # Skip the zeroth round since there is no action in that round.
-        if r == 0: continue
-        
-        fitness = np.zeros(type_count)
-        interactions = np.zeros(type_count)
-        for i, (t, t_d) in enumerate(r_d.groupby('type')):
-            if 'WeAgent' in t:
-                c = cog_cost
-            else:
-                c = 0
-            fitness[type_to_index[t]] = t_d['fitness'].mean()-c
-            interactions[type_to_index[t]] = t_d['interactions'].mean()
-
-        running_fitness += np.array(fitness)
-        running_interactions += np.array(interactions)
-
-        if game == 'direct':
-        # # Depending on whether an interaction is a round or entire play through a Circular is a round will depend on how these should be normalized. It should always normalize by the total number of interactions. 
-        #fitness_per_round.append(copy(running_fitness))
-            fitness_per_round.append(np.array(running_fitness)/(r*(pop_size-1)))
-        #fitness_per_round.append(np.array(running_fitness / r))
+    pop_size = len(sim_data['player_types'][0])
+    
+    running_fitness = np.zeros(type_count)
+    running_interactions = np.zeros(type_count)
+    
+    means = sim_data.groupby('type').mean()
+    for t, t_id in type_to_index.iteritems():
+        t = str(t)
+        if 'WeAgent' in str(t):
+            c = cog_cost
         else:
-            # Note to Max: Alejandro convinced me that its OK to set r
-            # = 0 when the running_interactions are 0, that is when
-            # they never interact your fitness should be 0, this pops
-            # up with a warning in any case
-            with np.errstate(divide='ignore', invalid='ignore'):
-                r = running_fitness/running_interactions
+            c = 0
 
-            r[running_interactions==0] = 0
-            fitness_per_round.append(r)
+        running_interactions[t_id] = means.loc[t, 'interactions']
+        running_fitness[t_id] = means.loc[t, 'fitness'] - c*running_interactions[t_id]
 
-    return fitness_per_round
-
+    return running_fitness/running_interactions
 
 @memoize
 def simulation(player_types, cog_cost = 0,  *args, **kwargs):
-    type_count = len(player_types)
-
     types, _ = zip(*player_types)
 
-    active_player_mask = np.array([p[1]!=0 for p in player_types])
     active_players = [p for p in player_types if p[1] != 0]
     
     sim_data = matchup(player_types = active_players, *args, **kwargs)
-    raw_fitness_per_round = avg_payoff_per_type_from_sim(**dict(kwargs,**dict(sim_data=sim_data,
+    fitness_per_interaction = avg_payoff_per_type_from_sim(**dict(kwargs,**dict(sim_data=sim_data,
                                                                               agent_types = types,
                                                                               cog_cost = cog_cost)))
+    
+    return fitness_per_interaction
 
-    expanded_fitness_per_round = []
-    for fitness in raw_fitness_per_round:
-        new_fitness = np.zeros(type_count)
-        new_fitness += fitness
-        expanded_fitness_per_round.append(new_fitness)
-
-    return expanded_fitness_per_round
-
-def simulation_from_dict(d):
-    return simulation(**d)
 
 def matchups_and_populations(player_types, pop_size, analysis_type):
     """
@@ -377,37 +353,28 @@ def matchups_and_populations(player_types, pop_size, analysis_type):
         populations = list(sorted(set(all_partitions(pop_size,type_count))))
     return matchups, populations
 
-def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', parallelized = True, **kwargs):
+def sim_to_rmcp(player_types, pop_size, analysis_type = 'limit', **kwargs):
     matchups, populations = matchups_and_populations(player_types, pop_size, analysis_type)
     matchup_pop_dicts = [dict(player_types = zip(*pop_pair), **kwargs) for pop_pair in product(matchups, populations)]
+    
+    # TODO: need to turn off memoization here OR group them into a
+    # single file since this function will make way too many files
+    # (one for each parameter). Instead need to cache the output of
+    # THIS function.
+    payoffs = Parallel(n_jobs=params.n_jobs)(delayed(simulation)(**pop_dict) for pop_dict in tqdm(matchup_pop_dicts, disable=params.disable_tqdm))
 
-   
-    # make a mapping from matchup to list of lists of payoffs
-    # the first level is ordered by partitions
-    # the second layer is ordered by rounds
-    # payoffs = map(indirect_simulator_from_dict, matchup_pop_dicts)
-    if parallelized == True:
-        pool = Pool(8)
-        payoffs = pool.map(simulation_from_dict, matchup_pop_dicts)
-        pool.close()
-    elif parallelized == False:
-        payoffs = map(simulation_from_dict, matchup_pop_dicts)
-
-    assert not (analysis_type == 'limit') or (len(payoffs[0][0]) == 2)
+    assert not (analysis_type == 'limit') or (len(payoffs[0]) == 2)
 
     # Unpack the data into a giant matrix
-    max_rounds = max(map(len,payoffs))
-    rmcp = np.zeros((max_rounds, len(matchups), len(populations), len(payoffs[0][0])))
-    for ((m,matchup), c), p in zip(product(enumerate(matchups), range(len(populations))), payoffs):
-        rmcp[:, m, c, :] = np.array(p+[p[-1]]*(max_rounds-len(p)))
+    matchup_list = list(product(enumerate(matchups), range(len(populations))))
+    mcp = np.zeros((len(matchups), len(populations), len(payoffs[0])))
+    for ((m,matchup), c), p in zip(matchup_list, payoffs):
+        mcp[m, c, :] = p
 
-    #print "player_types hash",hash(tuple(player_types))
-    #print "RMCP hash", hash(tuple(tuple(tuple(tuple(c) for c in p) for p in m) for m in rmcp))
-
-    return rmcp
+    return mcp
 
 
-@memoize
+# @memoize
 def evo_analysis(player_types, analysis_type = 'limit', direct = True, *args, **kwargs):
     type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
     original_order = np.array([type_to_index[t] for t in player_types])
@@ -423,10 +390,6 @@ def evo_analysis(player_types, analysis_type = 'limit', direct = True, *args, **
         ssds = limit_analysis(player_types = player_types, direct = direct,  *args, **kwargs)
 
     return np.array(ssds)
-
-
-
-
 
 ####
 # Testing
