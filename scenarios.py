@@ -1,4 +1,4 @@
-from __future__ import division
+
 import scipy as sp
 from collections import Counter, OrderedDict
 import seaborn as sns
@@ -15,7 +15,7 @@ def lookup_agent(a):
     if 'WeAgent' in a or 'self' in a: return 'Reciprocal'
     if 'AltruisticAgent' in a: return 'Altruistic'
     if 'SelfishAgent' in a: return 'Selfish'
-    raise('String not defined for agent %s' % a)
+    raise 'String not defined for agent %s'
 
 agent_to_label = {ReciprocalAgent: 'Reciprocal',
                   AltruisticAgent: 'Altruistic',
@@ -137,13 +137,13 @@ def first_impressions(agent_types, **kwargs):
         observer = WeAgent(genome=genome, world_id='B')
         h = Counter(trial)
 
-        for _ in xrange(h['C']):
+        for _ in range(h['C']):
             observer.observe([(game, 'AB', 'ABO', 'give'),
                               (game, 'BA', 'ABO', 'give')])
 
         before = observer.belief_that('A', WeAgent)
         
-        for _ in xrange(h['D']):
+        for _ in range(h['D']):
             observer.observe([(game, 'AB', 'ABO', 'keep')])
         
         # after = observer.decide_likelihood(game, 'BA', )[0]
@@ -158,7 +158,7 @@ def first_impressions(agent_types, **kwargs):
                            'decision': d,
                            'type': t})
 
-        print record
+        print(record)
     return record
 
 @plotter(first_impressions)

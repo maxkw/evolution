@@ -1,4 +1,4 @@
-from __future__ import division
+
 from collections import Counter
 from itertools import permutations
 from utils import softmax
@@ -55,12 +55,12 @@ def all_partitions(n,L=None):
     if not L:
         L = n
     if L>=n:
-        for l in xrange(1,n+1):
+        for l in range(1,n+1):
             for part in fixed_length_partitions(n,l):
                 for perm in permutations(part+[0]*(L-l)):
                     yield perm
     else:
-        for l in xrange(1,L+1):
+        for l in range(1,L+1):
             for part in fixed_length_partitions(n,l):
                 for perm in permutations(part+[0]*(L-l)):
                     yield perm
@@ -78,7 +78,7 @@ def patterner(Ns,L):
         #print n,L
         #print 'parts',len(s)
         #print sum(l)
-        print 'sum',sum([i[0] for i in s if i[0] is not 0])
+        print('sum',sum([i[0] for i in s if i[0] is not 0]))
 
 def seq_sum(n):
     return (n*(n+1)/2)
@@ -115,14 +115,14 @@ def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
     type_count = len(payoff)
     I = np.identity(type_count)
     partitions = sorted(set(all_partitions(pop_size,type_count)))
-    part_to_id = dict(map(reversed,enumerate(partitions)))
-    print sorted(part_to_id.values())
+    part_to_id = dict(list(map(reversed,enumerate(partitions))))
+    print(sorted(part_to_id.values()))
     partition_count = len(part_to_id)
     transition = np.zeros((partition_count,)*2)
-    for pop,i in part_to_id.iteritems():
+    for pop,i in part_to_id.items():
         fitnesses = softmax([np.dot(pop-I[t],payoff[t]) for t in range(type_count)], s)
         node = np.array(pop)
-        for b,d in permutations(xrange(type_count),2):
+        for b,d in permutations(range(type_count),2):
             if pop[d] != 0:
                 neighbor = pop+I[b] - I[d]
                 #print i,part_to_id[tuple(neighbor)]
@@ -131,7 +131,7 @@ def pop_transition_matrix(payoff, pop_size, s, mu = .001, **kwargs):
                 birth_odds = fitnesses[b] * (1-mu) + mu * (1 / type_count)
                 transition[part_to_id[tuple(neighbor)],i] = death_odds * birth_odds
 
-    for i in xrange(partition_count):
+    for i in range(partition_count):
         transition[i,i] = 1-sum(transition[:,i])
 
     return transition

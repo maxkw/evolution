@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
@@ -18,16 +18,6 @@ def add_tremble(p, tremble):
     else:
         return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
 
-class HashableSet(set):
-    def __hash__(self):
-        return hash(tuple(self))
-
-def is_agent_type(instance, base):
-    try:
-        return _issubclass(instance, base)
-    except TypeError:
-        return _issubclass(instance.type, base)
-
 class AgentType(type):
     def __str__(cls):
         return cls.__name__
@@ -41,12 +31,14 @@ class AgentType(type):
     def __eq__(cls, other):
         return str(cls) == str(other)
 
+    def __lt__(cls, other):
+        # Required for `sorted` over lists of agents in python3
+        return str(cls) < str(other)
+    
     def short_name(cls, *args):
         return cls.__name__
 
-class Agent(object):
-    __metaclass__ = AgentType
-
+class Agent(object, metaclass=AgentType):
     def __new__(cls, genome=None, world_id=None, **kwargs):
         if not genome and kwargs:
             return PrefabAgent(cls, **kwargs)
@@ -59,7 +51,7 @@ class Agent(object):
         self.world_id = world_id
         self.belief = dict()
         self.likelihood = dict()
-
+        
     def utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
@@ -89,12 +81,8 @@ class Agent(object):
         action_id = np.squeeze(np.where(np.random.multinomial(1, ps)))
         return game.actions[action_id]
 
-    # For uniformity with Rational Agents
-    def observe(self, observations):
-        pass
-
     def observe_k(self, observations, k, tremble=0):
-        pass
+        raise NotImplementedError
 
     # def short_name(self, *args):
         # return self.__name__
@@ -110,7 +98,7 @@ class PrefabAgent(Agent):
             pass
 
         self.__name__ = self.indentity = str(a_type) + "(%s)" % ",".join(
-            ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.iteritems())])
+            ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.items())])
 
         self.genome = HashableDict(genome_kwargs)
 
@@ -130,7 +118,7 @@ class PrefabAgent(Agent):
             return self._nickname
         except:
             genome = excluding_keys(self.genome, *without)
-            return str(self.type) + "(%s)" % ",".join(["%s=%s" % (PRETTY_KEYS.get(key, key), val) for key, val in sorted(genome.iteritems())])
+            return str(self.type) + "(%s)" % ",".join(["%s=%s" % (PRETTY_KEYS.get(key, key), val) for key, val in sorted(genome.items())])
 
     def __str__(self):
         try:
@@ -158,6 +146,9 @@ class PrefabAgent(Agent):
         #     return True
         # return False
 
+    def __lt__(self, other):
+        return str(self) < str(other)
+    
     def ingroup(self):
         return self.type.ingroup()
 
@@ -167,11 +158,11 @@ class Puppet(Agent):
         self.belief = self.likelihood = None
 
     def decide(self, decision, agent_ids):
-        print decision.name
-        for i, (action, payoff) in enumerate(decision.payoffs.iteritems()):
-            print i, action, payoff
-        choice = decision.actions[int(input("enter a number: "))]
-        print ""
+        print(decision.name)
+        for i, (action, payoff) in enumerate(decision.payoffs.items()):
+            print(i, action, payoff)
+        choice = decision.actions[int(eval(input("enter a number: ")))]
+        print("")
         return choice
 
 class SelfishAgent(Agent):
@@ -204,15 +195,15 @@ class ConstantDefaultDict(dict):
 class TypeDict(dict):
     def __init__(self, genome, agent_id=None):
         agent_types = genome['agent_types']
-        rational_types = filter(lambda t: _issubclass(
-            t, RationalAgent), agent_types)
+        rational_types = [t for t in agent_types if _issubclass(
+            t, RationalAgent)]
         model = self.agent = RationalAgent(genome, agent_id)
         belief = self.belief = model.belief
         likelihood = self.likelihood = model.likelihood
         self.observers = observers = [model]
         for agent_type in agent_types:
             m = agent_type(genome, agent_id)
-            if agent_type in [gTFT, Pavlov]:
+            if agent_type in [gTFT, Pavlov, ZDAgent, HyperAgent]:
                 observers.append(m)
             dict.__setitem__(self, agent_type, m)
 
@@ -238,7 +229,7 @@ class AgentDict(dict):
 class RationalAgent(Agent):
     def __init__(self, genome, world_id=None):  # , *args, **kwargs):
         super(RationalAgent, self).__init__(genome, world_id)
-        self._type_to_index = dict(map(reversed, enumerate(genome['agent_types'])))
+        self._type_to_index = dict(list(map(reversed, enumerate(genome['agent_types']))))
         self.pop_prior = copy(self.genome['prior'])
         self.model = AgentDict(genome)
 
@@ -277,7 +268,7 @@ class RationalAgent(Agent):
         return np.zeros_like(self.pop_prior)
     
     def utility(self, payoffs, agent_ids):
-        weights = map(self.sample_alpha, agent_ids)
+        weights = list(map(self.sample_alpha, agent_ids))
         return np.dot(weights, payoffs)
 
     def sample_alpha(self, agent_id):
@@ -288,7 +279,7 @@ class RationalAgent(Agent):
         """
 
         # return int(flip(belief))
-        print "Rational Agents don't know how to choose, subclasses do"
+        print("Rational Agents don't know how to choose, subclasses do")
         raise NotImplementedError
 
     def observe(self, observations):
@@ -317,9 +308,9 @@ class RationalAgent(Agent):
         # if K < 0: return
         genome = self.genome
         agent_types = genome['agent_types']
-        rational_types = filter(lambda t: _issubclass(t, RationalAgent), agent_types)
+        rational_types = [t for t in agent_types if _issubclass(t, RationalAgent)]
 
-        observations = filter(lambda obs: self.world_id in obs[2], observations)
+        observations = [obs for obs in observations if self.world_id in obs[2]]
         for observation in observations:
             observers = observation[2]
 
@@ -368,7 +359,7 @@ class RationalAgent(Agent):
 
         if K == 0:
             return
-        for agent_id, models in self.model.iteritems():
+        for agent_id, models in self.model.items():
             models.observe_k(observations, K - 1, tremble)
 
         # if K>0:
@@ -394,8 +385,8 @@ class IngroupAgent(RationalAgent):
         try:
             return sum(self.belief[agent_id][self.ingroup_indices])
         except Exception as e:
-            print 'Alejandro promised this wouldn\'t happen. Look at the commented code below for a fix'
-            print e
+            print('Alejandro promised this wouldn\'t happen. Look at the commented code below for a fix')
+            print(e)
             raise e
         
         # try:
@@ -424,9 +415,72 @@ class ReciprocalAgent(IngroupAgent):
     def ingroup():
         return [ReciprocalAgent]
 
+class ZDAgent(Agent):
+    "Following Press Dyson 2012"
+    def __init__(self, genome, world_id=None):
+        self.world_id = world_id
+        
+        defaults = dict(chi=3, phi='midpoint')
+        keys = ["B","C","chi",'phi']
+        B,C,chi,phi = [genome[k] if k in genome else defaults[k] for k in keys]
+        
+        R = B - C; T = B; S = -C; P = 0
+        if phi == 'midpoint':
+            phi = (P-S) / ((P-S) + chi * (T-P)) / 2
+
+        assert chi > 0
+        assert 0 < phi <= (P-S) / ((P-S) + chi * (T-P)) # Equation 13 in Press Dyson
+
+        # Equation 12 Press Dyson
+        p_vec = (
+            1 - phi * (chi - 1) * (R-P) / (P-S),
+            1 - phi * (1 + chi * (T-P)/(P-S)),
+            phi * (chi + (T-P)/(P-S)),
+            0
+        )
+        
+        # Check that p_vec is a valid list of probabilities
+        if (np.array(p_vec) < 0).any() or (np.array(p_vec) > 1).any():
+            print(chi, phi, B, C)
+            raise Exception("p out of bounds: %s" % str(p_vec))
+                    
+        joint_actions = [('give','give'),
+                         ('give','keep'),
+                         ('keep','give'),
+                         ('keep','keep')]
+
+        self.reaction = {a:{'give':p,'keep':1-p} for a,p in zip(joint_actions,p_vec)}
+        self.memory = defaultdict(lambda:('give','give'))
+        
+    def observe(self, observations):
+        # Note: This will not work on sequential PD since it requires two simultaneous observations
+        # Can only judge a case where there are two observations
+        assert len(observations) == 2
+        
+        obs1, obs2 = observations
+        actions = (obs1['action'], obs2['action'])
+        players = (obs1['participant_ids'][0], obs2['participant_ids'][0])
+        me = self.world_id
+        
+        if me in players:
+            if me == players[1]:
+                players = tuple(reversed(players))
+                actions = tuple(reversed(actions))
+
+            self.memory[players[1]] = actions
+        
+    def decide_likelihood(self, game, agents=None, tremble=None):
+        me, other = agents
+        assert me == self.world_id
+        
+        return add_tremble(np.array(
+            [self.reaction[self.memory[other]][action] for action in game.actions]
+        ), tremble)
+    
+    
 class HyperAgent(Agent):
-    '''
-    NOTE: ONLY WORKS FOR THE DEFAULT CASE
+    '''NOTE: THIS IS NOT WORKING. IT SHOULD FOLLOW STEWART AND PLOTKIN AN
+    IMPLEMENT ZD-ROBUST AGENTS
 
     FEASIBLE:
     kappa | 0 <= kappa <= B-C
@@ -477,13 +531,16 @@ class HyperAgent(Agent):
 
     WSLS AT LEAST HAS
     chi = -C/B < 0
+
     '''
 
     def __init__(self, genome, world_id=None):
-        defaults = dict(chi=2/3, kap = None, lam = 0, phi = 3/11, N = None, varient = None)
+        defaults = dict(chi=2/3, kap = None, lam = 0, phi = 3/11, N = None, varient = None, pop_size=None)
         keys = ["B","C","chi","kap","lam",'phi', 'pop_size', 'varient']
         B,C,chi,kap,lam,phi,pop_size,varient = [genome[k] if k in genome else defaults[k] for k in keys]
         R = B - C; T = B; S = -C; P = 0
+        if phi == 'midpoint':
+            phi = (P-S) / ((P-S) + chi * (T-P)) / 2
 
         self.world_id = world_id
         
@@ -492,8 +549,8 @@ class HyperAgent(Agent):
             # Make strategies "Cooperative"
             kap = B-C
 
-        assert 0 <= kap <= B-C
-        assert max((kap - B)/(kap + C), (kap + C)/(kap - B)) <= chi <= 1
+        # assert 0 <= kap <= B-C
+        # assert max((kap - B)/(kap + C), (kap + C)/(kap - B)) <= chi <= 1
         
         # if phi == None:
         #     #max out phi, at bottom it's TFT
@@ -502,32 +559,35 @@ class HyperAgent(Agent):
 
         assert lam >= -B * (chi + 1) + B - C
         assert lam <= C * (chi + 1) + B - C
-
-        if varient == 'extortion':
-            assert kap == P
-            assert chi > 0
             
         if varient == 'ZD-robust':
+            assert 0 # NO CONFIDENCE: The equations in Stewart Plotkin are listed in a different order! 
             assert 1 > chi >= (pop_size+1) / (2*pop_size-1)
             assert 0 < phi <= chi * B / (chi * C + B)
             assert kap == B-C
             
         
-        p_vec = (
-            1 - phi * (1 - chi) * (B - C - kap),
-            1 - phi * (chi * C + B - (1 - chi) * kap + lam),
-            phi * (chi * B + C + (1 - chi) * kap - lam),
-            phi * (1 - chi) * kap
-        )
+            p_vec = (
+                1 - phi * (1 - chi) * (B - C - kap),
+                1 - phi * (chi * C + B - (1 - chi) * kap + lam),
+                phi * (chi * B + C + (1 - chi) * kap - lam),
+                phi * (1 - chi) * kap
+            )
 
-        # # From Press & Dyson
-        # assert chi >= 1
-        # p_vec = (
-        #     1 - phi * (chi - 1) * (R-P)/(P-S),
-        #     1 - phi * (1 + chi * (T-P)/(P-S)),
-        #     phi * (chi + (T-P)/(P-S),
-        #     0
-        # )
+        for i,p in enumerate(p_vec):
+            if not p<=1 and p>=0:
+                print(chi,kap,lam,phi)
+                print(B,C)
+                print(i,p)
+                raise Exception("p out of bounds: %s" % str(p_vec))
+        
+        joint_actions = [('give','give'),
+                         ('give','keep'),
+                         ('keep','give'),
+                         ('keep','keep')]
+
+        self.reaction = {a:{'give':p,'keep':1-p} for a,p in zip(joint_actions,p_vec)}
+        self.memory = defaultdict(lambda:('give','give'))
 
         # # From Hilbe Chatterjee & Nowak
         # chi = 1/2
@@ -546,22 +606,7 @@ class HyperAgent(Agent):
         #     alpha * T + beta * S + gamma,
         #     alpha * P + beta * P + gamma,
         # )
-
-        for i,p in enumerate(p_vec):
-            if not p<=1 and p>=0:
-                print chi,kap,lam,phi
-                print B,C
-                print i,p
-                raise Exception("p out of bounds: %s" % str(p_vec))
         
-        joint_actions = [('give','give'),
-                         ('give','keep'),
-                         ('keep','give'),
-                         ('keep','keep')]
-
-        self.reaction = strats = {a:{'give':p,'keep':1-p} for a,p in zip(joint_actions,p_vec)}
-        self.memory = defaultdict(lambda:('give','give'))
-
     def observe(self, observations):
         # Can only judge a case where there are two observations
         # TODO: This will not work on sequential PD since it requires two simultaneous observations
@@ -569,37 +614,22 @@ class HyperAgent(Agent):
         actions = (obs1['action'], obs2['action'])
         players = (obs1['participant_ids'][0], obs2['participant_ids'][0])
         me = self.world_id
+        
         if me in players:
             if me == players[1]:
                 players = tuple(reversed(players))
                 actions = tuple(reversed(actions))
+
             self.memory[players[1]] = actions
-
-
+        
     def decide_likelihood(self, game, agents=None, tremble=None):
         me, other = agents
         assert me == self.world_id
-        return add_tremble(np.array([self.reaction[self.memory[other]][action] for action in game.actions]), tremble)
-
+        
+        return add_tremble(np.array(
+            [self.reaction[self.memory[other]][action] for action in game.actions]
+        ), tremble)
     
-class ClassicAgent(Agent):
-    
-    def decide(self, game, agent_ids):
-        ps = self.decide_likelihood(game, tremble=0)
-        action_id = np.squeeze(np.where(np.random.multinomial(1, ps)))
-        action = game.actions[action_id]
-        return action
-
-    def observe(self, *args, **kwargs):
-        pass
-
-    def observe_k(self, observations, *args, **kwargs):
-        self.observe(observations)
-
-    def k_belief(self, *args, **kwargs):
-        return 0
-
-
 class Standing(Agent):
     def __init__(self, genome, world_id = None):
         self.genome = genome
@@ -628,12 +658,12 @@ class Standing(Agent):
 def make_assesment_dict(assesment_list):
     """refer to order of situations in table p98 calculus of selfishness"""
     situation = product(['give','keep'],[True,False],[True,False])
-    return dict(zip(situation,assesment_list))
+    return dict(list(zip(situation,assesment_list)))
 
 def make_action_dict(action_list):
     """refer to order of situations in table p98 calculus of selfishness"""
     strategies = product([True,False],repeat = 2)
-    return dict(zip(strategies,action_list))
+    return dict(list(zip(strategies,action_list)))
 
 STANDING_SHORTHAND_TRANSLATOR = {
     'g': True,
@@ -667,13 +697,13 @@ def leading_8_dict():
         'gggbbgbbynyn',
         'gbgbbgbbynyn'
     ]
-    types = map(shorthand_to_standing,shorthands)
+    types = list(map(shorthand_to_standing,shorthands))
     names = ["L"+str(n) for n in range(1,9)]
     for t,n in zip(types,names):
         t._nickname = n
-    return dict(zip(names,types))
+    return dict(list(zip(names,types)))
 
-class Pavlov(ClassicAgent):
+class Pavlov(Agent):
     def __init__(self, genome, world_id=None):
         self.genome = genome
         self.world_id = world_id
@@ -700,7 +730,7 @@ class Pavlov(ClassicAgent):
 
 WSLS = Pavlov(subtype_name = "WSLS")
     
-class gTFT(ClassicAgent):
+class gTFT(Agent):
     def __init__(self, genome, world_id=None):
         self.world_id = world_id
         self.genome = genome
@@ -713,30 +743,30 @@ class gTFT(ClassicAgent):
                       True: {"give": p, 'keep': 1 - p},
                       False: {'give': q, 'keep': 1 - q}}
 
+        # Store the last action the other person took
         self.cooperation = 'give'
         self.cooperated = None
 
     def decide_likelihood(self, game, agents=None, tremble=None):
-        rules = self.rules
-        last_action = self.cooperated
-        return add_tremble(np.array([rules[last_action][action] for action in game.actions]), tremble)
-
-    def observe_k(self, observations, *args, **kwargs):
-        self.observe(observations)
+        return add_tremble(np.array(
+            [self.rules[self.cooperated][action] for action in game.actions]
+        ), tremble)
 
     def observe(self, observations):
         assert len(observations) == 2
         for observation in observations:
             game, participants, observers, action = [observation[k] for k in ['game', 'participant_ids', 'observer_ids', 'action']]
 
-            if self.world_id not in observers:
+            if self.world_id not in observation['observer_ids']:
                 continue
-            if self.world_id not in participants:
+            if self.world_id not in observation['participant_ids']:
                 continue
-            decider_id = participants[0]
-            if decider_id == self.world_id:
+            
+            # The person who decided the action was me (don't update)
+            if observation['participant_ids'][0] == self.world_id:
                 continue
 
+            # Update the state
             self.cooperated = action is "give"
 
 TFT = gTFT(y=1, p=1, q=0, subtype_name = "TFT")
@@ -745,21 +775,19 @@ TFT = gTFT(y=1, p=1, q=0, subtype_name = "TFT")
 # print q
 GTFT = gTFT(y=1, p=1, q=.66, subtype_name = "GTFT")
 
-class AllC(ClassicAgent):
+class AllC(Agent):
     def decide_likelihood(self, game, agents=None, tremble=None):
-        odds = {'give': 1,
-                'keep': 0}
+        odds = {'give': 1, 'keep': 0}
         return add_tremble(np.array([odds[action] for action in game.actions]), tremble)
 
 
-class AllD(ClassicAgent):
+class AllD(Agent):
     def decide_likelihood(self, game, agents=None, tremble=None):
-        odds = {'give': 0,
-                'keep': 1}
+        odds = {'give': 0, 'keep': 1}
         return add_tremble(np.array([odds[action] for action in game.actions]), tremble)
 
 
-class RandomAgent(ClassicAgent):
+class RandomAgent(Agent):
     def decide_likelihood(self, game, *args, **kwargs):
         l = len(game.actions)
         return (1 / l,) * l
@@ -769,21 +797,21 @@ class wTypeDict(dict):
     """test that modeled types are captured correctly"""
     def __init__(self, genome, agent_id=None):
         agent_types = tuple(a_type for a_type in genome['agent_types'] if a_type != WeAgent)
-        self.observers = {}#list()  # [model]
+        self.observers = dict() #list()  # [model]
+
         for agent_type in agent_types:
             m = agent_type(genome, agent_id)
-            must_observe = False
-            for modeled_supertype in [gTFT, Pavlov, Standing]:
-                if _issubclass(agent_type, modeled_supertype):
-                    must_observe = True
 
-            if must_observe:
+            # Only need to represent an observer structure for agents
+            # that represent observe. 
+            if hasattr(m, 'observe'):
                 self.observers[agent_type] = m
+            
             self[agent_type] = m
         
-    def observe_k(self, observations, k, tremble):
-        for observer in self.observers.values():
-            observer.observe_k(observations, k, tremble)
+    def observe(self, observations):
+        for observer in list(self.observers.values()):
+            observer.observe(observations)
 
 
 class wAgentDict(dict):
@@ -797,52 +825,6 @@ class wAgentDict(dict):
 def power_set(s):
     return chain.from_iterable(combinations(s,r) for r in range(len(s)+1))
 
-
-class Mimic(RationalAgent):
-    def decide_likelihood(self, game, agents, tremble):
-        agents[1]
-        likelihood = 0
-        flipped = list(reversed(agents))
-        for agent_type, model in self.model[agent_id].iteritems():
-            if agent_type == Mimic:
-                model_likelihood
-            model.decide_likelihood(game, flipped, 0)
-            likelihood += self.belief_that(agent_id, agent_type)
-
-    def utility(self, payoffs, agents):
-        pass
-
-class UniverseSet(frozenset):
-    def __contains__(self,x):
-        return True
-    def __and__(self,s):
-        return s
-    def __rand__(self,s):
-        return s
-    def __or__(self,s):
-        return self
-    def __ror__(self,s):
-        return self
-    def __len__(self):
-        # TODO: This needs to be infinity but using approx infinity
-        # for now due to some other bug somewhere
-        return 10000000
-    def __le__(self,other):
-        return False
-    def __lt__(self,other):
-        return False
-    def __ge__(self,other):
-        return True
-    def __gt__(self,other):
-        return True
-    def issuperset(self,other):
-        return True
-    def issubset(self,other):
-        return False
-    def __rsub__(self,other):
-        return other-other
-
-
 class ModelNode(object):
     def __init__(self, genome, id_set):
         self.ids = id_set
@@ -853,11 +835,10 @@ class ModelNode(object):
         self.models = defaultdict(lambda: self)
 
         self.genome = genome
-        self.need_to_observe = True
 
         self.beta = genome['beta']
 
-        self._type_to_index = dict(map(reversed,enumerate(genome['agent_types'])))
+        self._type_to_index = dict(list(map(reversed,enumerate(genome['agent_types']))))
         self._my_type_index = self._type_to_index[genome['type']]
         
         tmp_genome = dict(genome)
@@ -900,7 +881,7 @@ class ModelNode(object):
 
         Us = np.array([self.utility(game.payoffs[action], agents)
                        for action in game.actions])
-        #print tremble
+
         return add_tremble(softmax(Us, self.beta), tremble)
 
     def observe(self, observations):
@@ -909,7 +890,7 @@ class ModelNode(object):
 
         for observation in observations:
             game, participants, observers, action = [observation[k] for k in ['game', 'participant_ids', 'observer_ids', 'action']]
-            tremble = game.tremble
+
             if not self.ids <= set(observers): continue
             decider_id = participants[0]
             action_index = game.action_lookup[action]
@@ -920,21 +901,23 @@ class ModelNode(object):
                     model = self
                 else:
                     model = self.other_models[decider_id][agent_type]
-                    
-                likelihood.append(model.decide_likelihood(game,participants,tremble)[action_index])
+
+                # if agent_type == 'Extortion':
+                    # print(model.memory)
+
+                likelihood.append(model.decide_likelihood(game,participants,game.tremble)[action_index])
 
             self.new_likelihoods[decider_id] += np.log(likelihood)
 
         prior = np.log(self.pop_prior)
-        for decider_id, new_likelihood in self.new_likelihoods.iteritems():
+        for decider_id, new_likelihood in self.new_likelihoods.items():
             self.likelihood[decider_id] += new_likelihood
             
             self.belief[decider_id] = np.exp(prior+self.likelihood[decider_id])
             self.belief[decider_id] = normalized(self.belief[decider_id])
 
-        if self.need_to_observe:
-            for model in self.other_models.itervalues():
-                model.observe_k(observations, 0, tremble)
+        for model in self.other_models.values():
+            model.observe(observations)
 
 
 class JoinLatticeModel(object):
@@ -973,7 +956,7 @@ class JoinLatticeModel(object):
         model = lattice.model
         supersets = lattice.supersets
         #we only need to check the smaller sets for potential subsets
-        smaller_set_sizes = sorted((i for i in lattice.size_to_sets.iterkeys() if i < size), reverse = True)
+        smaller_set_sizes = sorted((i for i in lattice.size_to_sets.keys() if i < size), reverse = True)
         for n in smaller_set_sizes:
             for small_set in lattice.size_to_sets[n]:
                 if (small_set < new_set) and (new_set not in supersets[small_set]):
@@ -1022,7 +1005,7 @@ class JoinLatticeModel(object):
                 new_sets[i] = s
 
         #here the new sets are actually inserted
-        for subset, superset in new_sets.iteritems():
+        for subset, superset in new_sets.items():
             size_to_sets[len(subset)].add(subset)
             self.sets.add(subset)
             subsets[superset].add(subset)
@@ -1034,7 +1017,7 @@ class JoinLatticeModel(object):
 
             new_model = model[subset] = model[superset].copy(subset)
 
-        new_sets = sorted(new_sets.iterkeys(), key = len)
+        new_sets = sorted(iter(new_sets.keys()), key = len)
         new_smallest = new_sets[0]
 
         new_top = False
@@ -1068,6 +1051,7 @@ class JoinLatticeModel(object):
         observer_subsets = sorted(set().union(*[self.subsets[o] for o in observers]), key = len)
         for s in observer_subsets:
             self.model[s].observe(observations)
+            
         return new_top
 
     def draw_hasse(self,my_id,ids):
@@ -1078,15 +1062,15 @@ class JoinLatticeModel(object):
         def set_to_str(s):
             return "".join(sorted(s))
         for a in self.sets:
-            print "the set",a
-            for e,b in self.model[a].models.iteritems():
-                print "\tthe link",e
-                print "\tthe ids",b.ids
+            print("the set",a)
+            for e,b in self.model[a].models.items():
+                print("\tthe link",e)
+                print("\tthe ids",b.ids)
                 if b.ids != U:
                     edges.append((set_to_str(a),set_to_str(b.ids)))
             if len(self.supersets[a]) == 1:
-                print "set in question", a
-                print 'should be singleton', self.supersets[a]
+                print("set in question", a)
+                print('should be singleton', self.supersets[a])
                 edges.append((set_to_str(a),'U'))
         nodes = [set_to_str(s) for s in self.sets if s != U]
 
@@ -1118,21 +1102,21 @@ def make_pos_dict(my_id,all_ids):
     for n in size_to_strs:
         size_to_strs[n] = sorted(size_to_strs[n])
 
-    y_levels = max(size_to_strs.iterkeys())+1
+    y_levels = max(size_to_strs.keys())+1
 
     pos = {}
-    for size, y in zip(sorted(size_to_strs.keys()+["inf"]),reversed(np.linspace(0,1,y_levels+2)[1:-1])):
+    for size, y in zip(sorted(list(size_to_strs.keys())+["inf"]),reversed(np.linspace(0,1,y_levels+2)[1:-1])):
         if size != "inf":
             strs = size_to_strs[size]
         else:
             strs = ["U"]
         for s, x in zip(strs,np.linspace(0,1,len(strs)+2)[1:-1]):
             if size == "inf":
-                print len(strs)
-                print np.linspace(0,1,len(strs)+2)[1:-1]
-                print s
-                print x
-                print y
+                print(len(strs))
+                print(np.linspace(0,1,len(strs)+2)[1:-1])
+                print(s)
+                print(x)
+                print(y)
             pos[s] = (x,y)
 
     return pos
@@ -1149,7 +1133,7 @@ class WeAgent(Agent):
         self.models = me.models
         self.new_likelihoods = me.new_likelihoods
 
-        self._type_to_index = dict(map(reversed, enumerate(genome['agent_types'])))
+        self._type_to_index = dict(list(map(reversed, enumerate(genome['agent_types']))))
 
     def decide_likelihood(self,*args,**kwargs):
         return self.me.decide_likelihood(*args,**kwargs)
@@ -1212,6 +1196,7 @@ class UniverseSet(frozenset):
         return False
     def __rsub__(self,other):
         return other-other
+    
 Universe = UniverseSet()
 
 def power_set(s):
@@ -1220,7 +1205,7 @@ def power_set(s):
 def subsets_with(base_set, common):
     assert  common <= base_set
     subsets = power_set(base_set-common)
-    return map(common.union, subsets)
+    return list(map(common.union, subsets))
 
 class ModelDict(dict):
     def __init__(self, common_knowledge):
@@ -1251,7 +1236,7 @@ class ObserverLattice(dict):
             if intersect not in known_sets:
                 new_sets[intersect].append(known_set)
 
-        for new_set, supersets in new_sets.iteritems():
+        for new_set, supersets in new_sets.items():
             smallest_superset = sorted(supersets, key = len)[0]
             self[new_set] = deepcopy(self[smallest_superset])
 
@@ -1261,7 +1246,7 @@ class ObserverLattice(dict):
         return the state of the smallest superset of the given set
         because this is a join-semilattice, there is guaranteed to be a least upper bound
         """
-        smallest_superset = sorted(filter(lambda s: s > agent_set, self.keys()), key = len)[0]
+        smallest_superset = sorted([s for s in list(self.keys()) if s > agent_set], key = len)[0]
         return self[smallest_superset]
 
 
@@ -1347,9 +1332,9 @@ class RationalAgent(Agent):
 
         #update lattice beliefs using new_likelihoods
         prior =  np.log(self.prior)
-        for observers, actor_likelihood in new_likelihoods.iteritems():
+        for observers, actor_likelihood in new_likelihoods.items():
             joint = self.lattice[observers]
-            for actor, new_likelihood in actor_likelihood.iteritems():
+            for actor, new_likelihood in actor_likelihood.items():
                 joint.likelihood[actor] += new_likelihood
                 #print "prior", prior
                 #print "likelihood", joint.likelihood[actor]

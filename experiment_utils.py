@@ -16,8 +16,8 @@ from joblib import Parallel, delayed
 import params
 
 def product_of_vals(orderedDict):
-    keys, val_lists = orderedDict.keys(), orderedDict.values()
-    return [OrderedDict(zip(keys, vals)) for vals in apply(product, val_lists)]
+    keys, val_lists = list(orderedDict.keys()), list(orderedDict.values())
+    return [OrderedDict(list(zip(keys, vals))) for vals in product(*val_lists)]
 
 
 def fun_call_labeler(method, args, kwargs, intolerant=True):
@@ -41,7 +41,7 @@ def fun_call_labeler(method, args, kwargs, intolerant=True):
     known_args = {}
     try:
         # zip from the bottom up to properly align
-        known_args.update(apply(zip, map(reversed, [arg_names, default_values])))
+        known_args.update(list(zip(*list(map(reversed, [arg_names, default_values])))))
     except:
         # default_values might be None
         pass
@@ -50,7 +50,7 @@ def fun_call_labeler(method, args, kwargs, intolerant=True):
     known_args.update(kwargs)
 
     # overwrite only happens for given_values
-    known_args.update(zip(arg_names, given_values))
+    known_args.update(list(zip(arg_names, given_values)))
 
     # if there are fewer than the expected number of arguments
     # call the wrapped function and let it handle the exception
@@ -58,17 +58,17 @@ def fun_call_labeler(method, args, kwargs, intolerant=True):
     if expected_arg_missing and intolerant:
         method(**known_args)
 
-    expected_args = [(k, v) for k, v in known_args.iteritems() if k in arg_names]
+    expected_args = [(k, v) for k, v in known_args.items() if k in arg_names]
     defined_args = OrderedDict(
-        sorted(expected_args, key=lambda (k, v): arg_names.index(k))
+        sorted(expected_args, key=lambda k_v: arg_names.index(k_v[0]))
     )
     # defined_args = OrderedDict((arg,known_args[arg]) for arg in arg_names)
     undefined_args = OrderedDict(
         (k, v)
-        for k, v in sorted(known_args.iteritems(), key=itemgetter(0))
+        for k, v in sorted(iter(known_args.items()), key=itemgetter(0))
         if k not in defined_args
     )
-    known_args = OrderedDict(defined_args.items() + undefined_args.items())
+    known_args = OrderedDict(list(defined_args.items()) + list(undefined_args.items()))
     call_data = {
         "args": known_args,
         "defined_args": defined_args,
@@ -80,12 +80,12 @@ def fun_call_labeler(method, args, kwargs, intolerant=True):
         "default_values": default_values,
         "defined_call": method.__name__
         + "(%s)"
-        % ",".join(["%s=%s" % (key, val) for key, val in defined_args.iteritems()]),
+        % ",".join(["%s=%s" % (key, val) for key, val in defined_args.items()]),
         "call": method.__name__
         + "(%s)"
-        % ", ".join(["%s=%s" % (key, val) for key, val in known_args.iteritems()]),
+        % ", ".join(["%s=%s" % (key, val) for key, val in known_args.items()]),
         "make_call_str": lambda d: method.__name__
-        + "(%s)" % ", ".join(["%s=%s" % (key, val) for key, val in d.iteritems()]),
+        + "(%s)" % ", ".join(["%s=%s" % (key, val) for key, val in d.items()]),
     }
     return call_data
 
@@ -107,11 +107,11 @@ def unordered(maybe_seq):
 
 def dict_key_map(d, fun_to_arg):
     mapped_d = deepcopy(d)
-    for arg_name, arg_val in d.iteritems():
-        for function, arg_names in fun_to_arg.iteritems():
+    for arg_name, arg_val in d.items():
+        for function, arg_names in fun_to_arg.items():
             if arg_name in arg_names:
                 if isinstance(arg_val, MultiArg):
-                    mapped_d[arg_name] = MultiArg(map(function, arg_val))
+                    mapped_d[arg_name] = MultiArg(list(map(function, arg_val)))
                 else:
                     mapped_d[arg_name] = function(arg_val)
     return mapped_d
@@ -141,7 +141,7 @@ def transform_inputs(*functions):
 
     def transformer(dec_kwargs):
         fun_to_arg_names = {}
-        for k, v in dec_kwargs.iteritems():
+        for k, v in dec_kwargs.items():
             if k in name_to_fun:
                 fun_to_arg_names[name_to_fun[k]] = v
 
@@ -168,7 +168,7 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
             if "memoized" in kwargs:
                 del kwargs["memoized"]
 
-            trials = range(kwargs["trials"])
+            trials = list(range(kwargs["trials"]))
             del kwargs["trials"]
             
             call_data = fun_call_labeler(function, args, kwargs)
@@ -179,10 +179,10 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
 
             try:
                 # Try to hash the arg dict to get a unique file name for caching. 
-                arg_hash = joblib.hash(str(tuple(sorted(args.iteritems()))))
+                arg_hash = joblib.hash(str(tuple(sorted(args.items()))))
                 # if verbose >= 1: print "\nExperiment " + str(call_data["call"])
             except TypeError as te:
-                print "these are the provided args\n", args
+                print("these are the provided args\n", args)
                 raise te
 
             cache_file = data_dir + str(arg_hash) + ".pkl"
@@ -289,7 +289,7 @@ def multi_call(unpack=False, verbose=2, **kwargs):
 
             dynamic_args = {}
             static_args = {}
-            for key, val in expected_args.iteritems():
+            for key, val in expected_args.items():
                 if isinstance(val, MultiArg):
                     dynamic_args[key] = val
                 else:
@@ -329,7 +329,7 @@ def plotter(
         try:
             assert "data" in getargspec(plot_fun)[0]
         except:
-            print "wrapped function must have a 'data' argument"
+            print("wrapped function must have a 'data' argument")
             raise
         default_experiment = experiment
 
@@ -380,7 +380,7 @@ def plotter(
                     try:
                         experiment_args = {
                             k: v
-                            for k, v in call_data["args"].iteritems()
+                            for k, v in call_data["args"].items()
                             if k not in plot_exclusive_args
                         }
                     except TypeError:
@@ -392,11 +392,11 @@ def plotter(
                             k
                             for k in given_args
                             if k in call_data["defined_args"]
-                            and k not in experiment_argnames.keys() + experiment_args
+                            and k not in list(experiment_argnames.keys()) + experiment_args
                         ]
                         experiment_args = dict(
                             (key, val)
-                            for key, val in given_args.items()
+                            for key, val in list(given_args.items())
                             if key not in plot_exclusive_argnames
                         )
                     experiment_call_data = fun_call_labeler(fun, [], experiment_args)
@@ -409,7 +409,7 @@ def plotter(
                 plot_args = call_data["valid_args"]
 
                 try:
-                    for key, val in fun._last_args.iteritems():
+                    for key, val in fun._last_args.items():
                         if key in plot_args:
                             plot_args[key] = val
                 except:
@@ -447,9 +447,9 @@ def plotter(
             try:
                 plt.savefig(save_file)
             except IOError as e:
-                print e
-                print file_name
-                new_file_name = raw_input("Automatic Filename Too Long. Enter new one:")
+                print(e)
+                print(file_name)
+                new_file_name = input("Automatic Filename Too Long. Enter new one:")
                 save_file = plot_dir + new_file_name + extension
                 plt.savefig(save_file)
 
@@ -468,24 +468,24 @@ def get_arg_dicts(fun, args, kwargs):
     try:
         return fun.make_arg_dicts(args, kwargs)
     except Exception as e:
-        print e
+        print(e)
         return fun_call_labeler(fun, args, kwargs)
 
 
 def dict_key_map(d, fun_to_arg):
     mapped_d = deepcopy(d)
-    for arg_name, arg_val in d.iteritems():
-        for function, arg_names in fun_to_arg.iteritems():
+    for arg_name, arg_val in d.items():
+        for function, arg_names in fun_to_arg.items():
             if arg_name in arg_names:
                 if isinstance(arg_val, MultiArg):
-                    mapped_d[arg_name] = MultiArg(map(function, arg_val))
+                    mapped_d[arg_name] = MultiArg(list(map(function, arg_val)))
                 else:
                     mapped_d[arg_name] = function(arg_val)
     return mapped_d
 
 if __name__ == "__main__":
     a = MultiArg(i for i in range(5))
-    print isinstance(a, MultiArg)
+    print(isinstance(a, MultiArg))
     # @multi_call()
     # def add(a = range(5), b = range(5)):
     #    return a+b

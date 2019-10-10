@@ -1,7 +1,7 @@
-from __future__ import division
+
 from collections import OrderedDict
 from utils import flip
-from itertools import combinations, cycle, izip, permutations
+from itertools import combinations, cycle, permutations
 from numpy import array
 from copy import copy, deepcopy
 import numpy as np
@@ -46,18 +46,18 @@ def implicit(constructor):
 
     def call(*args, **kwargs):
         const_call_data = fun_call_labeler(constructor, args, kwargs)
-        fun_key, fun = const_call_data["defined_args"].items()[0]
+        fun_key, fun = list(const_call_data["defined_args"].items())[0]
         const_call_data["defined_args"][fun_key] = fun.__name__
         fun_call_data = fun_call_labeler(fun, [], const_call_data["undefined_args"])
 
         doubly_unused = [
             item
-            for item in const_call_data["undefined_args"].items()
-            if item in fun_call_data["undefined_args"].items()
+            for item in list(const_call_data["undefined_args"].items())
+            if item in list(fun_call_data["undefined_args"].items())
         ]
         items = (
-            const_call_data["defined_args"].items()
-            + fun_call_data["defined_args"].items()
+            list(const_call_data["defined_args"].items())
+            + list(fun_call_data["defined_args"].items())
             + doubly_unused
         )
         ret = constructor(*args, **kwargs)
@@ -188,7 +188,9 @@ class RandomlyObserved(Playable):
         )
 
         for observer in set(list(observers) + list(participants)):
-            observer.observe(observations)
+            # Check if the observer implements observe 
+            if hasattr(observer, 'observe'):
+                observer.observe(observations)
 
         return payoffs, observations, notes
 
@@ -227,7 +229,8 @@ class ObservedByFollowers(Playable):
         )
 
         for observer in set(list(observers) + list(participants)):
-            observer.observe(observations)
+            if hasattr(observer, 'observe'):
+                observer.observe(observations)
 
         return payoffs, observations, notes
 
@@ -251,7 +254,7 @@ class AllNoneObserve(Playable):
             self.overmind = kwargs["overmind"]
             player_types = kwargs["player_types"]
             try:
-                types, pop = zip(*player_types)
+                types, pop = list(zip(*player_types))
             except TypeError:
                 pop = tuple(1 for t in player_types)
                 types = player_types
@@ -289,7 +292,7 @@ class AllNoneObserve(Playable):
         observers = frozenset(list(observers) + list(participants))
 
         id_to_observer = {observer.world_id: observer for observer in observers}
-        observer_indices = frozenset(id_to_observer.keys())
+        observer_indices = frozenset(list(id_to_observer.keys()))
         overmind_observer_indices = observer_indices & self.overmind_indices
 
         if overmind_observer_indices:
@@ -325,10 +328,10 @@ class Decision(Playable):
     name = _name = "Decision"
 
     def __init__(self, payoffDict, tremble=0):
-        actions = payoffDict.keys()
-        self.N_players = len(payoffDict.values()[0])
+        actions = list(payoffDict.keys())
+        self.N_players = len(list(payoffDict.values())[0])
         self.actions = actions
-        self.action_lookup = dict(map(reversed, enumerate(actions)))
+        self.action_lookup = dict(list(map(reversed, enumerate(actions))))
         self.payoffs = payoffDict
         self.tremble = tremble
 
@@ -514,7 +517,7 @@ class CombinatorialMatchup(object):
         self.N_players = game.N_players
 
     def matchups(self, participants):
-        matchups = list(combinations(xrange(len(participants)), self.game.N_players))
+        matchups = list(combinations(range(len(participants)), self.game.N_players))
         np.random.shuffle(matchups)
         game = self.game
         for matchup in matchups:
@@ -540,7 +543,7 @@ class SymmetricMatchup(object):
         self.N_players = game.N_players
 
     def matchups(self, participants):
-        matchups = list(permutations(xrange(len(participants)), self.game.N_players))
+        matchups = list(permutations(range(len(participants)), self.game.N_players))
         np.random.shuffle(matchups)
         game = self.game
         for matchup in matchups:
@@ -557,7 +560,7 @@ class SymmetricRecipients(DecisionSeq):
         self.N_players = game.N_players
 
     def matchups(self, participants):
-        ids = set(xrange(len(participants)))
+        ids = set(range(len(participants)))
         matchups = []
         for i in ids:
             matchups.extend([(i) + p for p in permutations(ids - i)])
@@ -575,12 +578,12 @@ class CircularMatchup(object):
 
     def matchups(self, participants):
         while True:
-            indices = range(len(participants))
+            indices = list(range(len(participants)))
             np.random.shuffle(indices)
 
-            matchups = zip(
-                *[indices[i:] + indices[:i] for i in xrange(self.game.N_players)]
-            )
+            matchups = list(zip(
+                *[indices[i:] + indices[:i] for i in range(self.game.N_players)]
+            ))
             # matchups = zip(indices,indices[1:]+indices[:1])
 
             playable = self.game
@@ -594,7 +597,7 @@ class RandomMatching(DecisionSeq):
         self.name = self._name = "RandomMatching(" + game.name + ")"
 
     def matchups(self, participants):
-        indices = range(len(participants))
+        indices = list(range(len(participants)))
         while True:
             # underlying = self.game.next_game()
             self.game.next_game()
@@ -630,7 +633,7 @@ class EveryoneDecidesMatchup(object):
         matchups = []
         append = matchups.append
         size = self.N_players
-        for combination in combinations(xrange(len(participants)), size):
+        for combination in combinations(range(len(participants)), size):
             for i in range(n):
                 append(
                     combination[i : i + 1] + combination[:i] + combination[i + 1 : size]
@@ -817,8 +820,8 @@ class Repeated(AnnotatedDS):
         return note
 
     def matchups(self, participants):
-        ordering = range(len(participants))
-        for game_round in xrange(1, self.rounds + 1):
+        ordering = list(range(len(participants)))
+        for game_round in range(1, self.rounds + 1):
             self.current_round = game_round
             yield self.game, ordering
 
@@ -855,8 +858,8 @@ class Annotated(AnnotatedDS):
         return note
 
     def matchups(self, participants):
-        for game_round, thing in izip(
-            xrange(1, self.rounds + 1), cycle(self.game.matchups(participants))
+        for game_round, thing in zip(
+            range(1, self.rounds + 1), cycle(self.game.matchups(participants))
         ):
             self.current_round = game_round
             yield thing
@@ -928,7 +931,7 @@ class AnnotatedGame(AnnotatedDS):
         return note
 
     def matchups(self, participants):
-        for game_round, game_ordering_pair in izip(
+        for game_round, game_ordering_pair in zip(
             itertools.count(1), self.game.matchups(participants)
         ):
             self.current_round = game_round
@@ -945,7 +948,7 @@ class IndefiniteHorizon(DecisionSeq):
         self.N_players = game.N_players
 
     def matchups(self, participants):
-        ordering = range(len(participants))
+        ordering = list(range(len(participants)))
         player_count = self.game.N_players
         potential_matchups = combinations(ordering, player_count)
         # generate a list of lists of matchup. each sublist is the same matchup repeated some number of times, as determined by gamma.
@@ -977,8 +980,8 @@ class FiniteHorizon(DecisionSeq):
         self.N_players = game.N_players
 
     def matchups(self, participants):
-        ordering = range(len(participants))
-        for r in xrange(self.rounds):
+        ordering = list(range(len(participants)))
+        for r in range(self.rounds):
             yield self.game, ordering
 
 
@@ -1000,7 +1003,7 @@ class IndefiniteMatchup(DecisionSeq):
         indices = np.arange(player_count)
         counts = np.zeros(shape=(player_count, player_count))
         sums = np.zeros(player_count)
-        for i, j in combinations(range(player_count), 2):
+        for i, j in combinations(list(range(player_count)), 2):
             counts[i, j] = counts[j, i] = np.random.geometric(1 - self.gamma)
 
         for i, row in enumerate(counts):
@@ -1064,10 +1067,10 @@ class RandomizedMatchup(DecisionSeq):
         partners = np.zeros(player_count)
 
         if self.deterministic:
-            for i, j in combinations(range(player_count), 2):
+            for i, j in combinations(list(range(player_count)), 2):
                 counts[i, j] = counts[j, i] = self.rounds
         else:
-            for i, j in combinations(range(player_count), 2):
+            for i, j in combinations(list(range(player_count)), 2):
                 counts[i, j] = counts[j, i] = np.random.geometric(1.0 / self.rounds)
 
         for i, row in enumerate(counts):
@@ -1123,7 +1126,7 @@ class IndefiniteHorizonGame(DecisionSeq):
         """
         game = self.playable
         gamma = self.gamma
-        ordering = range(len(participants))
+        ordering = list(range(len(participants)))
         yield game, ordering
         while flip(gamma):
             yield game, ordering
@@ -1196,7 +1199,7 @@ def SocialGameGen(N_players_gen, N_actions_gen, cwe, tremble_gen):
     choices = [np.zeros(N_players)]
     for n in range(N_actions):
         c, w, e = cwe()
-        for p in xrange(1, N_players):
+        for p in range(1, N_players):
             choice = np.zeros(N_players)
             choice[0] = -c
             choice[p] = c * w + e
@@ -1271,7 +1274,7 @@ def cog_sci_dynamic(
             c = np.random.poisson(cost)
             w = np.random.exponential(benefit / 2)
             e = np.random.exponential(benefit / 2)
-            for p in xrange(1, N_players):
+            for p in range(1, N_players):
                 choice = np.zeros(N_players)
                 choice[0] = -c
                 choice[p] = c * w + e
@@ -1292,7 +1295,7 @@ def cog_sci_dynamic(
 
 def engine_gen(intervals, max_players, benefit, cost, tremble):
     N_actions = 1 + np.random.poisson(intervals - 1)
-    N_players = np.random.choice(range(2, max_players + 1))
+    N_players = np.random.choice(list(range(2, max_players + 1)))
 
     # initialize set of choices with the zero-action
     choices = [np.zeros(N_players)]
@@ -1300,7 +1303,7 @@ def engine_gen(intervals, max_players, benefit, cost, tremble):
         c = np.random.poisson(cost)
         w = np.random.exponential(benefit / 2)
         e = np.random.exponential(benefit / 2)
-        for p in xrange(1, N_players):
+        for p in range(1, N_players):
             choice = np.zeros(N_players)
             choice[0] = -c
             choice[p] = c * w + e
@@ -1384,8 +1387,8 @@ if __name__ == "__main__":
     puppets = array([Puppet("Alpha"), Puppet("Beta"), Puppet("C")])
 
     game = TernaryTournament(10)  # RepeatedDynamicPrisoners(10)
-    print game
-    print hash(game)
+    print(game)
+    print(hash(game))
     payoff, history, records = game.play(puppets)
-    print "Final Payoff:", payoff
-    print len(list(set(g for g, a, b, c in history)))
+    print("Final Payoff:", payoff)
+    print(len(list(set(g for g, a, b, c in history))))

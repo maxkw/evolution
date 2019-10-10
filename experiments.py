@@ -1,4 +1,4 @@
-from __future__ import division
+
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
@@ -49,9 +49,9 @@ def matchup(player_types, game, **kwargs):
     believed_types = kwargs.get("believed_types", None)
 
     try:
-        types, pop = zip(*player_types)
-    except TypeError:
-        # print Warning("player_types is not a zipped list")
+        types, pop = list(zip(*player_types))
+    except:
+        # print(Warning("player_types is not a zipped list"))
         pop = tuple(1 for t in player_types)
         types = player_types
 
@@ -73,8 +73,8 @@ def matchup(player_types, game, **kwargs):
             g = game(**kwargs)
         except err:
             for n, k in enumerate(sorted(games.__dict__.keys())):
-                print n, k
-            if game in games.__dict__.keys():
+                print(n, k)
+            if game in list(games.__dict__.keys()):
                 raise Exception(
                     "Game must be a valid game or must be specified in the scope of 'games.py'"
                 )
@@ -185,7 +185,7 @@ def matchup(player_types, game, **kwargs):
                             ]
                         }
 
-                        for attr, val in attr_to_val.iteritems():
+                        for attr, val in attr_to_val.items():
                             record.append(
                                 {
                                     "player_types": tuple(player_types),
@@ -243,7 +243,7 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
 
 def population_beliefs(believer, opponent_types, believed_types, population, **kwargs):
     """ Use this for the public belief games"""
-    player_types = zip(opponent_types, population)
+    player_types = list(zip(opponent_types, population))
     believer_repr = repr(believer)
     data = matchup(
         player_types=player_types,
@@ -267,8 +267,8 @@ def plot_beliefs(
     non_WA_prior = (1 - WA_prior) / (len(believed_types) - 1)
     prior_arr = [WA_prior if t is believer else non_WA_prior for t in believed_types]
 
-    type_names = map(repr, believed_types)
-    prior = dict(zip(type_names, prior_arr))
+    type_names = list(map(repr, believed_types))
+    prior = dict(list(zip(type_names, prior_arr)))
     max_trials = kwargs['trials'] - 1
     
     prior_data = [
@@ -279,7 +279,7 @@ def plot_beliefs(
             "believed_type": believed,
             "actual_type": actual,
         }
-        for t, believed, actual in product(range(max_trials), type_names, type_names)
+        for t, believed, actual in product(list(range(max_trials)), type_names, type_names)
     ]
 
     color = {t: c for t, c in zip(type_names, colors)}
@@ -303,8 +303,12 @@ def plot_beliefs(
         if "Altruistic" in t_n:
             return "Altruistic"
 
-    fig, axes = plt.subplots(figsize=(8, 3))
-    axes = {t: plt.subplot(1, 3, type_names.index(t) + 1) for t in type_names}
+        # Default
+        return str(t_n)
+
+
+    fig, axes = plt.subplots(figsize=(8*len(type_names)/3, 3))
+    axes = {t: plt.subplot(1, len(type_names), type_names.index(t) + 1) for t in type_names}
 
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
         ax = axes[actual]
@@ -373,13 +377,13 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **
     payoffs_var_list = []
 
     player_combos = means.index.levels[0]
-    index = dict(map(reversed, enumerate(player_types)))
+    index = dict(list(map(reversed, enumerate(player_types))))
 
     payoffs_list = []
     payoffs = np.zeros((len(player_types),) * 2)
     
     if per_round:
-        rounds = range(1, max_rounds + 1)
+        rounds = list(range(1, max_rounds + 1))
     else:
         rounds = [max_rounds]
 
@@ -415,9 +419,9 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **
         p /= r
 
     if sem:
-        return zip(rounds, payoffs_list), zip(rounds, payoffs_var_list) 
+        return list(zip(rounds, payoffs_list)), list(zip(rounds, payoffs_var_list)) 
 
-    return zip(rounds, payoffs_list)
+    return list(zip(rounds, payoffs_list))
         
 @plotter(matchup_matrix_per_round, plot_exclusive_args=["data"])
 def payoff_heatmap(player_types, max_rounds, cog_cost=0, sem=True, data=[], **kwargs):
@@ -453,7 +457,7 @@ def payoff_heatmap(player_types, max_rounds, cog_cost=0, sem=True, data=[], **kw
             text = ax.text(
                 j,
                 i,
-                u"%0.3f\n%0.3f" % (data[i, j], data_sem[i, j]),
+                "%0.3f\n%0.3f" % (data[i, j], data_sem[i, j]),
                 ha="center",
                 va="center",
                 color="w",

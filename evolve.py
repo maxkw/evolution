@@ -1,10 +1,10 @@
-from __future__ import division
+
 import pandas as pd
 from datetime import date
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from itertools import product, permutations, izip
+from itertools import product, permutations
 from scipy.ndimage.filters import gaussian_filter1d
 import agents as ag
 from utils import excluding_keys, softmax, memoize
@@ -26,18 +26,18 @@ def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwarg
 
     matchups, populations = matchups_and_populations(player_types, pop_size, "complete")
     matchup_pop_dicts = [
-        dict(player_types=zip(*pop_pair), **kwargs)
+        dict(player_types=list(zip(*pop_pair)), **kwargs)
         for pop_pair in product(matchups, populations)
     ]
 
     payoffs = Parallel(n_jobs=params.n_jobs)(delayed(simulation)(**pop_dict) for pop_dict in tqdm(matchup_pop_dicts, disable=params.disable_tqdm))
  
-    type_to_index = dict(map(reversed, enumerate(sorted(player_types))))
+    type_to_index = dict(list(map(reversed, enumerate(sorted(player_types)))))
     original_order = np.array([type_to_index[t] for t in player_types])
 
     @memoize
     def sim(pop):
-        f = simulation(zip(player_types, pop), **kwargs)[-1]
+        f = simulation(list(zip(player_types, pop)), **kwargs)[-1]
 
         non_players = np.array(pop) == 0
 
@@ -53,7 +53,7 @@ def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwarg
 
         fitnesses = sim(pop)
         actions = [
-            (b, d) for b, d in permutations(xrange(type_count), 2) if pop[d] != 0
+            (b, d) for b, d in permutations(range(type_count), 2) if pop[d] != 0
         ]
         probs = []
         for b, d in actions:
@@ -69,7 +69,7 @@ def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwarg
         probs = np.array(probs)
         action_index = np.random.choice(len(probs), 1, p=probs)[0]
         (b, d) = actions[action_index]
-        pop = map(int, pop + I[b] - I[d])
+        pop = list(map(int, pop + I[b] - I[d]))
 
 
 def complete_agent_simulation(
@@ -82,7 +82,7 @@ def complete_agent_simulation(
 
     # Populations is an infinite iterator so need to combine it with a
     # finite iterator which sets the number of generations to look at.
-    for n, pop in izip(xrange(generations), populations):
+    for n, pop in zip(range(generations), populations):
         for t, p in zip(player_types, pop):
             record.append(
                 {"generation": n, "type": t.short_name("agent_types"), "population": p}
@@ -100,7 +100,7 @@ def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwa
         columns="type", index="generation", values="population"
     )
     type_order = dict(
-        map(reversed, enumerate([t.short_name("agent_types") for t in player_types]))
+        list(map(reversed, enumerate([t.short_name("agent_types") for t in player_types])))
     )
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
 
@@ -189,8 +189,8 @@ def ssd_v_params(params, player_types, return_rounds=False, **kwargs):
 
     records = []
 
-    for pvs in product(*params.values()):
-        ps = dict(zip(params, pvs))
+    for pvs in product(*list(params.values())):
+        ps = dict(list(zip(params, pvs)))
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
@@ -235,8 +235,8 @@ def params_heat(params, player_types, data=[], graph_kwargs={}, **kwargs):
     g = sns.FacetGrid(data=data, col="type")
     g.map_dataframe(
         draw_heatmap,
-        params.keys()[1],
-        params.keys()[0],
+        list(params.keys())[1],
+        list(params.keys())[0],
         "proportion",
         cbar=False,
         square=True,
@@ -373,7 +373,7 @@ def limit_param_plot(
     # data = gaussian_filter(data, sigma = 1)
 
     type_order = dict(
-        map(reversed, enumerate([t.short_name("agent_types") for t in player_types]))
+        list(map(reversed, enumerate([t.short_name("agent_types") for t in player_types])))
     )
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
 
@@ -385,7 +385,7 @@ def limit_param_plot(
         if param == "rounds":
             plt.xlim([1, kwargs["rounds"]])
         else:
-            print kwargs["param_vals"]
+            print(kwargs["param_vals"])
             plt.xlim([min(kwargs["param_vals"]), max(kwargs["param_vals"])])
 
         if param in ["rounds", "expected_interactions"]:

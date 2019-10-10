@@ -1,5 +1,3 @@
-from __future__ import division
-
 import inspect
 import numpy as np
 import seaborn as sns
@@ -24,6 +22,14 @@ TREMBLE_RANGE = lambda ticks: np.round(
     # np.geomspace(MIN_TREMBLE, 0.26, ticks), 3
 )
 
+ZD = ag.ZDAgent(
+    B=3,
+    C=1,
+    chi=3,
+    phi='midpoint', 
+    subtype_name="ZD",
+)
+
 
 def color_list(agent_list, sort=True):
     """takes a list of agent types `agent_list` and returns the correctly
@@ -44,9 +50,9 @@ def color_list(agent_list, sort=True):
             return "C4"
         if "TFT" in a:
             return "C5"
-        if "Extortion" in a:
+        if "ZD" in a:
             return "C6"
-        raise ("Color not defined for agent %s" % a)
+        raise "Color not defined for agent %s"
 
     if sort:
         return sns.color_palette([lookup(a) for a in sorted(agent_list, key=str)])
@@ -164,19 +170,7 @@ def ipd():
     BENEFIT = 3
     COST = 1
     # 10000 puts SEM around 0.001-0.002
-    TRIALS = 10
-
-    Extortion = ag.HyperAgent(
-        kap=0,
-        varient="extortion",
-        B=BENEFIT,
-        C=COST,
-        pop_size=100,
-        chi=2 / 3,
-        phi=3 / 11,
-        subtype_name="Extortion",
-    )
-    # RobustZD = ag.HyperAgent(kap = None, varient = 'ZD-robust', B = 3, C = 1, pop_size = 100, subtype_name = "ZD_R")
+    TRIALS = 100
 
     old_pop = (
         ag.AllC,
@@ -184,10 +178,9 @@ def ipd():
         ag.GTFT,
         ag.WSLS,
         ag.TFT,
-        # Extortion,
+        ZD,
     )
-    ToM = ("self",) + old_pop
-    new_pop = old_pop + (ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM),)
+    new_pop = old_pop + (ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=("self",) + old_pop),)
 
     common_params = dict(
         game="direct",
@@ -203,7 +196,6 @@ def ipd():
     tremble_ticks = 10
 
     # from experiments import matchup_matrix_per_round, payoff_heatmap
-
     # tremble = MIN_TREMBLE
     # payoffs = payoff_heatmap(
     #     player_types=new_pop,
@@ -221,6 +213,7 @@ def ipd():
     # assert 0
     
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
+    # for label, player_types in zip(["wRA"], [new_pop]):
 
         # Tremble
         limit_param_plot(
@@ -250,7 +243,7 @@ def ipd():
     def cog_cost_graph(ax):
         vals = ax.get_xticks()
         surplus = common_params["benefit"] - common_params["cost"]
-        print vals, surplus, ["{:3.0f}%".format(x / surplus * 100) for x in vals]
+        print(vals, surplus, ["{:3.0f}%".format(x / surplus * 100) for x in vals])
         ax.set_xticklabels(["{:3.0f}%".format(x / surplus * 100) for x in vals])
         ax.set_xlabel("Cognitive Cost \n% of (b-c)")
 
@@ -354,7 +347,7 @@ def agent():
 def belief():
     everyone = (ag.AltruisticAgent(beta=BETA), ag.SelfishAgent(beta=BETA))
     agent = ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=("self",) + everyone)
-
+    
     common_params = dict(
         believer=agent,
         opponent_types=(agent,) + everyone,
@@ -368,6 +361,7 @@ def belief():
         traces=0,
         trials=500,
         overmind=True,
+        memoized=True,
         colors=color_list((agent,) + everyone, sort=False),
     )
 
@@ -379,7 +373,7 @@ def belief():
         observability=0,
         # Below computes makes it so the number of interactions are
         # equivalent in both cases.
-        rounds=sum(population) * (sum(population) - 1) / 2 / 3,
+        rounds=int(sum(population) * (sum(population) - 1) / 2 / 3),
         file_name="intra_gen_belief_private",
         **common_params
     )
@@ -394,7 +388,33 @@ def belief():
         file_name="intra_gen_belief_public",
         **common_params
     )
-
+    
+    # Use the FSA agents as comparison agents too
+    old_pop = (
+        ag.AllC,
+        ag.AllD,
+        ag.TFT,
+        ag.WSLS,
+        ag.GTFT,
+        ZD,
+    )
+    ToM = ("self",) + old_pop
+    agent = ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM)
+    common_params.update(dict(
+        believer=agent,
+        opponent_types=(agent,) + old_pop,
+        believed_types=(agent,) + old_pop,
+        game='direct',
+        colors=color_list((agent,) + old_pop, sort=False),
+    ))
+    
+    plot_beliefs(
+        observability=0,
+        # rounds=int(sum(population) * (sum(population) - 1) / 2 / 3),
+        rounds=50,
+        file_name="fsa_belief",
+        **common_params
+    )
 
 def explore_param_dict():
     opponents = (ag.SelfishAgent, ag.AltruisticAgent)

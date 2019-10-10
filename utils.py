@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 import scipy as sp
 import itertools
@@ -51,7 +51,7 @@ def sample_softmax(utility, beta):
 def softmax_utility(utility, beta):
     actions = list()
     utils = list()
-    for a, u in utility.items():
+    for a, u in list(utility.items()):
         actions.append(a)
         utils.append(u)
 
@@ -61,7 +61,7 @@ def sample_hardmax(utility):
     # Hard-Max
     best_utility = max(utility.values())
     best_actions = list()
-    for choice, u in utility.iteritems():
+    for choice, u in utility.items():
         if u == best_utility:
             best_actions.append(choice)
             
@@ -103,7 +103,7 @@ def namedArrayConstructor(fields, className = "NamedArray"):
     assert len(fields) == len(set(fields))
 
     fields_error_msg = "\nThe following are also valid indices: "+", ".join(str(field) for field in fields)
-    reference = dict(map(reversed,enumerate(fields)))
+    reference = dict(list(map(reversed,enumerate(fields))))
     repr_expr = '{name}[{seq}]'.format(
         name = className,
         seq = ", ".join("{}={{:.2f}}".format(field) for field in fields))
@@ -192,7 +192,7 @@ def normalized(array):
 assert np.sum(normalized(np.array([.2,.3]))) ==1
 
 def dict_hash(dict):
-    return hash(tuple(sorted(dict.iteritems())))
+    return hash(tuple(sorted(dict.items())))
 
 class HashableDict(dict):
     def __hash__(self):
@@ -209,4 +209,4 @@ def _issubclass(C,B):
             return False
 
 def excluding_keys(d,*keys):
-    return dict((k,v) for k,v in d.iteritems() if k not in keys)
+    return dict((k,v) for k,v in d.items() if k not in keys)
