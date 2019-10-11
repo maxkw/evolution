@@ -5,7 +5,7 @@ import seaborn as sns
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
 from params import default_genome
-from agents import AltruisticAgent, RationalAgent, ReciprocalAgent, SelfishAgent, WeAgent
+from agents import AltruisticAgent, SelfishAgent, WeAgent
 from games import BinaryDictator
 import matplotlib.pyplot as plt
 from itertools import product

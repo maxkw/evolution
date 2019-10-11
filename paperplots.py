@@ -3,7 +3,7 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 from itertools import product
-
+import params
 import agents as ag
 from evolve import limit_param_plot, complete_sim_plot
 from experiment_utils import MultiArg
@@ -27,7 +27,6 @@ ZD = ag.ZDAgent(
     C=1,
     chi=3,
     phi='midpoint', 
-    subtype_name="ZD",
 )
 
 
@@ -69,9 +68,12 @@ Evolution of Cooperation in the Game Engine:
 
 
 def game_engine():
-    TRIALS = 10
+    TRIALS = 1
 
-    opponents = (ag.SelfishAgent(beta=BETA), ag.AltruisticAgent(beta=BETA))
+    opponents = (
+        ag.SelfishAgent(beta=BETA),
+        ag.AltruisticAgent(beta=BETA)
+    )
     ToM = ("self",) + opponents
     agents = (ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM),) + opponents
 
@@ -85,9 +87,7 @@ def game_engine():
         benefit=10,
         plot_dir=PLOT_DIR,
         observability=0,
-        overmind=True,
-        parallelized=False,
-        # memoize=False,
+        memoized=params.memoized,
         graph_kwargs={"color": color_list(agents)},
     )
 
@@ -103,6 +103,8 @@ def game_engine():
     #             file_name = 'game_engine_indirect_direct',
     #             **common_params)
 
+    # assert 0 
+    
     # Expected number of interactions
     def gamma_plot():
         limit_param_plot(
@@ -132,6 +134,7 @@ def game_engine():
         limit_param_plot(
             param="observability",
             param_vals=np.round(np.linspace(0, 1, ticks), 2),
+            tremble=MIN_TREMBLE,
             expected_interactions=1,
             analysis_type="complete",
             file_name="game_engine_observability",
@@ -213,8 +216,6 @@ def ipd():
     # assert 0
     
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
-    # for label, player_types in zip(["wRA"], [new_pop]):
-
         # Tremble
         limit_param_plot(
             param="tremble",
@@ -247,9 +248,11 @@ def ipd():
         ax.set_xticklabels(["{:3.0f}%".format(x / surplus * 100) for x in vals])
         ax.set_xlabel("Cognitive Cost \n% of (b-c)")
 
+
+    # Pick the right tremble value to hurt WSLS. 
     limit_param_plot(
         param="cog_cost",
-        tremble=MIN_TREMBLE,
+        tremble=0.2,
         rounds=50,
         param_vals=np.linspace(0, 0.5, 50),
         file_name="ipd_cogcosts",
@@ -359,9 +362,8 @@ def belief():
         benefit=3,
         cost=1,
         traces=0,
-        trials=500,
-        overmind=True,
-        memoized=True,
+        trials=50,
+        memoized=params.memoized,
         colors=color_list((agent,) + everyone, sort=False),
     )
 
@@ -548,8 +550,13 @@ def main():
     parser.add_argument("--heatmaps", action="store_true")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--debug", action="store_true")
-    # parser.add_argument("--jobs")
+    parser.add_argument("--cpus", default=1, type=int)
+    parser.add_argument("--memoize", action="store_true", default=True)
+
     args = parser.parse_args()
+
+    params.n_jobs = args.cpus
+    params.memoized = args.memoize
 
     if args.all:
         game_engine()

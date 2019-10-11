@@ -41,16 +41,14 @@ class AgentType(type):
 class Agent(object, metaclass=AgentType):
     def __new__(cls, genome=None, world_id=None, **kwargs):
         if not genome and kwargs:
+            # What does any of this do?
             return PrefabAgent(cls, **kwargs)
         else:
             return object.__new__(cls)
 
     def __init__(self, genome, world_id=None):
         self.genome = genome
-        self.beta = self.genome['beta']
         self.world_id = world_id
-        self.belief = dict()
-        self.likelihood = dict()
         
     def utility(self, payoffs, agent_ids):
         raise NotImplementedError
@@ -65,7 +63,7 @@ class Agent(object, metaclass=AgentType):
         Us = np.array([self.utility(game.payoffs[action], agents)
                        for action in game.actions])
 
-        return add_tremble(softmax(Us, self.beta), tremble)
+        return add_tremble(softmax(Us, self.genome['beta']), tremble)
 
     def likelihood_of(self, game, participant_ids, tremble = 0, action = None, **kwargs):
         likelihoods = self.decide_likelihood(game, participant_ids, tremble)
@@ -90,7 +88,6 @@ class Agent(object, metaclass=AgentType):
 class PrefabAgent(Agent):
     def __init__(self, a_type, **genome_kwargs):
         self.type = a_type
-
 
         try:
             self._nickname = genome_kwargs['subtype_name']
@@ -192,292 +189,229 @@ class ConstantDefaultDict(dict):
         ret = self[key] = copy(self.val)
         return ret
     
-class TypeDict(dict):
-    def __init__(self, genome, agent_id=None):
-        agent_types = genome['agent_types']
-        rational_types = [t for t in agent_types if _issubclass(
-            t, RationalAgent)]
-        model = self.agent = RationalAgent(genome, agent_id)
-        belief = self.belief = model.belief
-        likelihood = self.likelihood = model.likelihood
-        self.observers = observers = [model]
-        for agent_type in agent_types:
-            m = agent_type(genome, agent_id)
-            if agent_type in [gTFT, Pavlov, ZDAgent, HyperAgent]:
-                observers.append(m)
-            dict.__setitem__(self, agent_type, m)
+# class TypeDict(dict):
+#     def __init__(self, genome, agent_id=None):
+#         agent_types = genome['agent_types']
+#         rational_types = [t for t in agent_types if _issubclass(
+#             t, RationalAgent)]
+#         model = self.agent = RationalAgent(genome, agent_id)
+#         belief = self.belief = model.belief
+#         likelihood = self.likelihood = model.likelihood
+#         self.observers = observers = [model]
+#         for agent_type in agent_types:
+#             m = agent_type(genome, agent_id)
+#             if agent_type in [gTFT, Pavlov, ZDAgent, HyperAgent]:
+#                 observers.append(m)
+#             dict.__setitem__(self, agent_type, m)
 
-        for rational_type in rational_types:
-            r_model = dict.__getitem__(self, rational_type)
-            r_model.belief = belief
-            r_model.likelihood = likelihood
+#         for rational_type in rational_types:
+#             r_model = dict.__getitem__(self, rational_type)
+#             r_model.belief = belief
+#             r_model.likelihood = likelihood
 
-    def observe_k(self, observations, k, tremble):
-        for observer in self.observers:
-            observer.observe_k(observations, k, tremble)
-
-
-class AgentDict(dict):
-    def __init__(self, genome):
-        self.genome = genome
-
-    def __missing__(self, agent_id):
-        ret = self[agent_id] = TypeDict(self.genome, agent_id)
-        return ret
+#     def observe_k(self, observations, k, tremble):
+#         for observer in self.observers:
+#             observer.observe_k(observations, k, tremble)
 
 
-class RationalAgent(Agent):
-    def __init__(self, genome, world_id=None):  # , *args, **kwargs):
-        super(RationalAgent, self).__init__(genome, world_id)
-        self._type_to_index = dict(list(map(reversed, enumerate(genome['agent_types']))))
-        self.pop_prior = copy(self.genome['prior'])
-        self.model = AgentDict(genome)
+# class AgentDict(dict):
+#     def __init__(self, genome):
+#         self.genome = genome
 
-        self.likelihood = ConstantDefaultDict(self.initialize_likelihood())
-        self.belief = ConstantDefaultDict(self.initialize_prior())
+#     def __missing__(self, agent_id):
+#         ret = self[agent_id] = TypeDict(self.genome, agent_id)
+#         return ret
 
-    def belief_that(self, a_id, a_type):
-        if a_type in self._type_to_index:
-            return self.belief[a_id][self._type_to_index[a_type]]
-        else: 
-            return 0
 
-    def likelihood_that(self, a_id, a_type):
-        return self.likelihood[a_id][self._type_to_index[a_type]]
+# class RationalAgent(Agent):
+#     def __init__(self, genome, world_id=None):  # , *args, **kwargs):
+#         super(RationalAgent, self).__init__(genome, world_id)
+#         self._type_to_index = dict(list(map(reversed, enumerate(genome['agent_types']))))
+#         self.pop_prior = copy(self.genome['prior'])
+#         self.model = AgentDict(genome)
 
-    def k_belief(self, a_ids, a_type):
-        """
-        Recursive function. 
-        call with list of agent_ids. If you want A's belief that B believes A is reciprocal
-        agent_A.k_belief(('B','A'),ReciprocalAgent)
-        """
-        if len(a_ids) == 1:
-            return self.belief_that(a_ids[0], a_type)
-        else:
-            a_id = a_ids[0]
-            a_ids = a_ids[1:]
-            return self.model[a_id].agent.k_belief(a_ids, a_type)
+#         self.likelihood = ConstantDefaultDict(self.initialize_likelihood())
+#         self.belief = ConstantDefaultDict(self.initialize_prior())
 
-    def initialize_prior(self):
-        # This needs to initialize the data structure that is used for the
-        # online update
-        return self.pop_prior
+#     def belief_that(self, a_id, a_type):
+#         if a_type in self._type_to_index:
+#             return self.belief[a_id][self._type_to_index[a_type]]
+#         else: 
+#             return 0
 
-    def initialize_likelihood(self):
-        # return normalized(np.zeros_like(self.pop_prior)+1)
-        return np.zeros_like(self.pop_prior)
+#     def likelihood_that(self, a_id, a_type):
+#         return self.likelihood[a_id][self._type_to_index[a_type]]
+
+#     def k_belief(self, a_ids, a_type):
+#         """
+#         Recursive function. 
+#         call with list of agent_ids. If you want A's belief that B believes A is reciprocal
+#         agent_A.k_belief(('B','A'),ReciprocalAgent)
+#         """
+#         if len(a_ids) == 1:
+#             return self.belief_that(a_ids[0], a_type)
+#         else:
+#             a_id = a_ids[0]
+#             a_ids = a_ids[1:]
+#             return self.model[a_id].agent.k_belief(a_ids, a_type)
+
+#     def initialize_prior(self):
+#         # This needs to initialize the data structure that is used for the
+#         # online update
+#         return self.pop_prior
+
+#     def initialize_likelihood(self):
+#         # return normalized(np.zeros_like(self.pop_prior)+1)
+#         return np.zeros_like(self.pop_prior)
     
-    def utility(self, payoffs, agent_ids):
-        weights = list(map(self.sample_alpha, agent_ids))
-        return np.dot(weights, payoffs)
+#     def utility(self, payoffs, agent_ids):
+#         weights = list(map(self.sample_alpha, agent_ids))
+#         return np.dot(weights, payoffs)
 
-    def sample_alpha(self, agent_id):
-        """
-        this function basically tells us how much we care about
-        a particular agent's payoff as a function of our beliefs about them
-        every reciprocal agent type is defined by just defining this function
-        """
+#     def sample_alpha(self, agent_id):
+#         """
+#         this function basically tells us how much we care about
+#         a particular agent's payoff as a function of our beliefs about them
+#         every reciprocal agent type is defined by just defining this function
+#         """
 
-        # return int(flip(belief))
-        print("Rational Agents don't know how to choose, subclasses do")
-        raise NotImplementedError
+#         # return int(flip(belief))
+#         print("Rational Agents don't know how to choose, subclasses do")
+#         raise NotImplementedError
 
-    def observe(self, observations):
-        if self.genome['RA_prior'] in [1, 0]:
-            return
-        self.observe_k(observations, self.genome['RA_K'], self.genome['tremble'])
+#     def observe(self, observations):
+#         if self.genome['RA_prior'] in [1, 0]:
+#             return
+#         self.observe_k(observations, self.genome['RA_K'], self.genome['tremble'])
 
-    def observe_k(self, observations, K, tremble=0):
-        """
-        takes in
-        observations = [(game, agent_ids, observer_ids, action), ...]
-        k = an integer. (function has special behavior for k =,<,> 0)
+#     def observe_k(self, observations, K, tremble=0):
+#         """
+#         takes in
+#         observations = [(game, agent_ids, observer_ids, action), ...]
+#         k = an integer. (function has special behavior for k =,<,> 0)
 
-        """
-        # Key assumption: everyone who observes the action, observes
-        # who observes the action. Thus observation of action is
-        # common-knowledge among those who observe the action. First
-        # order beliefs: I believe that you are X. Second order
-        # beliefs: I believe that you believe that I am X OR I believe
-        # that you believe that she is Y. These are needed to learn
-        # from observation. Third order beliefs: I believe that you
-        # believe that she believes he is Z. My guess is that third
-        # order beliefs only diverge from second order beliefs if who
-        # observes who is unknown.
+#         """
+#         # Key assumption: everyone who observes the action, observes
+#         # who observes the action. Thus observation of action is
+#         # common-knowledge among those who observe the action. First
+#         # order beliefs: I believe that you are X. Second order
+#         # beliefs: I believe that you believe that I am X OR I believe
+#         # that you believe that she is Y. These are needed to learn
+#         # from observation. Third order beliefs: I believe that you
+#         # believe that she believes he is Z. My guess is that third
+#         # order beliefs only diverge from second order beliefs if who
+#         # observes who is unknown.
 
-        # if K < 0: return
-        genome = self.genome
-        agent_types = genome['agent_types']
-        rational_types = [t for t in agent_types if _issubclass(t, RationalAgent)]
+#         # if K < 0: return
+#         genome = self.genome
+#         agent_types = genome['agent_types']
+#         rational_types = [t for t in agent_types if _issubclass(t, RationalAgent)]
 
-        observations = [obs for obs in observations if self.world_id in obs[2]]
-        for observation in observations:
-            observers = observation[2]
+#         observations = [obs for obs in observations if self.world_id in obs[2]]
+#         for observation in observations:
+#             observers = observation[2]
 
-            for agent_id in observers:
-                if agent_id == self.world_id:
-                    continue
+#             for agent_id in observers:
+#                 if agent_id == self.world_id:
+#                     continue
 
-                if agent_id not in self.model:
-                    model = self.model[agent_id]
-                    for o_id in observers:
-                        model.belief[o_id]
-                        model.likelihood[o_id]
+#                 if agent_id not in self.model:
+#                     model = self.model[agent_id]
+#                     for o_id in observers:
+#                         model.belief[o_id]
+#                         model.likelihood[o_id]
 
-        for observation in observations:
-            game, participants, observers, action = observation
+#         for observation in observations:
+#             game, participants, observers, action = observation
 
-            decider_id = participants[0]
+#             decider_id = participants[0]
 
-            if decider_id == self.world_id:
-                continue
+#             if decider_id == self.world_id:
+#                 continue
 
-            likelihood = []
-            action_index = game.action_lookup[action]
+#             likelihood = []
+#             action_index = game.action_lookup[action]
 
-            # calculate the normalized likelihood for each type
-            for agent_type in agent_types:
-                model = self.model[decider_id][agent_type]
-                likelihood.append(model.decide_likelihood(game, participants, tremble)[action_index])
+#             # calculate the normalized likelihood for each type
+#             for agent_type in agent_types:
+#                 model = self.model[decider_id][agent_type]
+#                 likelihood.append(model.decide_likelihood(game, participants, tremble)[action_index])
 
-            # # Not using log-likelihoods
-            # self.likelihood[decider_id] *= likelihood
-            # self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
-            # prior = self.pop_prior
-            # likelihood = self.likelihood[decider_id]
-            # self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)
-            self.likelihood[decider_id] += np.log(likelihood)
-            prior = np.log(self.pop_prior)
-            likelihood = self.likelihood[decider_id]
+#             # # Not using log-likelihoods
+#             # self.likelihood[decider_id] *= likelihood
+#             # self.likelihood[decider_id] = normalized(self.likelihood[decider_id])
+#             # prior = self.pop_prior
+#             # likelihood = self.likelihood[decider_id]
+#             # self.belief[decider_id] = prior*likelihood/np.dot(prior,likelihood)
+#             self.likelihood[decider_id] += np.log(likelihood)
+#             prior = np.log(self.pop_prior)
+#             likelihood = self.likelihood[decider_id]
 
-            self.belief[decider_id] = np.exp(prior + likelihood)
-            self.belief[decider_id] = normalized(self.belief[decider_id])
+#             self.belief[decider_id] = np.exp(prior + likelihood)
+#             self.belief[decider_id] = normalized(self.belief[decider_id])
 
-        # Observe the other person, when this code runs at K=0
-        # nothing will happen because of the return at the top
-        # of the function.
+#         # Observe the other person, when this code runs at K=0
+#         # nothing will happen because of the return at the top
+#         # of the function.
 
-        if K == 0:
-            return
-        for agent_id, models in self.model.items():
-            models.observe_k(observations, K - 1, tremble)
+#         if K == 0:
+#             return
+#         for agent_id, models in self.model.items():
+#             models.observe_k(observations, K - 1, tremble)
 
-        # if K>0:
-    #     self.update_prior()
+#         # if K>0:
+#     #     self.update_prior()
 
-class IngroupAgent(RationalAgent):
-    def __init__(self, genome, world_id=None):
-        super(IngroupAgent, self).__init__(genome, world_id)
-        my_ingroup = self.ingroup()
+# class IngroupAgent(RationalAgent):
+#     def __init__(self, genome, world_id=None):
+#         super(IngroupAgent, self).__init__(genome, world_id)
+#         my_ingroup = self.ingroup()
 
-        # The indices of the agent_types who are in my in-group
-        self.ingroup_indices = list()
-        for agent_type in genome['agent_types']:
-            if agent_type in my_ingroup:
-                self.ingroup_indices.append(self._type_to_index[agent_type])
-        self.ingroup_indices = np.array(self.ingroup_indices)
+#         # The indices of the agent_types who are in my in-group
+#         self.ingroup_indices = list()
+#         for agent_type in genome['agent_types']:
+#             if agent_type in my_ingroup:
+#                 self.ingroup_indices.append(self._type_to_index[agent_type])
+#         self.ingroup_indices = np.array(self.ingroup_indices)
 
-    def sample_alpha(self, agent_id):
-        # If its me
-        if agent_id == self.world_id:
-            return 1
+#     def sample_alpha(self, agent_id):
+#         # If its me
+#         if agent_id == self.world_id:
+#             return 1
 
-        try:
-            return sum(self.belief[agent_id][self.ingroup_indices])
-        except Exception as e:
-            print('Alejandro promised this wouldn\'t happen. Look at the commented code below for a fix')
-            print(e)
-            raise e
+#         try:
+#             return sum(self.belief[agent_id][self.ingroup_indices])
+#         except Exception as e:
+#             print('Alejandro promised this wouldn\'t happen. Look at the commented code below for a fix')
+#             print(e)
+#             raise e
         
-        # try:
-        #     return sum(self.belief[agent_id][self.ingroup_indices])
-        # except IndexError:
-        #     return sum([self.belief_that(agent_id, t) for t in self.genome['agent_types'] if self.is_in_ingroup(t)])
-        # except KeyError:
-        #     self.belief[agent_id] = self.initialize_prior()
-        #     return sum(self.belief[agent_id][self.ingroup_indices])
+#         # try:
+#         #     return sum(self.belief[agent_id][self.ingroup_indices])
+#         # except IndexError:
+#         #     return sum([self.belief_that(agent_id, t) for t in self.genome['agent_types'] if self.is_in_ingroup(t)])
+#         # except KeyError:
+#         #     self.belief[agent_id] = self.initialize_prior()
+#         #     return sum(self.belief[agent_id][self.ingroup_indices])
 
-    def is_in_ingroup(self, a_type):
-        for i in self.ingroup():
+#     def is_in_ingroup(self, a_type):
+#         for i in self.ingroup():
             
-            # If its the same in-group exactly
-            if a_type == i:
-                return True
+#             # If its the same in-group exactly
+#             if a_type == i:
+#                 return True
 
-            # Or if its a subclass of the ingroup
-            if _issubclass(a_type, i):
-                return True
+#             # Or if its a subclass of the ingroup
+#             if _issubclass(a_type, i):
+#                 return True
             
-        return False
+#         return False
 
-class ReciprocalAgent(IngroupAgent):
-    @staticmethod
-    def ingroup():
-        return [ReciprocalAgent]
+# class ReciprocalAgent(IngroupAgent):
+#     @staticmethod
+#     def ingroup():
+#         return [ReciprocalAgent]
 
-class ZDAgent(Agent):
-    "Following Press Dyson 2012"
-    def __init__(self, genome, world_id=None):
-        self.world_id = world_id
-        
-        defaults = dict(chi=3, phi='midpoint')
-        keys = ["B","C","chi",'phi']
-        B,C,chi,phi = [genome[k] if k in genome else defaults[k] for k in keys]
-        
-        R = B - C; T = B; S = -C; P = 0
-        if phi == 'midpoint':
-            phi = (P-S) / ((P-S) + chi * (T-P)) / 2
-
-        assert chi > 0
-        assert 0 < phi <= (P-S) / ((P-S) + chi * (T-P)) # Equation 13 in Press Dyson
-
-        # Equation 12 Press Dyson
-        p_vec = (
-            1 - phi * (chi - 1) * (R-P) / (P-S),
-            1 - phi * (1 + chi * (T-P)/(P-S)),
-            phi * (chi + (T-P)/(P-S)),
-            0
-        )
-        
-        # Check that p_vec is a valid list of probabilities
-        if (np.array(p_vec) < 0).any() or (np.array(p_vec) > 1).any():
-            print(chi, phi, B, C)
-            raise Exception("p out of bounds: %s" % str(p_vec))
-                    
-        joint_actions = [('give','give'),
-                         ('give','keep'),
-                         ('keep','give'),
-                         ('keep','keep')]
-
-        self.reaction = {a:{'give':p,'keep':1-p} for a,p in zip(joint_actions,p_vec)}
-        self.memory = defaultdict(lambda:('give','give'))
-        
-    def observe(self, observations):
-        # Note: This will not work on sequential PD since it requires two simultaneous observations
-        # Can only judge a case where there are two observations
-        assert len(observations) == 2
-        
-        obs1, obs2 = observations
-        actions = (obs1['action'], obs2['action'])
-        players = (obs1['participant_ids'][0], obs2['participant_ids'][0])
-        me = self.world_id
-        
-        if me in players:
-            if me == players[1]:
-                players = tuple(reversed(players))
-                actions = tuple(reversed(actions))
-
-            self.memory[players[1]] = actions
-        
-    def decide_likelihood(self, game, agents=None, tremble=None):
-        me, other = agents
-        assert me == self.world_id
-        
-        return add_tremble(np.array(
-            [self.reaction[self.memory[other]][action] for action in game.actions]
-        ), tremble)
-    
-    
 class HyperAgent(Agent):
     '''NOTE: THIS IS NOT WORKING. IT SHOULD FOLLOW STEWART AND PLOTKIN AN
     IMPLEMENT ZD-ROBUST AGENTS
@@ -703,95 +637,99 @@ def leading_8_dict():
         t._nickname = n
     return dict(list(zip(names,types)))
 
-class Pavlov(Agent):
+class Memory1PDAgent(Agent):
     def __init__(self, genome, world_id=None):
+        # genome['p_vec'] is a length 4 tuple where each element is
+        # the probability of cooperation given the below possible
+        # joint outcomes in that order.
+        joint_actions = [('give','give'),
+                         ('give','keep'),
+                         ('keep','give'),
+                         ('keep','keep')]
+
         self.genome = genome
         self.world_id = world_id
-        self.strats = strats = [
-            {'give': 1, 'keep': 0},
-            {'keep': 1, 'give': 0}]
-        self.strat_index = 0
 
-    def observe(self, observations):
-        # Can only judge a case where there are two observations
-        # TODO: This will not work on sequential PD since it requires two simultaneous observations
-        obs1, obs2 = observations
-        actions = [obs1['action'], obs2['action']]
-        players = [obs1['participant_ids'][0], obs2['participant_ids'][0]]
-        me = self.world_id
-        if me in players:
-            a = players.index(me)
-            o = (a + 1) % 2
-            if actions[o] == 'keep':
-                self.strat_index = (self.strat_index + 1) % 2
+        self.memory = ConstantDefaultDict(genome['initial'])
 
-    def decide_likelihood(self, game, agents=None, tremble=None):
-        return add_tremble(np.array([self.strats[self.strat_index][action] for action in game.actions]), tremble)
+        p_vec = genome['p_vec']
+        # Check that p_vec is a valid list of probabilities
+        if (np.array(p_vec) < 0).any() or (np.array(p_vec) > 1).any():
+            raise Exception("p_vec out of bounds: %s" % str(p_vec))
 
-WSLS = Pavlov(subtype_name = "WSLS")
+        self.reaction = {a:{'give':p,'keep':1-p} for a,p in zip(joint_actions,p_vec)}
     
-class gTFT(Agent):
-    def __init__(self, genome, world_id=None):
-        self.world_id = world_id
-        self.genome = genome
-
-        self.y = y = genome['y']
-        self.p = p = genome['p']
-        self.q = q = genome['q']
-
-        self.rules = {None: {"give": y, 'keep': 1 - y},
-                      True: {"give": p, 'keep': 1 - p},
-                      False: {'give': q, 'keep': 1 - q}}
-
-        # Store the last action the other person took
-        self.cooperation = 'give'
-        self.cooperated = None
-
-    def decide_likelihood(self, game, agents=None, tremble=None):
-        return add_tremble(np.array(
-            [self.rules[self.cooperated][action] for action in game.actions]
-        ), tremble)
-
     def observe(self, observations):
         assert len(observations) == 2
-        for observation in observations:
-            game, participants, observers, action = [observation[k] for k in ['game', 'participant_ids', 'observer_ids', 'action']]
+        
+        obs1, obs2 = observations
+        players = (obs1['participant_ids'][0], obs2['participant_ids'][0])
+        actions = (obs1['action'], obs2['action'])
+        me = self.world_id
+        
+        if me in players:
+            if me == players[1]:
+                players = tuple(reversed(players))
+                actions = tuple(reversed(actions))
 
-            if self.world_id not in observation['observer_ids']:
-                continue
-            if self.world_id not in observation['participant_ids']:
-                continue
-            
-            # The person who decided the action was me (don't update)
-            if observation['participant_ids'][0] == self.world_id:
-                continue
+            self.memory[players[1]] = actions
 
-            # Update the state
-            self.cooperated = action is "give"
+    def decide_likelihood(self, game, agents=None, tremble=None):
+        me, other = agents
+        assert me == self.world_id
+        
+        return add_tremble(np.array(
+            [self.reaction[self.memory[other]][action] for action in game.actions]
+        ), tremble)
 
-TFT = gTFT(y=1, p=1, q=0, subtype_name = "TFT")
+WSLS = Memory1PDAgent(p_vec = (1, 0, 0, 1),
+                      initial=('give', 'give'),
+                      subtype_name = "WSLS")
+
+TFT = Memory1PDAgent(p_vec = (1, 0, 1, 0),
+                     initial=('give', 'give'),
+                     subtype_name = "TFT")
+
+AllC = Memory1PDAgent(p_vec = (1, 1, 1, 1),
+                     initial=('give', 'give'),
+                     subtype_name = "AllC")
+
+AllD = Memory1PDAgent(p_vec = (0, 0, 0, 0),
+                     initial=('give', 'give'),
+                     subtype_name = "AllD")
+
+
 # benefit = 3.; cost = 1.
 # q = min(1 - (benefit - (benefit - cost)) / (benefit - cost - -cost), (benefit - cost - 0) / (benefit - 0))
 # print q
-GTFT = gTFT(y=1, p=1, q=.66, subtype_name = "GTFT")
+GTFT = Memory1PDAgent(p_vec = (1, 0.66, 1, 0.66),
+                     initial=('give', 'give'),
+                     subtype_name = "GTFT")
 
-class AllC(Agent):
-    def decide_likelihood(self, game, agents=None, tremble=None):
-        odds = {'give': 1, 'keep': 0}
-        return add_tremble(np.array([odds[action] for action in game.actions]), tremble)
+def ZDAgent(B, C, chi=3, phi='midpoint'):
+    R = B - C; T = B; S = -C; P = 0
+    if phi == 'midpoint':
+        phi = (P-S) / ((P-S) + chi * (T-P)) / 2
 
+    assert chi > 0
+    assert 0 < phi <= (P-S) / ((P-S) + chi * (T-P)) # Equation 13 in Press Dyson
 
-class AllD(Agent):
-    def decide_likelihood(self, game, agents=None, tremble=None):
-        odds = {'give': 0, 'keep': 1}
-        return add_tremble(np.array([odds[action] for action in game.actions]), tremble)
-
+    # Equation 12 Press Dyson
+    p_vec = (
+        1 - phi * (chi - 1) * (R-P) / (P-S),
+        1 - phi * (1 + chi * (T-P)/(P-S)),
+        phi * (chi + (T-P)/(P-S)),
+        0
+    )
+    
+    return Memory1PDAgent(p_vec = p_vec,
+                     initial=('give', 'give'),
+                     subtype_name = "ZD")
 
 class RandomAgent(Agent):
     def decide_likelihood(self, game, *args, **kwargs):
         l = len(game.actions)
         return (1 / l,) * l
-
 
 class wTypeDict(dict):
     """test that modeled types are captured correctly"""
@@ -821,9 +759,6 @@ class wAgentDict(dict):
     def __missing__(self, agent_id):
         ret = self[agent_id] = wTypeDict(self.genome, agent_id)
         return ret
-
-def power_set(s):
-    return chain.from_iterable(combinations(s,r) for r in range(len(s)+1))
 
 class ModelNode(object):
     def __init__(self, genome, id_set):
@@ -901,9 +836,6 @@ class ModelNode(object):
                     model = self
                 else:
                     model = self.other_models[decider_id][agent_type]
-
-                # if agent_type == 'Extortion':
-                    # print(model.memory)
 
                 likelihood.append(model.decide_likelihood(game,participants,game.tremble)[action_index])
 
@@ -1161,12 +1093,6 @@ class WeAgent(Agent):
         else:
             return 0
 
-class FullLattice(dict):
-    def __init__(self, agent_set, common_knowledge):
-        agent_ids = common_knowledge['agent_ids']
-        for subset in subsets_with(agent_ids, agent_set):
-            lattice[subset] = model_node(subset, common_knowledge)
-
 class UniverseSet(frozenset):
     def __contains__(self,x):
         return True
@@ -1197,8 +1123,6 @@ class UniverseSet(frozenset):
     def __rsub__(self,other):
         return other-other
     
-Universe = UniverseSet()
-
 def power_set(s):
     return chain.from_iterable(combinations(s,r) for r in range(len(s)+1))
 
@@ -1206,205 +1130,3 @@ def subsets_with(base_set, common):
     assert  common <= base_set
     subsets = power_set(base_set-common)
     return list(map(common.union, subsets))
-
-class ModelDict(dict):
-    def __init__(self, common_knowledge):
-        self.model_types = [t for t in common_knowledge['agent_types'] if not issubclass(getattr(t,'type',t), RationalAgent)]
-        self.common_knowledge = common_knowledge
-
-    def __missing__(self, agent_id):
-        model_dict = {model_type : model_type(self.common_knowledge, agent_id) for model_type in self.model_types}
-        self[agent_id] = model_dict
-        return model_dict
-
-class JointState(object):
-    def __init__(self, prior, common_knowledge):
-        self.belief = defaultdict(lambda:copy(prior))
-        self.likelihood = defaultdict(lambda:np.zeros_like(prior))
-        self.model = ModelDict(common_knowledge)
-
-class ObserverLattice(dict):
-    def __init__(self, prior, common_knowledge):
-        self[Universe] = JointState(prior, common_knowledge)
-
-    def insert(self, new_set):
-        known_sets = list(self.keys())
-        new_sets = defaultdict(list)
-
-        for known_set in known_sets:
-            intersect = known_set&new_set
-            if intersect not in known_sets:
-                new_sets[intersect].append(known_set)
-
-        for new_set, supersets in new_sets.items():
-            smallest_superset = sorted(supersets, key = len)[0]
-            self[new_set] = deepcopy(self[smallest_superset])
-
-    def __missing__(self, agent_set):
-        """
-        when asked for the joint state of an uknown set,
-        return the state of the smallest superset of the given set
-        because this is a join-semilattice, there is guaranteed to be a least upper bound
-        """
-        smallest_superset = sorted([s for s in list(self.keys()) if s > agent_set], key = len)[0]
-        return self[smallest_superset]
-
-
-class RationalAgent(Agent):
-    """
-    This subclasses of RationalAgent can simulate Agent sublcasses and other RationalAgent subclasses
-    Rational subclasses only require a 'utility' method to be defined
-    """
-    def __init__(self, genome, world_id = None):
-        if world_id:
-            self.agent_id = self.world_id = agent_id = world_id
-            agent_set = self.agent_set = frozenset([agent_id])
-        else:
-            self.agent_id = self.world_id = "Overmind"
-            agent_set = self.agent_set = frozenset()
-
-        self.common_knowledge = common_knowledge = genome
-        self.beta = common_knowledge['beta']
-
-        try:
-            self.prior = self.__class__.make_prior(common_knowledge)
-        except Exception as e:
-            pass
-
-        try:
-            lattice = common_knowledge['overmind'].lattice
-        except KeyError:
-            lattice = ObserverLattice(self.prior, common_knowledge)
-
-        self.lattice = lattice
-        self.point_to_top()
-
-    def decide(self, game, participant_ids):
-        return self.act(game, participant_ids)
-
-    def act(self, game, participant_ids):
-        action_likelihoods = self.__class__._likelihood_of(game, participant_ids, self.belief, self.common_knowledge)
-        return np.random.choice(game.actions, p = action_likelihoods)
-
-    def point_to_top(self):
-        me = self.lattice[self.agent_set]
-        self.belief = me.belief
-        self.likelihood = me.likelihood
-
-    def observe(self, simultaneous_observations):
-        agent_set = self.agent_set
-        agent_types = self.common_knowledge['agent_types']
-
-        #this is a map of type set(id)->id->array
-        #it keeps track of the likelihoods that need updating for which subsets of observers
-        new_likelihoods = defaultdict(lambda: defaultdict(lambda:np.zeros_like(self.prior)))
-
-        for observation in simultaneous_observations:
-            #actor is in participants whose elements are a subset of observers
-            participants, observers = [observation[attr] for attr in ['participant_ids','observer_ids']]
-            #game, participants, observers, action = observation
-
-            actor = participants[0]
-
-            if not(agent_set <= observers):
-                continue
-
-            if observers not in self.lattice:
-                self.lattice.insert(observers)
-
-            known_subsets = [s for s in subsets_with(observers, agent_set) if s in self.lattice]
-            for subset in known_subsets:
-
-                joint = self.lattice[subset.union(set([actor]))]
-
-                type_likelihoods = []
-                for potential_type in agent_types:
-                    real_type = getattr(potential_type,'type', potential_type)
-                    if not issubclass(real_type, RationalAgent):
-                        likelihood = joint.model[actor][potential_type].likelihood_of(**observation)
-                    else:
-                        likelihood = real_type._likelihood_of(belief = joint.belief,
-                                                              common_knowledge = self.common_knowledge,
-                                                              **observation)
-                    type_likelihoods.append(likelihood)
-
-                new_likelihoods[subset][actor]+= np.log(type_likelihoods)
-
-        #update lattice beliefs using new_likelihoods
-        prior =  np.log(self.prior)
-        for observers, actor_likelihood in new_likelihoods.items():
-            joint = self.lattice[observers]
-            for actor, new_likelihood in actor_likelihood.items():
-                joint.likelihood[actor] += new_likelihood
-                #print "prior", prior
-                #print "likelihood", joint.likelihood[actor]
-                joint.belief[actor] = normalized(np.exp(prior+joint.likelihood[actor]))
-
-            for agent_type in agent_types:
-                real_type = getattr(agent_type,'type', agent_type)
-                if not issubclass(real_type, RationalAgent):
-                    for observer in observers:
-                        joint.model[observer][agent_type].observe(simultaneous_observations)
-
-        self.point_to_top()
-
-    def likelihood_of(self, game, participant_ids, belief = None, common_knowledge = None, tremble = 0, action = None, **kwargs):
-        if belief == None:
-            belief = self.lattice[self.agent_set].belief
-        if common_knowledge == None:
-            common_knowledge = self.common_knowledge
-        return self.__class__._likelihood_of(game, participant_ids, belief, common_knowledge, tremble, action, **kwargs)
-
-    @classmethod
-    def _likelihood_of(cls, game, participant_ids, belief, common_knowledge, tremble = 0, action = None, **kwargs):
-        """
-        this is a class method so that 'RationalAgents' can model each other without needing to
-        build entire copies of each other.
-        Here we assume that all 'RationalAgents' share the same theory of mind and priors.
-        """
-        utility_per_action = [cls.utility(game.payoffs[a], participant_ids, belief, common_knowledge) for a in game.actions]
-        likelihoods = add_tremble(softmax(utility_per_action, common_knowledge['beta']), tremble)
-
-        if action == None:
-            return likelihoods
-        else:
-            return likelihoods[game.actions.index(action)]
-
-    @classmethod
-    def utility(cls, payoffs, participant_ids, belief, common_knowledge):
-        """
-        This is a class method for the same reason 'likelihood_of' is
-        """
-        raise Warning("RationalAgent is a non-functional ABC. Create a subclass with 'utility' method defined")
-
-    @staticmethod
-    def make_prior(common_knowledge):
-        me = common_knowledge['type']
-        prior = common_knowledge['prior']
-        agent_types = common_knowledge['agent_types']
-
-        outgroup_prior = (1-prior)/(len(agent_types)-1)
-        return  np.array([prior if issubclass(getattr(t,'type',t),RationalAgent) else outgroup_prior for t in agent_types])
-
-### The Rational Agent of interest
-class ReciprocalAgent(RationalAgent):
-    """
-    ReciprocalAgent cares about an agent's payoffs proportional to its belief that they are
-    also ReciprocalAgents
-    """
-    @classmethod
-    def utility(cls, payoffs, participant_ids, belief, common_knowledge):
-        cls_index = common_knowledge['agent_types'].index(cls)
-        weights = [belief[p_id][cls_index] for p_id in participant_ids]
-        weights[0] = 1
-        return np.dot(payoffs,weights)
-
-    @staticmethod
-    def make_prior(common_knowledge):
-        me = common_knowledge['type']
-        prior = common_knowledge['prior']
-        agent_types = common_knowledge['agent_types']
-
-        outgroup_prior = (1-prior)/(len(agent_types)-1)
-        return  np.array([prior if t is me else outgroup_prior for t in agent_types])
-

@@ -249,31 +249,6 @@ class AllNoneObserve(Playable):
         self.N_players = playable.N_players
         self.playable = playable
 
-        # This is the special case of when the overmind is active
-        if "overmind" in kwargs and "player_types" in kwargs:
-            self.overmind = kwargs["overmind"]
-            player_types = kwargs["player_types"]
-            try:
-                types, pop = list(zip(*player_types))
-            except TypeError:
-                pop = tuple(1 for t in player_types)
-                types = player_types
-
-            type_order = []
-            for t, p in zip(types, pop):
-                type_order.extend([t] * p)
-
-            overmind_players = set()
-            for i, t in enumerate(type_order):
-                real_type = getattr(t, "type", t)
-                if issubclass(real_type, RationalAgent):
-                    overmind_players.add(i)
-
-            self.overmind_indices = frozenset(overmind_players)
-
-        else:
-            self.overmind_indices = frozenset()
-
     def next_game(self):
         g = self.playable.next_game()
         self.N_players = g.N_players
@@ -293,15 +268,10 @@ class AllNoneObserve(Playable):
 
         id_to_observer = {observer.world_id: observer for observer in observers}
         observer_indices = frozenset(list(id_to_observer.keys()))
-        overmind_observer_indices = observer_indices & self.overmind_indices
 
-        if overmind_observer_indices:
-            self.overmind.observe(obvervations)
-            for o in overmind_observer_indices:
-                id_to_observer[o].point_to_top()
-
-        for non_overmind_index in observer_indices - self.overmind_indices:
-            id_to_observer[non_overmind_index].observe(observations)
+        for observer_index in observer_indices:
+            if hasattr(id_to_observer[observer_index], 'observe'):
+                id_to_observer[observer_index].observe(observations)
 
         return payoffs, observations, notes
 

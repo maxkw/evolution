@@ -4,23 +4,13 @@ import seaborn as sns
 from tqdm import tqdm
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
-from params import default_params, default_genome
+from params import default_genome
 from world import World
+import agents as ag
 from agents import (
-    ReciprocalAgent,
-    SelfishAgent,
-    AltruisticAgent,
-    RationalAgent,
     WeAgent,
 )
 from agents import (
-    gTFT,
-    GTFT,
-    TFT,
-    AllC,
-    AllD,
-    Pavlov,
-    RandomAgent,
     leading_8_dict,
     shorthand_to_standing,
 )
@@ -55,16 +45,7 @@ def matchup(player_types, game, **kwargs):
         pop = tuple(1 for t in player_types)
         types = player_types
 
-    if "overmind" in kwargs:
-        if not kwargs["overmind"]:
-            del kwargs["overmind"]
-        else:
-            kwargs["overmind"] = RationalAgent(
-                default_genome(agent_type=True, agent_types=types, **kwargs)
-            )
-
-    condition = dict(player_types=types, **kwargs)
-    params = default_params(**condition)
+    params = dict(player_types=types, **kwargs)
 
     try:
         g = games.__dict__[game](**kwargs)
@@ -87,7 +68,7 @@ def matchup(player_types, game, **kwargs):
     for t, p in zip(types, pop):
         player_types.extend([t] * p)
 
-    genomes = [default_genome(agent_type=t, **condition) for t in player_types]
+    genomes = [default_genome(agent_type=t, **params) for t in player_types]
 
     world = World(params, genomes)
     fitness, history = world.run()
@@ -354,9 +335,6 @@ def plot_beliefs(
 
 
 def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **kwargs):
-    condition = dict(locals(), **kwargs)
-    params = default_params(**condition)
-
     player_combos = MultiArg(combinations_with_replacement(player_types, 2))
     all_data = matchup(player_combos, rounds=max_rounds, **kwargs)
 
