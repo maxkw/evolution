@@ -1,4 +1,3 @@
-
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
@@ -7,7 +6,7 @@ from copy import copy, deepcopy
 from utils import HashableDict, _issubclass
 from itertools import chain, product, combinations
 import networkx as nx
-from scipy.misc import logsumexp
+
 
 PRETTY_KEYS = {"RA_prior": "prior",
                "RA_K": 'K'}

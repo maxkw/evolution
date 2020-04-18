@@ -1,4 +1,3 @@
-
 import pandas as pd
 from datetime import date
 import numpy as np
@@ -181,16 +180,20 @@ def ssd_v_param(param, player_types, **kwargs):
         raise Exception("`param_vals` %s is not defined. Pass this variable" % param)
 
 
-def ssd_v_params(params, player_types, return_rounds=False, **kwargs):
-    """`params`: <dict> with <string> keys that name the parameter and
+def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
+    """`param_dict`: <dict> with <string> keys that name the parameter and
     values that are lists of the parameters to range over.
 
     """
 
     records = []
 
-    for pvs in product(*list(params.values())):
-        ps = dict(list(zip(params, pvs)))
+    if return_rounds == False:
+        kwargs['per_round'] = False
+
+    product_params = list(product(*list(param_dict.values())))
+    for pvs in tqdm(product_params, disable=params.disable_tqdm):
+        ps = dict(list(zip(param_dict, pvs)))
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
@@ -204,8 +207,7 @@ def ssd_v_params(params, player_types, return_rounds=False, **kwargs):
         for r, pop in enumerate(expected_pop_per_round[start:], start=start):
             for t, p in zip(player_types, pop):
                 records.append(
-                    dict(
-                        {
+                    dict({
                             "rounds": r,
                             "type": t.short_name("agent_types"),
                             "proportion": p,
@@ -216,6 +218,40 @@ def ssd_v_params(params, player_types, return_rounds=False, **kwargs):
 
     return pd.DataFrame(records)
 
+def ssd_bc(param_dict, player_types, return_rounds=False, **kwargs):
+    """`param_dict`: <dict> with <string> keys that name the parameter and
+    values that are lists of the parameters to range over.
+
+    """
+
+    records = []
+
+    if return_rounds == False:
+        kwargs['per_round'] = False
+    else:
+        raise NotImplementedError
+
+    WA_index = player_types.index(WeAgent)
+
+    for o in tqdm(param_dict['observability']):
+        
+        for ei in param_dict['expected_interactions']:
+            ps = dict(observability = o, expected_interactions = ei)
+            expected_pop_per_round = evo_analysis(
+                player_types=player_types, **dict(kwargs, **ps)
+            )[-1] # There is only one round so just pop it out.
+
+            if expected_pop_per_round[WA_index] == max(expected_pop_per_round) and expected_pop_per_round > 1/len(player_types):
+                
+
+                break
+    
+            for t, p in zip(player_types, expected_pop_per_round[0]):
+                records.append(dict({
+                    "type": t.short_name("agent_types"),
+                    "proportion": p,
+                }, **ps))
+
 
 def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
     return ssd_v_params(
@@ -224,19 +260,25 @@ def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
 
 
 @plotter(ssd_v_params)
-def params_heat(params, player_types, data=[], graph_kwargs={}, **kwargs):
+def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
+    
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop("data")
-        d = data.pivot(index=args[1], columns=args[0], values=args[2])
+        try:
+            d = data.pivot(index=args[1], columns=args[0], values=args[2])
+        except Exception as e:
+            print('`param_dict` likely has duplicate values')
+            raise e
+            
         ax = sns.heatmap(d, **kwargs)
         ax.invert_yaxis()
 
-    assert len(params) == 2
+    assert len(param_dict) == 2
     g = sns.FacetGrid(data=data, col="type")
     g.map_dataframe(
         draw_heatmap,
-        list(params.keys())[1],
-        list(params.keys())[0],
+        list(param_dict.keys())[1],
+        list(param_dict.keys())[0],
         "proportion",
         cbar=False,
         square=True,
@@ -309,17 +351,6 @@ def ssd_param_search(
 
     return ret
 
-
-def compare_ssd_v_param(param, player_types, opponent_types, **kwargs):
-    dfs = []
-    for player_type in player_types:
-        df = ssd_v_param(
-            param=param, player_types=(player_type,) + opponent_types, **kwargs
-        )
-        dfs.append(df[df["type"] == player_type.short_name("agent_types")])
-    return pd.concat(dfs, ignore_index=True)
-
-
 def make_legend():
     legend = plt.legend(frameon=True)
     for i, texts in enumerate(legend.get_texts()):
@@ -331,15 +362,6 @@ def make_legend():
             texts.set_text("Altruistic")
 
     return legend
-
-
-# def gaussian_filter(df, sigma = 1):
-#     """takes a dataframe where columns are agent types, indices are a parameter, and values are proportions"""
-#     index = df.index
-#     columns = df.columns
-#     filtered = gaussian_filter1d(df.values, sigma, axis = 0, mode = 'nearest')
-#     return pd.DataFrame(filtered, columns = columns, index = index)
-
 
 @plotter(
     ssd_v_param,
@@ -431,23 +453,6 @@ def limit_param_plot(
     sns.despine()
     plt.tight_layout()
 
-
-def param_v_rounds(param, player_types, rounds, **kwargs):
-    return ssd_v_param(param, player_types, return_rounds=True, rounds=rounds, **kwargs)
-
-
-def compare_param_v_rounds(
-    param, player_types, opponent_types, direct, rounds, **kwargs
-):
-    dfs = []
-    for player_type in player_types:
-        df = param_v_rounds(
-            param, (player_type,) + opponent_types, direct, rounds, **kwargs
-        )
-        dfs.append(df[df["type"] == player_type.short_name("agent_types")])
-    return pd.concat(dfs, ignore_index=True)
-
-
 @plotter(ssd_v_xy)
 def param_v_rounds_heat(
     x_param, y_param, x_vals, y_vals, player_types, data=[], **kwargs
@@ -469,17 +474,6 @@ def param_v_rounds_heat(
     )
 
     # linewidths=.5)
-
-
-@plotter(param_v_rounds)
-def param_v_rounds_plot(
-    param, player_types, experiment=param_v_rounds, data=[], **kwargs
-):
-    g = sns.FacetGrid(data=data, col="type", hue=param)
-    g.map(plt.plot, "rounds", "proportion")
-    g.set_titles("{col_name}")
-    g.axes[0][0].legend(title=param, loc="best")
-
 
 if __name__ == "__main__":
     pass

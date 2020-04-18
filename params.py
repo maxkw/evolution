@@ -1,11 +1,11 @@
-import numpy as np
 import seaborn as sns
 
 sns.set_style('ticks')
 sns.set_context('paper', font_scale=1.5)
 
-n_jobs = 1
+n_jobs = 8
 disable_tqdm = False
+memoized = True
 
 def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_args):
     try:

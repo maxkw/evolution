@@ -1,4 +1,3 @@
-
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
@@ -87,7 +86,7 @@ def matchup(player_types, game, **kwargs):
     # analysis very efficiently. It should only apply when we aren't
     # doing per_round analysis but are doing IPD. One example of this
     # is the tremble condition for the IPD.
-    if kwargs['per_round'] == False and type(g) == type(RepeatedPrisonersTournament()) :
+    if type(g) == type(RepeatedPrisonersTournament()) and kwargs['per_round'] == False:
         for t, f in zip(player_types, fitness):
             record.append({
                 "player_types": tuple(player_types),

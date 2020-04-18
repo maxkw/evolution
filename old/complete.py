@@ -149,3 +149,7 @@ def complete_analysis(payoff, pop_size, s, **kwargs):
         pop_sum += np.array(partition) * p
 
     return pop_sum / pop_size
+
+if __name__ == '__main__':
+    for i in agent_pop_simplex(10,3):
+        print(i)

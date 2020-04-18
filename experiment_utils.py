@@ -209,31 +209,15 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
 
             results = []
             # for trial in tqdm(uncached_trials, disable=(verbose == 0)):
-            for trial in tqdm(uncached_trials, disable=params.n_jobs > 1):
-                np.random.seed(trial)
-                result = function(**copy(args))
-                for d in result:
-                    d['trial'] = trial
-                    # results.append(dict(args, **d))
-                    results.append(d)
 
-            # trial_args = []
-            # for trial in uncached_trials:
-            #     trial_args.append(
-            #         dict(args, **{'trial': trial})
-            #     )
-
-            # rs = Parallel(n_jobs=4)(delayed(function)(**targs) for targs in tqdm(trial_args))
-            # results = []
-            # for r, targ in zip(rs, trial_args):
-            #     for d in r:
-            #         results.append(dict(targ, **d))
-                    
-            # results = []
-            # for targ in tqdm(trial_args, disable=(verbose == 0)):
-            #     result = function(**targ)
-            #     for d in result:
-            #         results.append(dict(targ, **d))
+            # Check the length to avoid the progress bars from getting messed up
+            if len(uncached_trials):
+                for trial in tqdm(uncached_trials, disable=params.n_jobs > 1 or params.disable_tqdm):
+                    np.random.seed(trial)
+                    result = function(**copy(args))
+                    for d in result:
+                        d['trial'] = trial
+                        results.append(d)
             
             # consolidate new and old results and save
             if results:
@@ -245,7 +229,6 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
                 if memoized:
                     cache.to_pickle(cache_file)
 
-            # return cache.query("trial in %s" % trials).reset_index(level=['trial', 'player_types', 'type', 'round'])
             return cache.query("trial in %s" % trials).reset_index(level=cache.index.names)
 
         experiment_call._decorator = "experiment"
@@ -305,12 +288,9 @@ def multi_call(unpack=False, verbose=2, **kwargs):
                 return function(**static_args)
 
             dfs = Parallel(n_jobs=params.n_jobs)(delayed(function)(**arg_call) for arg_call in tqdm(arg_calls, disable=params.disable_tqdm))
-            # dfs = []
-            # for arg_call in tqdm(arg_calls, disable=(verbose == 0)):
-            #     dfs.append(function(**arg_call))
-
-            ret = pd.concat(dfs)
-            return ret
+            dfs = pd.concat(dfs)
+            return dfs
+            
 
         return m_call
 
