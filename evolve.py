@@ -29,8 +29,11 @@ def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwarg
         for pop_pair in product(matchups, populations)
     ]
 
-    payoffs = Parallel(n_jobs=params.n_jobs)(delayed(simulation)(**pop_dict) for pop_dict in tqdm(matchup_pop_dicts, disable=params.disable_tqdm))
- 
+    payoffs = Parallel(n_jobs=params.n_jobs)(
+        delayed(simulation)(**pop_dict)
+        for pop_dict in tqdm(matchup_pop_dicts, disable=params.disable_tqdm)
+    )
+
     type_to_index = dict(list(map(reversed, enumerate(sorted(player_types)))))
     original_order = np.array([type_to_index[t] for t in player_types])
 
@@ -51,9 +54,7 @@ def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwarg
         yield pop
 
         fitnesses = sim(pop)
-        actions = [
-            (b, d) for b, d in permutations(range(type_count), 2) if pop[d] != 0
-        ]
+        actions = [(b, d) for b, d in permutations(range(type_count), 2) if pop[d] != 0]
         probs = []
         for b, d in actions:
             death_odds = pop[d] / pop_size
@@ -99,7 +100,11 @@ def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwa
         columns="type", index="generation", values="population"
     )
     type_order = dict(
-        list(map(reversed, enumerate([t.short_name("agent_types") for t in player_types])))
+        list(
+            map(
+                reversed, enumerate([t.short_name("agent_types") for t in player_types])
+            )
+        )
     )
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
 
@@ -140,39 +145,37 @@ def ssd_v_param(param, player_types, **kwargs):
     records = []
 
     if param == "rounds" and "param_vals" not in kwargs:
-        kwargs['per_round'] = True
+        kwargs["per_round"] = True
         expected_pop_per_round = evo_analysis(player_types=player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start=1):
             for t, p in zip(player_types, pop):
-                records.append({
-                    "rounds": r,
-                    "type": t.short_name("agent_types"),
-                    "proportion": p,
-                })
+                records.append(
+                    {"rounds": r, "type": t.short_name("agent_types"), "proportion": p,}
+                )
 
         return pd.DataFrame(records)
 
     if "param_vals" in kwargs:
         vals = kwargs["param_vals"]
         del kwargs["param_vals"]
-        
-        kwargs['per_round'] = False
+
+        kwargs["per_round"] = False
         for x in tqdm(vals, disable=params.disable_tqdm):
-            expected_pop = evo_analysis(player_types=player_types, **dict(kwargs, **{param: x}))
-            
+            expected_pop = evo_analysis(
+                player_types=player_types, **dict(kwargs, **{param: x})
+            )
+
             return_rounds = kwargs.get("return_rounds", False)
             if return_rounds:
                 raise NotImplementedError
 
             assert len(expected_pop) == 1
-            
+
             expected_pop = expected_pop[-1]
             for t, p in zip(player_types, expected_pop):
-                records.append({
-                    param: x,
-                    "type": t.short_name("agent_types"),
-                    "proportion": p,
-                })
+                records.append(
+                    {param: x, "type": t.short_name("agent_types"), "proportion": p,}
+                )
 
         return pd.DataFrame(records)
 
@@ -189,7 +192,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     records = []
 
     if return_rounds == False:
-        kwargs['per_round'] = False
+        kwargs["per_round"] = False
 
     product_params = list(product(*list(param_dict.values())))
     for pvs in tqdm(product_params, disable=params.disable_tqdm):
@@ -207,7 +210,8 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         for r, pop in enumerate(expected_pop_per_round[start:], start=start):
             for t, p in zip(player_types, pop):
                 records.append(
-                    dict({
+                    dict(
+                        {
                             "rounds": r,
                             "type": t.short_name("agent_types"),
                             "proportion": p,
@@ -218,40 +222,61 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
 
     return pd.DataFrame(records)
 
-def ssd_bc(param_dict, player_types, return_rounds=False, **kwargs):
-    """`param_dict`: <dict> with <string> keys that name the parameter and
-    values that are lists of the parameters to range over.
 
-    """
-
-    records = []
-
-    if return_rounds == False:
-        kwargs['per_round'] = False
-    else:
-        raise NotImplementedError
-
+def ssd_bc(ei_stop, observe_param, delta, player_types, **kwargs):
+    kwargs["per_round"] = False
     WA_index = player_types.index(WeAgent)
 
-    for o in tqdm(param_dict['observability']):
-        
-        for ei in param_dict['expected_interactions']:
-            ps = dict(observability = o, expected_interactions = ei)
-            expected_pop_per_round = evo_analysis(
-                player_types=player_types, **dict(kwargs, **ps)
-            )[-1] # There is only one round so just pop it out.
+    records = []
+    for (b, c), ei_stop in tqdm(ei_stop.items(), disable=params.disable_tqdm):
+        ei = 1
+        for o in tqdm(observe_param, disable=params.disable_tqdm):
+            while ei <= ei_stop:
+                ps = dict(observability=o, expected_interactions=ei, benefit=b, cost=c)
+                expected_pop = evo_analysis(
+                    player_types=player_types, **dict(kwargs, **ps)
+                )
+                # There is only one round so just pop it out.
+                expected_pop = expected_pop[-1]
 
-            if expected_pop_per_round[WA_index] == max(expected_pop_per_round) and expected_pop_per_round > 1/len(player_types):
-                
+                # If WeAgent has both the largest share of any agents
+                # Second line is break ties -- if they are all equal it must be higher than equal
+                WA_expected_pop = expected_pop[WA_index]
+                if WA_expected_pop == max(expected_pop) and WA_expected_pop > 1 / len(
+                    player_types
+                ):
 
-                break
-    
-            for t, p in zip(player_types, expected_pop_per_round[0]):
-                records.append(dict({
-                    "type": t.short_name("agent_types"),
-                    "proportion": p,
-                }, **ps))
+                    records.append(
+                        dict(
+                            observability=o,
+                            expected_interactions=ei,
+                            benefit=b,
+                            cost=c,
+                            proportion=WA_expected_pop,
+                        )
+                    )
 
+                    break
+                ei += delta
+            else:
+                raise Exception("Hit the stop. Raise trials")
+
+    return pd.DataFrame(records)
+
+
+@plotter(ssd_bc)
+def bc_plot(
+    ei_stop, observe_param, delta, player_types, data=[], graph_kwargs={}, **kwargs
+):
+    data["benefit"] = data["benefit"].astype("category")
+
+    fig, ax = plt.subplots(figsize=(3.5, 3))
+
+    sns.lineplot(x="observability", y="expected_interactions", hue="benefit", data=data, ax = ax)
+    plt.xlabel("Probability of observation")
+    plt.ylabel("Expected Interactions")
+    sns.despine()
+    plt.tight_layout()
 
 def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
     return ssd_v_params(
@@ -261,34 +286,55 @@ def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
 
 @plotter(ssd_v_params)
 def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
-    
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop("data")
         try:
             d = data.pivot(index=args[1], columns=args[0], values=args[2])
         except Exception as e:
-            print('`param_dict` likely has duplicate values')
+            print("`param_dict` likely has duplicate values")
             raise e
-            
+        
         ax = sns.heatmap(d, **kwargs)
         ax.invert_yaxis()
 
     assert len(param_dict) == 2
-    g = sns.FacetGrid(data=data, col="type")
-    g.map_dataframe(
-        draw_heatmap,
-        list(param_dict.keys())[1],
-        list(param_dict.keys())[0],
-        "proportion",
-        cbar=False,
-        square=True,
-        vmin=0,
-        vmax=1,
-        # vmax=data['frequency'].max(),
-        cmap=plt.cm.gray_r,
-        linewidths=0.5,
-    )
 
+    if graph_kwargs['onlyRA']:
+        fig, ax = plt.subplots(figsize=(3.5, 3))
+        draw_heatmap(
+            graph_kwargs['xy'][0],
+            graph_kwargs['xy'][1],
+            "proportion",
+            data=data[data['type'].str.contains('WeAgent')],
+            cbar=True,
+            square=True,
+            vmin=0,
+            vmax=1,
+            # vmax=data['frequency'].max(),
+            cmap=plt.cm.gray_r,
+            linewidths=0.5,
+        )
+    
+    else:
+        g = sns.FacetGrid(data=data, col="type")
+        g.map_dataframe(
+            draw_heatmap,
+            graph_kwargs['xy'][0],
+            graph_kwargs['xy'][1],
+            "proportion",
+            cbar=False,
+            square=True,
+            vmin=0,
+            vmax=1,
+            # vmax=data['frequency'].max(),
+            cmap=plt.cm.gray_r,
+            linewidths=0.5,
+        )
+
+    plt.xlabel(graph_kwargs['xlabel'])
+    plt.ylabel(graph_kwargs['ylabel'])
+    plt.tight_layout()
+    
 
 def ssd_param_search(
     param, param_lim, player_types, target, param_tol, mean_tol, **kwargs
@@ -351,8 +397,9 @@ def ssd_param_search(
 
     return ret
 
+
 def make_legend():
-    legend = plt.legend(frameon=True)
+    legend = plt.legend(frameon=True, framealpha=1)
     for i, texts in enumerate(legend.get_texts()):
         if "WeAgent" in texts.get_text():
             texts.set_text("Reciprocal")
@@ -362,6 +409,7 @@ def make_legend():
             texts.set_text("Altruistic")
 
     return legend
+
 
 @plotter(
     ssd_v_param,
@@ -387,6 +435,7 @@ def limit_param_plot(
     fig, ax = plt.subplots(figsize=(3.5, 3))
     # TODO: Investigate this, some weird but necessary data cleaning
     data[data["proportion"] < 0] = 0
+    # data[data["proportion"]] = 0
     data = data[data["type"] != 0]
 
     data = data[[param, "proportion", "type"]].pivot(
@@ -395,31 +444,40 @@ def limit_param_plot(
     # data = gaussian_filter(data, sigma = 1)
 
     type_order = dict(
-        list(map(reversed, enumerate([t.short_name("agent_types") for t in player_types])))
+        list(
+            map(
+                reversed, enumerate([t.short_name("agent_types") for t in player_types])
+            )
+        )
     )
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
-
+    
     if stacked:
-        data.plot.area(stacked=True, ax=ax, ylim=[0, 1], legend=False, **graph_kwargs)
+        data.plot.bar(stacked=True, ax=ax, width=.99, ylim=[0, 1], legend=False, linewidth=0, **graph_kwargs)
         if legend:
             make_legend()
 
         if param == "rounds":
-            plt.xlim([1, kwargs["rounds"]])
+            # plt.xlim([1, kwargs["rounds"]])
+            plt.xticks(range(4,kwargs['rounds'],5), rotation='horizontal')
+
+        elif param == "tremble":
+            plt.xticks(rotation='horizontal')
+
         else:
             print(kwargs["param_vals"])
-            plt.xlim([min(kwargs["param_vals"]), max(kwargs["param_vals"])])
+            plt.xticks(range(0, len(kwargs["param_vals"]), 2), rotation='horizontal')
 
         if param in ["rounds", "expected_interactions"]:
-            plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
+            plt.xlabel("Pairwise Interactions Per Generation")
+            # plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
+            
             # if param == 'expected_interactions':
             # plt.xticks(range(1,11))
 
         elif param == "observability":
-            plt.xlabel("Probability of observation\n" r"$\omega$")
-
-            plt.xticks([0, 0.2, 0.4, 0.6, 0.8, 1])
-            plt.xticks(np.linspace(0, 1, 5))
+            # plt.xlabel("Probability of observation\n" r"$\omega$")
+            plt.xlabel(r"Probability of observation ($\omega$)")
 
         elif param == "tremble":
             plt.xlabel(r"Noise Probability ($\epsilon$)")
@@ -445,13 +503,14 @@ def limit_param_plot(
         plt.legend()
 
     plt.yticks([0, 0.5, 1])
-    plt.ylabel("Frequency")
+    plt.ylabel("Equilibrium Frequency")
 
     if graph_funcs is not None:
         graph_funcs(ax)
 
     sns.despine()
     plt.tight_layout()
+
 
 @plotter(ssd_v_xy)
 def param_v_rounds_heat(
@@ -474,6 +533,7 @@ def param_v_rounds_heat(
     )
 
     # linewidths=.5)
+
 
 if __name__ == "__main__":
     pass

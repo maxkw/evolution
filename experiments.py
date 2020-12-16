@@ -224,7 +224,6 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
 def population_beliefs(believer, opponent_types, believed_types, population, **kwargs):
     """ Use this for the public belief games"""
     player_types = list(zip(opponent_types, population))
-    believer_repr = repr(believer)
     data = matchup(
         player_types=player_types,
         believed_types=believed_types,
@@ -286,12 +285,33 @@ def plot_beliefs(
         # Default
         return str(t_n)
 
-
     fig, axes = plt.subplots(figsize=(8*len(type_names)/3, 3))
     axes = {t: plt.subplot(1, len(type_names), type_names.index(t) + 1) for t in type_names}
-
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
         ax = axes[actual]
+
+        dm = d.groupby("round").mean().reset_index()
+        dm.plot(
+            x="round",
+            y="value",
+            ax=ax,
+            ylim=(-0.05, 1.05),
+            yticks=[0,.25,.5,.75,1],
+            xlim=(0, d["round"].max()),
+            title="vs %s" % name(actual),
+            label=name(believed),
+            kind="scatter",
+            legend=(actual == type_names[-1]),
+            linewidth=2,
+            color=color[believed],
+        )
+
+
+    # NOTE: this for-loop should not be combined with the above
+    # because it will screw up the legend.
+    for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
+        ax = axes[actual]
+        
         for trial, t in d.groupby(["trial"]):
             if trial >= traces:
                 break
@@ -302,32 +322,23 @@ def plot_beliefs(
                 y="value",
                 ax=ax,
                 legend=False,
+                label='_nolegend_',
                 color=color[believed],
                 linestyle="-",
+                marker='.',
                 alpha=0.1,
             )
 
-        dm = d.groupby("round").mean()
-
-        dm.plot(
-            y="value",
-            ax=ax,
-            ylim=(0, 1),
-            xlim=(0, d["round"].max()),
-            title="vs %s" % name(actual),
-            legend=(actual == type_names[-1]),
-            label=name(believed),
-            linewidth=5,
-            color=color[believed],
-        )
-
+        
         if actual == type_names[0]:
-            ax.set_ylabel("Belief")
+            ax.set_ylabel("Average Belief")
+        else:
+            ax.set_ylabel("")
 
         if "population" in kwargs:
             ax.set_xlabel("# of Observations")
         else:
-            ax.set_xlabel("# of Interactions")
+            ax.set_xlabel("Pairwise Interactions")
 
     sns.despine()
     plt.tight_layout()

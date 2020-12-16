@@ -225,9 +225,6 @@ def steady_state(matrix):
             raise
     vals,vecs = np.linalg.eig(matrix)
 
-    def almost_1(n):
-        return np.isclose(n,1,.001) or (np.isclose(n.real,1,.001) and np.isclose(n.imag,0,.001))
-
     def negative_vec(vec):
         return all([i<0 or np.isclose(i,0) for i in vec])
 
@@ -373,7 +370,8 @@ def sim_to_mcp(player_types, pop_size, analysis_type = 'limit', **kwargs):
     # single file since this function will make way too many files
     # (one for each parameter). Instead need to cache the output of
     # THIS function.
-    payoffs = Parallel(n_jobs=params.n_jobs)(delayed(simulation)(**pop_dict) for pop_dict in tqdm(matchup_pop_dicts, disable=params.disable_tqdm))
+    # payoffs = Parallel(n_jobs=params.n_jobs)(delayed(simulation)(**pop_dict) for pop_dict in tqdm(matchup_pop_dicts, disable=params.disable_tqdm))
+    payoffs = Parallel(n_jobs=params.n_jobs)(delayed(simulation)(**pop_dict) for pop_dict in matchup_pop_dicts)
 
     assert not (analysis_type == 'limit') or (len(payoffs[0]) == 2)
 

@@ -1,18 +1,13 @@
 import seaborn as sns
 
 sns.set_style('ticks')
-sns.set_context('paper', font_scale=1.5)
+sns.set_context('paper', font_scale=1)
 
 n_jobs = 8
 disable_tqdm = False
 memoized = True
 
 def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_args):
-    try:
-        RA_prior = agent_type.genome["RA_prior"]
-    except:
-        pass
-
     try:
         agent_types = agent_type.genome['agent_types']
     except:
@@ -28,7 +23,7 @@ def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_a
     }
 
     for key in extra_args:
-        if key in genome and key is not 'prior':
+        if key in genome and key != 'prior':
             genome[key] = extra_args[key]
 
     return genome

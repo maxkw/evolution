@@ -959,66 +959,50 @@ class IndefiniteMatchup(DecisionSeq):
     def __init__(self, gamma, game):
         self.gamma = gamma
         self.game = game
-        self.attempts = 1
         self.name = self._name = (
             "IndefiniteMatching(" + str(gamma) + ", " + game.name + ")"
         )
 
     def matchups(self, participants):
-        """
-        TODO: make 'sums' be the sum of nonzero other dudes
-        TODO: phase out 'failures' but only when a mask over all viable players is made
-        """
         player_count = len(participants)
         indices = np.arange(player_count)
         counts = np.zeros(shape=(player_count, player_count))
-        sums = np.zeros(player_count)
+
         for i, j in combinations(list(range(player_count)), 2):
             counts[i, j] = counts[j, i] = np.random.geometric(1 - self.gamma)
 
-        for i, row in enumerate(counts):
-            sums[i] = sum(row)
 
-        attempts = self.attempts
-        failures = 0
-        while len(sums[sums > 1]):
-            if failures > attempts:
-                return
-
+        while True:
             game = self.game.next_game()
             N_players = game.N_players
-            # sums MUST be changed to sum of non-zeros
-            decider_pool = indices[sums >= N_players - 1]
-            decider_pool_size = len(decider_pool)
+            N_participants = N_players-1
 
-            if 0 == decider_pool_size:
-                failures += 1
-                continue
-            else:
-                decider = decider_pool[np.random.choice(decider_pool_size)]
+            # for each decider count the number of possible others
+            # they can still interact with. 
+            sums = (counts > 0).sum(axis=1)
 
-                participant_mask = counts[decider] > 0
-                participant_pool = indices[participant_mask]
-                participant_pool_size = len(participant_pool)
+            # only pick from those that have sufficient possible
+            # interaction partners.
+            decider_pool = indices[sums >= N_participants]
 
-                if participant_pool_size < N_players - 1:
-                    failures += 1
-                    continue
-                else:
-                    participants = participant_pool[
-                        np.random.choice(
-                            participant_pool_size, N_players - 1, replace=False
-                        )
-                    ]
+            if len(decider_pool) == 0:
+                return
 
-                    for participant in participants:
-                        counts[decider, participant] -= 1
-                        counts[participant, decider] -= 1
+            decider = np.random.choice(decider_pool)
 
-                    for i, row in enumerate(counts):
-                        sums[i] = sum(row)
-                    failures = 0
-                    yield (game, [decider] + list(participants))
+            participant_pool = indices[counts[decider] > 0]
+            participant_pool_size = len(participant_pool)
+                
+            ps = np.random.choice(
+                participant_pool, N_participants, replace=False)
+
+            for participant in ps:
+                counts[decider, participant] -= 1
+                counts[participant, decider] -= 1
+
+            assert counts.min() >= 0
+
+            yield (game, [decider] + list(ps))
 
 
 class RandomizedMatchup(DecisionSeq):
@@ -1101,35 +1085,6 @@ class IndefiniteHorizonGame(DecisionSeq):
         while flip(gamma):
             yield game, ordering
 
-
-class thunk(object):
-    def __init__(self, fun, *args, **kwargs):
-        self.__dict__.update(locals())
-
-    def __call__(self):
-        return self.fun(*self.args, **self.kwargs)
-
-
-class const(object):
-    def __init__(self, val):
-        self.val = val
-
-    def __call__(self):
-        return self.val
-
-
-class RandomlyChosen(Playable):
-    def __init__(self, *playables):
-        self._playables = playables
-        self.N_players = N = playables[0].N_players
-        assert all(p.N_players == N for p in playables)
-        self.name = "RandomlyChosen(%s)" % ", ".join([p.name for p in playables])
-
-    def play(self, *args, **kwargs):
-        assert 0
-        return random.choice(self._playables).play(*args, **kwargs)
-
-
 class Dynamic(Playable):
     """
     takes a playable-making function
@@ -1161,26 +1116,6 @@ class Dynamic(Playable):
         return to_play(participants, observers, tremble)
 
 
-def SocialGameGen(N_players_gen, N_actions_gen, cwe, tremble_gen):
-    N_actions = N_actions_gen()
-    N_players = N_players_gen()
-
-    # initialize set of choices with the zero-action
-    choices = [np.zeros(N_players)]
-    for n in range(N_actions):
-        c, w, e = cwe()
-        for p in range(1, N_players):
-            choice = np.zeros(N_players)
-            choice[0] = -c
-            choice[p] = c * w + e
-            choices.append(copy(choice))
-
-    d = Decision(OrderedDict((str(p), p) for p in choices))
-    d.tremble = tremble_gen()
-
-    return d
-
-
 @literal
 def RepeatedPrisonersTournament(
     rounds=ROUNDS, cost=COST, benefit=BENEFIT, tremble=0, **kwargs
@@ -1193,33 +1128,7 @@ def RepeatedPrisonersTournament(
 
     return g
 
-
 direct = RepeatedPrisonersTournament
-
-
-@literal
-def dynamic(expected_interactions, observability, **kwargs):
-    dictator = SocialGame(**kwargs)
-    # dictator = SocialDictator(**kwargs)#cost = 1, benefit = 10, intervals = 10, tremble = 0)
-    gamma = 1 - 1 / expected_interactions
-    game = AnnotatedGame(
-        IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator))
-    )
-    return game
-
-
-@literal
-def dynamic_sim(expected_interactions, observability, **kwargs):
-    # dictator = SocialGame(**kwargs)
-    dictator = SocialDictator(
-        **kwargs
-    )  # cost = 1, benefit = 10, intervals = 10, tremble = 0)
-    gamma = 1 - 1 / expected_interactions
-    game = AnnotatedGame(
-        IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator))
-    )
-    return game
-
 
 @literal
 def cog_sci_dynamic(
@@ -1264,12 +1173,17 @@ def cog_sci_dynamic(
 
 
 def engine_gen(intervals, max_players, benefit, cost, tremble):
+    # Number of actions, not including the zero-action. 
     N_actions = 1 + np.random.poisson(intervals - 1)
+    
+    # Number of players that will be affected by the decision
     N_players = np.random.choice(list(range(2, max_players + 1)))
 
-    # initialize set of choices with the zero-action
+    # initialize set of choices with the zero-action. All games
+    # contain the option to "do nothing"
     choices = [np.zeros(N_players)]
-    for n in range(intervals - 1):
+    
+    for n in range(N_actions):
         c = np.random.poisson(cost)
         w = np.random.exponential(benefit / 2)
         e = np.random.exponential(benefit / 2)
@@ -1339,7 +1253,6 @@ def manual(
         cost=cost, benefit=benefit, tremble=tremble, intervals=intervals
     )
     # dictator = SocialGame()
-    # game = AnnotatedGame(FiniteHorizon(rounds, PrivatelyObserved(Symmetric(dictator))))
     # game = AnnotatedGame(IndefiniteHorizon(gamma, PrivatelyObserved(Symmetric(dictator))))
     # game = AnnotatedGame(IndefiniteHorizon(gamma, AllNoneObserve(observability, Symmetric(dictator))))
     game = AnnotatedGame(
