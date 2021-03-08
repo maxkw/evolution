@@ -88,3 +88,6 @@ memo_cache/
 
 # Rope project settings
 .ropeproject
+
+# ouputs
+.pdf
