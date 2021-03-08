@@ -17,10 +17,11 @@ def lookup_agent(a):
     if 'SelfishAgent' in a: return 'Selfish'
     raise 'String not defined for agent %s'
 
-agent_to_label = {ReciprocalAgent: 'Reciprocal',
-                  AltruisticAgent: 'Altruistic',
-                  SelfishAgent: 'Selfish',
-                  WeAgent: 'Reciprocal',
+agent_to_label = {
+            # ReciprocalAgent: 'Reciprocal',
+            AltruisticAgent: 'Altruistic',
+            SelfishAgent: 'Selfish',
+            WeAgent: 'Reciprocal',
 }
 
 @multi_call()
@@ -29,10 +30,14 @@ def scenarios(scenarios, agent_types, **kwargs):
     condition = dict(locals(), **kwargs)
 
     record = []
-
+    
     for name, observations in enumerate(scenarios):
     # for name, observations in scenario_dict.iteritems():
-        observer = WeAgent(genome=default_genome(agent_type = WeAgent(**condition), **condition), world_id="O")
+        og = default_genome(agent_type=kwargs['observer'], **kwargs['observer'].genome)
+        observer = og['type'](og, "O")
+
+        # observer = WeAgent(genome=default_genome(agent_type = WeAgent(**condition), **condition), world_id="O")
+        
         
         for observation in observations:
             observer.observe([observation])

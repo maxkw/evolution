@@ -28,9 +28,7 @@ TREMBLE_RANGE = lambda ticks: np.round(
     # np.geomspace(MIN_TREMBLE, 0.26, ticks), 3
 )
 TREMBLE_EXP = [.01, .02, .04, .08, .16, .32, .64]
-
 ZD = ag.ZDAgent(B=3, C=1, chi=3, phi="midpoint",)
-
 
 def color_list(agent_list, sort=True):
     """takes a list of agent types `agent_list` and returns the correctly
@@ -93,16 +91,16 @@ def game_engine():
     )
 
     ticks = 11
-
+    max_expected_interactions = (1+ticks)/2
     # Expected number of interactions
     def gamma_plot():
         limit_param_plot(
             param="expected_interactions",
-            param_vals=np.round(np.linspace(1, (1+ticks)/2, ticks), 2),
+            param_vals=np.round(np.linspace(1, max_expected_interactions, ticks), 2),
             tremble=MIN_TREMBLE,
             legend=True,
             analysis_type="limit",
-            file_name="game_engine_gamma_b_%d" % common_params["benefit"],
+            file_name="game_engine_gamma",
             **common_params,
         )
 
@@ -112,13 +110,11 @@ def game_engine():
         # TODO Seems to be an issue with using tremble=0 in these
         # games.
 
-        # TODO: Update the Expected Interaction to the MAX of ABOVE.
-        # Define it as a variable so it automatically updates
         limit_param_plot(
             param="tremble",
             # param_vals=TREMBLE_RANGE(ticks),
             param_vals=TREMBLE_EXP,
-            expected_interactions=10,
+            expected_interactions=max_expected_interactions,
             legend=False,
             analysis_type="limit",
             file_name="game_engine_tremble",
@@ -243,6 +239,7 @@ def ipd():
     )
     tremble_ticks = 5
     n_rounds = 25
+    
     # from experiments import matchup_matrix_per_round, payoff_heatmap
     # tremble = MIN_TREMBLE
     # payoffs = payoff_heatmap(
@@ -260,31 +257,31 @@ def ipd():
     # )
     # assert 0
 
-    # for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
-    #     print("Running Expected Rounds with", label)
-    #     limit_param_plot(
-    #         param="rounds",
-    #         rounds=n_rounds,
-    #         tremble=MIN_TREMBLE,
-    #         player_types=player_types,
-    #         legend=True,
-    #         file_name="ipd_rounds_%s" % label,
-    #         graph_kwargs={"color": color_list(player_types)},
-    #         **common_params,
-    #     )
+    for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
+        print("Running Expected Rounds with", label)
+        limit_param_plot(
+            param="rounds",
+            rounds=n_rounds,
+            tremble=MIN_TREMBLE,
+            player_types=player_types,
+            legend=True,
+            file_name="ipd_rounds_%s" % label,
+            graph_kwargs={"color": color_list(player_types)},
+            **common_params,
+        )
 
-    #     print("Running Tremble with", label)
-    #     limit_param_plot(
-    #         param="tremble",
-    #         # param_vals=TREMBLE_RANGE(tremble_ticks),
-    #         param_vals=TREMBLE_EXP,
-    #         rounds=n_rounds,
-    #         player_types=player_types,
-    #         legend=False,
-    #         file_name="ipd_tremble_%s" % label,
-    #         graph_kwargs={"color": color_list(player_types)},
-    #         **common_params,
-    #     )
+        print("Running Tremble with", label)
+        limit_param_plot(
+            param="tremble",
+            # param_vals=TREMBLE_RANGE(tremble_ticks),
+            param_vals=TREMBLE_EXP,
+            rounds=n_rounds,
+            player_types=player_types,
+            legend=False,
+            file_name="ipd_tremble_%s" % label,
+            graph_kwargs={"color": color_list(player_types)},
+            **common_params,
+        )
 
     # Cognitive Costs
     cog_cost_params = np.linspace(0, 0.4, 11)
@@ -318,10 +315,13 @@ def ipd():
 
 
 def agent():
+    BETA = 5
     opponents = (ag.AltruisticAgent(beta=BETA), ag.SelfishAgent(beta=BETA))
     ToM = ("self",) + opponents
     agents = (ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM),) + opponents
-
+    
+    
+    observer = ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM)
     common_params = dict(
         player_types=agents,
         agent_types=ToM,
@@ -349,6 +349,7 @@ def agent():
     reciprocal_scenarios_0.insert(0, [])
 
     scene_plot(
+        observer=observer,
         scenarios=reciprocal_scenarios_0,
         # titles = titles_0,
         file_name="scene_reciprocal_0",
@@ -371,6 +372,7 @@ def agent():
         for s in reciprocal_scenarios_1
     ]
     scene_plot(
+        observer=observer,
         scenarios=reciprocal_scenarios_1,
         # titles = titles_1,
         file_name="scene_reciprocal_1",

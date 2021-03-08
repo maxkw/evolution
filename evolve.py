@@ -458,15 +458,15 @@ def limit_param_plot(
             make_legend()
 
         if param == "rounds":
-            # plt.xlim([1, kwargs["rounds"]])
-            plt.xticks(range(4,kwargs['rounds'],5), rotation='horizontal')
+            ax.set_xticks(range(4,kwargs['rounds'],5))
+            ax.set_xticklabels(range(1,kwargs['rounds']+1)[4::5], rotation='horizontal')
 
         elif param == "tremble":
             plt.xticks(rotation='horizontal')
 
         else:
-            print(kwargs["param_vals"])
-            plt.xticks(range(0, len(kwargs["param_vals"]), 2), rotation='horizontal')
+            ax.set_xticks(range(0,len(kwargs["param_vals"]),2))
+            ax.set_xticklabels(kwargs["param_vals"][::2], rotation='horizontal')
 
         if param in ["rounds", "expected_interactions"]:
             plt.xlabel("Pairwise Interactions Per Generation")

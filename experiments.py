@@ -68,7 +68,6 @@ def matchup(player_types, game, **kwargs):
         player_types.extend([t] * p)
 
     genomes = [default_genome(agent_type=t, **params) for t in player_types]
-
     world = World(params, genomes)
     fitness, history = world.run()
 
