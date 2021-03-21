@@ -92,8 +92,11 @@ class PrefabAgent(Agent):
             self._nickname = genome_kwargs['subtype_name']
         except:
             pass
-
-        self.__name__ = self.indentity = str(a_type) + "(%s)" % ",".join(
+        
+        # NOTE: This will not change if you change the genome after
+        # initialization, that means that anything using this field might be
+        # using something out of date
+        self.__name__ = str(a_type) + "(%s)" % ",".join(
             ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.items())])
 
         self.genome = HashableDict(genome_kwargs)
@@ -120,7 +123,8 @@ class PrefabAgent(Agent):
         try:
             return self._nickname
         except:
-            return self.__name__
+            return str(self.type) + "(%s)" % ",".join(
+            ["%s=%s" % (key, val) for key, val in sorted(self.genome.items())])
 
     def __repr__(self):
         # return self.short_name('agent_types')
@@ -807,6 +811,7 @@ class ModelNode(object):
     def utility(self,payoffs, agent_ids):
         t = self._my_type_index
         weights = [1]+[self.models[agent_ids[0]].belief[a][t] for a in agent_ids[1:]]
+
         return np.dot(payoffs, weights)
     
     def decide_likelihood(self, game, agents, tremble = 0):
@@ -815,12 +820,13 @@ class ModelNode(object):
 
         Us = np.array([self.utility(game.payoffs[action], agents)
                        for action in game.actions])
-
+        
         return add_tremble(softmax(Us, self.beta), tremble)
 
     def observe(self, observations):
         agent_types = self.genome['agent_types']
         self.new_likelihoods = ConstantDefaultDict(np.zeros_like(self.pop_prior))
+        debug = False
 
         for observation in observations:
             game, participants, observers, action = [observation[k] for k in ['game', 'participant_ids', 'observer_ids', 'action']]
@@ -842,14 +848,23 @@ class ModelNode(object):
 
         prior = np.log(self.pop_prior)
         for decider_id, new_likelihood in self.new_likelihoods.items():
+            # if set([8,9]) == self.ids and decider_id == 9:
+            #     print(game.actions, action_index, participants, self.models[9].belief[8])
+            #     print(self.ids, self.likelihood[decider_id], new_likelihood)
+                
             self.likelihood[decider_id] += new_likelihood
-            
+
             self.belief[decider_id] = np.exp(prior+self.likelihood[decider_id])
+            if np.isnan(normalized(self.belief[decider_id])).any():
+                debug = True
+            
             self.belief[decider_id] = normalized(self.belief[decider_id])
 
         for model in self.other_models.values():
             model.observe(observations)
 
+        return debug
+        
 
 class JoinLatticeModel(object):
     def __init__(self,genome):
@@ -967,21 +982,24 @@ class JoinLatticeModel(object):
         check which observers need to be inserted into the lattice and do it
         then have all subsets of observers observe
         """
-        sets = self.sets
-        insert = self.insert_new_set
-
-
         observers = set(frozenset(o['observer_ids']) for o in observations)
         
-        
         #this must be a list, because 'any' will short-circuit as it expands an iterator
-        new_top = any([insert(s) for s in observers if s not in sets])
+        # new_top = any([insert(s) for s in observers if s not in sets])
+
+        new_top = False
+        for s in observers:
+            if s not in self.sets:
+                new_top = new_top or self.insert_new_set(s)
+                # new_top = True
         
 
         #observer_sets = sorted(set().union(self.subsets[o] for o in observers), key = len)
         observer_subsets = sorted(set().union(*[self.subsets[o] for o in observers]), key = len)
         for s in observer_subsets:
             self.model[s].observe(observations)
+            if self.model[s].observe(observations):
+                import pdb; pdb.set_trace()
             
         return new_top
 
@@ -1085,6 +1103,7 @@ class WeAgent(Agent):
             self.new_likelihoods = me.new_likelihoods
             #self.l_cache = me.l_cache
             #self.nl_cache = me.nl_cache
+            
 
     def belief_that(self, a_id, a_type):
         if a_type in self._type_to_index:

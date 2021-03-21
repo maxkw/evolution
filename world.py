@@ -19,6 +19,7 @@ class World(object):
             agent = genome['type'](genome, world_id)
             self.agents.append(agent)
             self.id_to_agent[world_id] = agent
+        
         self.agents = np.array(self.agents)
 
     def run(self):

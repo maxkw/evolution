@@ -19,7 +19,9 @@ from evolve import (
 import params
 
 PLOT_DIR = "./plots/" + inspect.stack()[0][1][:-3] + "/"
-BETA = np.Inf
+WE_BETA = 5
+# NOTE: Setting OTHER_BETA=inf makes tremble=0 blow up
+OTHER_BETA = np.inf
 PRIOR = 0.5
 MIN_TREMBLE = 0.01
 TREMBLE_RANGE = lambda ticks: np.round(
@@ -27,7 +29,7 @@ TREMBLE_RANGE = lambda ticks: np.round(
     3
     # np.geomspace(MIN_TREMBLE, 0.26, ticks), 3
 )
-TREMBLE_EXP = [.01, .02, .04, .08, .16, .32, .64]
+TREMBLE_EXP = [.00, .01, .02, .04, .08, .16, .32, .64]
 ZD = ag.ZDAgent(B=3, C=1, chi=3, phi="midpoint",)
 
 def color_list(agent_list, sort=True):
@@ -70,10 +72,9 @@ Evolution of Cooperation in the Game Engine:
 def game_engine():
     # 100 was good enough for the search_bc plot
     TRIALS = 100
-
-    opponents = (ag.SelfishAgent(beta=BETA), ag.AltruisticAgent(beta=BETA))
-    ToM = ("self",) + opponents
-    agents = (ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM),) + opponents
+    opponents = (ag.SelfishAgent(beta=OTHER_BETA), ag.AltruisticAgent(beta=OTHER_BETA))
+    ToM = ("self",) + (ag.SelfishAgent(beta=WE_BETA), ag.AltruisticAgent(beta=WE_BETA))
+    agents = (ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM),) + opponents
 
     common_params = dict(
         game="game_engine",
@@ -107,8 +108,9 @@ def game_engine():
     def tremble_plot():
         # Vary tremble
 
-        # TODO Seems to be an issue with using tremble=0 in these
-        # games.
+        # NOTE: Tremble = 0, beta = inf, and max_players = 3 will cause an error
+        # because between three-player subsets there might be some partial
+        # observability.
 
         limit_param_plot(
             param="tremble",
@@ -178,10 +180,10 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
-    # heat_map()
     gamma_plot()
     tremble_plot()
     observe_plot()
+    heat_map()
     # search_bc()
 
     # # Agent Sim Plots
@@ -219,16 +221,15 @@ def ipd():
         ag.GTFT,
         ag.WSLS,
         ag.TFT,
-        # ZD,
     )
     new_pop = old_pop + (
-        ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=("self",) + old_pop),
+        ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=("self",) + old_pop),
     )
     ZD_pop = new_pop + (ZD, )
 
     common_params = dict(
         game="direct",
-        s=2,
+        s=1,
         benefit=BENEFIT,
         cost=COST,
         pop_size=100,
@@ -237,7 +238,7 @@ def ipd():
         trials=TRIALS,
         stacked=True,
     )
-    tremble_ticks = 5
+    # tremble_ticks = 5
     n_rounds = 25
     
     # from experiments import matchup_matrix_per_round, payoff_heatmap
@@ -256,8 +257,11 @@ def ipd():
     #     file_name="ipd_payoffs_tremble_%0.2f" % tremble,
     # )
     # assert 0
+    
 
-    for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
+
+    # for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
+    for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
         print("Running Expected Rounds with", label)
         limit_param_plot(
             param="rounds",
@@ -275,7 +279,7 @@ def ipd():
             param="tremble",
             # param_vals=TREMBLE_RANGE(tremble_ticks),
             param_vals=TREMBLE_EXP,
-            rounds=n_rounds,
+            rounds=10,
             player_types=player_types,
             legend=False,
             file_name="ipd_tremble_%s" % label,
@@ -284,10 +288,7 @@ def ipd():
         )
 
     # Cognitive Costs
-    cog_cost_params = np.linspace(0, 0.4, 11)
-    # Pick the right tremble value to hurt WSLS.
-    cog_cost_tremble = TREMBLE_EXP[4] #0.16
-    # cog_cost_tremble = TREMBLE_RANGE(tremble_ticks)[-2]
+    cog_cost_params = np.linspace(0, 0.8, 11)
     def cog_cost_graph(ax):
         vals = cog_cost_params
         surplus = common_params["benefit"] - common_params["cost"]
@@ -298,12 +299,11 @@ def ipd():
         # ax.set_xlabel("Cognitive Cost \n% of (b-c)")
         ax.set_xlabel("Cognitive Cost")
 
-
-    print("Running Cog Cost. Tremble:", cog_cost_tremble)
+    print("Running Cog Cost")
     limit_param_plot(
         param="cog_cost",
-        tremble=cog_cost_tremble,
-        rounds=25,
+        tremble=MIN_TREMBLE,
+        rounds=n_rounds,
         param_vals=cog_cost_params,
         file_name="ipd_cogcosts",
         player_types=new_pop,
@@ -313,15 +313,27 @@ def ipd():
         **common_params,
     )
 
+    print("Running Beta IPD")
+    limit_param_plot(
+        param="beta",
+        tremble=MIN_TREMBLE,
+        rounds=5,
+        param_vals=np.linspace(1,7,13),
+        file_name="ipd_beta",
+        player_types=new_pop,
+        legend=False,
+        graph_kwargs={"color": color_list(new_pop)},
+        **common_params,        
+    )         
+  
 
 def agent():
-    BETA = 5
-    opponents = (ag.AltruisticAgent(beta=BETA), ag.SelfishAgent(beta=BETA))
-    ToM = ("self",) + opponents
-    agents = (ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM),) + opponents
+    opponents = (ag.AltruisticAgent(beta=OTHER_BETA), ag.SelfishAgent(beta=OTHER_BETA))
+    ToM = ("self",) + (ag.AltruisticAgent(beta=WE_BETA), ag.SelfishAgent(beta=WE_BETA))
+    agents = (ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM),) + opponents
     
     
-    observer = ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM)
+    observer = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
     common_params = dict(
         player_types=agents,
         agent_types=ToM,
@@ -403,8 +415,9 @@ def agent():
 
 
 def belief():
-    everyone = (ag.AltruisticAgent(beta=BETA), ag.SelfishAgent(beta=BETA))
-    agent = ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=("self",) + everyone)
+    everyone = (ag.AltruisticAgent(beta=OTHER_BETA), ag.SelfishAgent(beta=OTHER_BETA))
+    ToM = ("self",) + (ag.AltruisticAgent(beta=WE_BETA), ag.SelfishAgent(beta=WE_BETA))
+    agent = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
 
     common_params = dict(
         believer=agent,
@@ -446,34 +459,33 @@ def belief():
         **common_params,
     )
 
-    # # Use the FSA agents as comparison agents too
-    # old_pop = (
-    #     ag.AllC,
-    #     ag.AllD,
-    #     ag.TFT,
-    #     ag.WSLS,
-    #     ag.GTFT,
-    #     ZD,
-    # )
-    # ToM = ("self",) + old_pop
-    # agent = ag.WeAgent(prior=PRIOR, beta=BETA, agent_types=ToM)
-    # common_params.update(
-    #     dict(
-    #         believer=agent,
-    #         opponent_types=(agent,) + old_pop,
-    #         believed_types=(agent,) + old_pop,
-    #         game="direct",
-    #         colors=color_list((agent,) + old_pop, sort=False),
-    #     )
-    # )
+    # Use the FSA agents as comparison agents too
+    old_pop = (
+        ag.AllC,
+        ag.AllD,
+        ag.TFT,
+        ag.WSLS,
+        ag.GTFT,
+        # ZD,
+    )
+    ToM = ("self",) + old_pop
+    agent = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
+    common_params.update(
+        dict(
+            believer=agent,
+            opponent_types=(agent,) + old_pop,
+            believed_types=(agent,) + old_pop,
+            game="direct",
+            colors=color_list((agent,) + old_pop, sort=False),
+        )
+    )
 
-    # plot_beliefs(
-    #     observability=0,
-    #     # rounds=int(sum(population) * (sum(population) - 1) / 2 / 3),
-    #     rounds=50,
-    #     file_name="fsa_belief",
-    #     **common_params,
-    # )
+    plot_beliefs(
+        observability=0,
+        rounds=15,
+        file_name="fsa_belief",
+        **common_params,
+    )
 
 
 def main():

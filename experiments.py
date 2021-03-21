@@ -1,3 +1,4 @@
+import pdb
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
@@ -269,7 +270,11 @@ def plot_beliefs(
     # each type in the case where the population is specified.
     if "population" in kwargs:
         data["round"] = data["round"] / len(believed_types)
-        # data['round'] = np.ceil(data['round'] / len(believed_types))
+        
+        # for plotting, drop the data points that aren't whole numbers. 
+        whole_rounds = data['round'].round().unique()
+        data = data[data["round"].isin(whole_rounds)]
+        
 
     def name(t_n):
         if "We" in t_n:
@@ -335,7 +340,7 @@ def plot_beliefs(
             ax.set_ylabel("")
 
         if "population" in kwargs:
-            ax.set_xlabel("# of Observations")
+            ax.set_xlabel("Avg. Observations")
         else:
             ax.set_xlabel("Pairwise Interactions")
 
@@ -390,9 +395,12 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **
                     payoffs_var[p, o] += var_mean[(combination, player, r)]
                         
                 else:
-                    payoffs[p, o] = means[(combination, player)] - c * max_rounds
-                    payoffs_var[p, o] = sem_mean[(combination, player)]
-
+                    try:
+                        payoffs[p, o] = means[(combination, player)] - c * max_rounds
+                        payoffs_var[p, o] = sem_mean[(combination, player)]
+                    except:
+                        import pdb; pdb.set_trace()
+    
         payoffs_list.append(copy(payoffs))
         
         # TODO: These two formula should be equivalent but they are not!

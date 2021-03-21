@@ -160,7 +160,14 @@ def ssd_v_param(param, player_types, **kwargs):
         del kwargs["param_vals"]
 
         kwargs["per_round"] = False
+            
         for x in tqdm(vals, disable=params.disable_tqdm):
+            if param == "beta":
+                # Change the beta of each player that has a beta
+                for i, t in enumerate(player_types):
+                    if hasattr(t,"genome") and 'beta' in t.genome:
+                        player_types[i].genome['beta'] = x
+                                    
             expected_pop = evo_analysis(
                 player_types=player_types, **dict(kwargs, **{param: x})
             )
@@ -311,7 +318,7 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
             vmin=0,
             vmax=1,
             # vmax=data['frequency'].max(),
-            cmap=plt.cm.gray_r,
+            cmap=plt.cm.Blues,
             linewidths=0.5,
         )
     
@@ -450,6 +457,16 @@ def limit_param_plot(
             )
         )
     )
+    
+    if param=="beta":
+        # Need to merge the WeAgents if the parameter is Beta
+        WeAgent_columns = list(filter(lambda x: 'WeAgent' in x, data.columns))
+        merge_into = list(filter(lambda x: 'WeAgent' in x, type_order))[0]
+        for c in WeAgent_columns:
+            if c == merge_into: continue
+            data[merge_into] = data[merge_into].combine_first(data[c])
+            data = data.drop(columns=[c])
+
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
     
     if stacked:
@@ -477,10 +494,10 @@ def limit_param_plot(
 
         elif param == "observability":
             # plt.xlabel("Probability of observation\n" r"$\omega$")
-            plt.xlabel(r"Probability of observation ($\omega$)")
+            plt.xlabel(r"Prob. of observation ($\omega$)")
 
         elif param == "tremble":
-            plt.xlabel(r"Noise Probability ($\epsilon$)")
+            plt.xlabel(r"Prob. of action error ($\epsilon$)")
 
         else:
             plt.xlabel(param)
