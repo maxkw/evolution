@@ -159,7 +159,8 @@ def ssd_v_param(param, player_types, **kwargs):
         vals = kwargs["param_vals"]
         del kwargs["param_vals"]
 
-        kwargs["per_round"] = False
+        return_rounds = kwargs.get("return_rounds", False)
+        kwargs["per_round"] = kwargs.get("return_rounds", False)
             
         for x in tqdm(vals, disable=params.disable_tqdm):
             if param == "beta":
@@ -172,17 +173,20 @@ def ssd_v_param(param, player_types, **kwargs):
                 player_types=player_types, **dict(kwargs, **{param: x})
             )
 
-            return_rounds = kwargs.get("return_rounds", False)
             if return_rounds:
-                raise NotImplementedError
+                for r, pop in enumerate(expected_pop, start=1):
+                    for t, p in zip(player_types, pop):
+                        records.append(
+                            {"rounds": r, param: x, "type": t.short_name("agent_types"), "proportion": p,}
+                        )                
+            else:
+                assert len(expected_pop) == 1
 
-            assert len(expected_pop) == 1
-
-            expected_pop = expected_pop[-1]
-            for t, p in zip(player_types, expected_pop):
-                records.append(
-                    {param: x, "type": t.short_name("agent_types"), "proportion": p,}
-                )
+                expected_pop = expected_pop[-1]
+                for t, p in zip(player_types, expected_pop):
+                    records.append(
+                        {param: x, "type": t.short_name("agent_types"), "proportion": p,}
+                    )
 
         return pd.DataFrame(records)
 
@@ -279,7 +283,7 @@ def bc_plot(
 
     fig, ax = plt.subplots(figsize=(3.5, 3))
 
-    sns.lineplot(x="observability", y="expected_interactions", hue="benefit", data=data, ax = ax)
+    sns.pointplot(x="observability", y="expected_interactions", hue="benefit", data=data, ax = ax)
     plt.xlabel("Probability of observation")
     plt.ylabel("Expected Interactions")
     sns.despine()
@@ -340,6 +344,42 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
 
     plt.xlabel(graph_kwargs['xlabel'])
     plt.ylabel(graph_kwargs['ylabel'])
+    plt.tight_layout()
+
+@plotter(ssd_v_param)
+def beta_heat(param_vals, player_types, data=[], graph_kwargs={}, **kwargs):
+    def draw_heatmap(*args, **kwargs):
+        data = kwargs.pop("data")
+        try:
+            d = data.pivot(index=args[1], columns=args[0], values=args[2])
+        except Exception as e:
+            print("`param_dict` likely has duplicate values")
+            raise e
+        
+        ax = sns.heatmap(d, **kwargs)
+        ax.invert_yaxis()
+
+    if graph_kwargs['onlyRA']:
+        fig, ax = plt.subplots(figsize=(3.5, 3))
+        draw_heatmap(
+            graph_kwargs['xy'][0],
+            graph_kwargs['xy'][1],
+            "proportion",
+            data=data[data['type'].str.contains('WeAgent')],
+            cbar=True,
+            square=True,
+            vmin=0,
+            vmax=1,
+            # vmax=data['frequency'].max(),
+            cmap=plt.cm.Blues,
+            linewidths=0.5,
+            xticklabels = 2, yticklabels = 2,
+        )
+
+    plt.xlabel(graph_kwargs['xlabel'])
+    plt.ylabel(graph_kwargs['ylabel'])
+    plt.yticks(rotation=0)
+    plt.xticks(rotation=0)
     plt.tight_layout()
     
 
@@ -486,7 +526,7 @@ def limit_param_plot(
             ax.set_xticklabels(kwargs["param_vals"][::2], rotation='horizontal')
 
         if param in ["rounds", "expected_interactions"]:
-            plt.xlabel("Pairwise Interactions Per Generation")
+            plt.xlabel("Mean Pairwise Interactions")
             # plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
             
             # if param == 'expected_interactions':

@@ -4,7 +4,7 @@ import seaborn as sns
 import pandas as pd
 from itertools import product
 import agents as ag
-from evolve import limit_param_plot, params_heat
+from evolve import beta_heat, limit_param_plot, params_heat
 from experiments import plot_beliefs, population_beliefs
 import matplotlib.pyplot as plt
 from evolve import (
@@ -14,6 +14,7 @@ from evolve import (
     ssd_v_params,
     ssd_bc,
     bc_plot,
+    beta_heat
 )
 
 import params
@@ -27,7 +28,6 @@ MIN_TREMBLE = 0.01
 TREMBLE_RANGE = lambda ticks: np.round(
     np.geomspace(MIN_TREMBLE, 0.25, ticks),
     3
-    # np.geomspace(MIN_TREMBLE, 0.26, ticks), 3
 )
 TREMBLE_EXP = [.00, .01, .02, .04, .08, .16, .32, .64]
 ZD = ag.ZDAgent(B=3, C=1, chi=3, phi="midpoint",)
@@ -92,7 +92,8 @@ def game_engine():
     )
 
     ticks = 11
-    max_expected_interactions = (1+ticks)/2
+    max_expected_interactions = 5
+    # max_expected_interactions = (1+ticks)/2
     # Expected number of interactions
     def gamma_plot():
         limit_param_plot(
@@ -134,12 +135,13 @@ def game_engine():
             file_name="game_engine_observability",
             **common_params,
         )
-
+        
+    heat_ticks = 5
     def heat_map():
         # Heatmap based on gamma vs. observability
         param_dict = dict(
-            expected_interactions=np.round(np.linspace(1, 5, ticks), 2),
-            observability=np.round(np.linspace(0, 1, ticks), 2),
+            expected_interactions=np.round(np.linspace(1, 3, heat_ticks), 2),
+            observability=np.round(np.linspace(0, 1, heat_ticks), 2),
         )
 
         heat_graph_kwargs = dict(
@@ -170,21 +172,21 @@ def game_engine():
             # (2, 1): 15,
         }
 
-        
         bc_plot(
             ei_stop=bcs,
-            observe_param=np.round(np.linspace(1, 0, ticks), 2),
+            observe_param=np.round(np.linspace(1, 0, heat_ticks), 2),
             delta=0.025,
             tremble=MIN_TREMBLE,
             analysis_type="complete",
             file_name="bc_plot",
             **common_params)
 
+    heat_map()
+    search_bc()
     gamma_plot()
     tremble_plot()
     observe_plot()
-    heat_map()
-    # search_bc()
+
 
     # # Agent Sim Plots
     # sim_  params = dict(
@@ -260,71 +262,93 @@ def ipd():
     
 
 
-    # for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
-    for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
-        print("Running Expected Rounds with", label)
-        limit_param_plot(
-            param="rounds",
-            rounds=n_rounds,
+    # # for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
+    # for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
+    #     print("Running Expected Rounds with", label)
+    #     limit_param_plot(
+    #         param="rounds",
+    #         rounds=n_rounds,
+    #         tremble=MIN_TREMBLE,
+    #         player_types=player_types,
+    #         legend=True,
+    #         file_name="ipd_rounds_%s" % label,
+    #         graph_kwargs={"color": color_list(player_types)},
+    #         **common_params,
+    #     )
+
+    #     print("Running Tremble with", label)
+    #     limit_param_plot(
+    #         param="tremble",
+    #         # param_vals=TREMBLE_RANGE(tremble_ticks),
+    #         param_vals=TREMBLE_EXP,
+    #         rounds=10,
+    #         player_types=player_types,
+    #         legend=False,
+    #         file_name="ipd_tremble_%s" % label,
+    #         graph_kwargs={"color": color_list(player_types)},
+    #         **common_params,
+    #     )
+
+    # # Cognitive Costs
+    # cog_cost_params = np.linspace(0, 0.8, 11)
+    # def cog_cost_graph(ax):
+    #     vals = cog_cost_params
+    #     surplus = common_params["benefit"] - common_params["cost"]
+    #     percents = ["{:3.0f}%".format(x / surplus * 100) for x in vals]
+    #     percents = [percents[i] for i in ax.get_xticks()]
+    #     # print(vals, surplus, percents)
+    #     ax.set_xticklabels(percents)
+    #     # ax.set_xlabel("Cognitive Cost \n% of (b-c)")
+    #     ax.set_xlabel("Cognitive Cost")
+
+    # print("Running Cog Cost")
+    # limit_param_plot(
+    #     param="cog_cost",
+    #     tremble=MIN_TREMBLE,
+    #     rounds=n_rounds,
+    #     param_vals=cog_cost_params,
+    #     file_name="ipd_cogcosts",
+    #     player_types=new_pop,
+    #     graph_funcs=cog_cost_graph,
+    #     legend=False,
+    #     graph_kwargs={"color": color_list(new_pop)},
+    #     **common_params,
+    # )
+
+    # print("Running Beta IPD")
+    # limit_param_plot(
+    #     param="beta",
+    #     tremble=MIN_TREMBLE,
+    #     rounds=5,
+    #     param_vals=np.linspace(1,7,13),
+    #     file_name="ipd_beta",
+    #     player_types=new_pop,
+    #     legend=False,
+    #     graph_kwargs={"color": color_list(new_pop)},
+    #     **common_params,        
+    # )         
+
+    def beta_heat_map():
+        # Heatmap based on beta vs. rounds
+        common_params_heat = common_params.copy()
+        common_params_heat['graph_kwargs'] = dict(
+                xlabel = 'Beta',
+                ylabel = 'Mean Pairwise Interactions',
+                xy = ("beta", "rounds"),
+                onlyRA = True)
+        # common_params_heat['trials'] = 20
+
+        beta_heat(
+            param_vals=np.linspace(1,7,13),
+            param="beta",
+            rounds=13,
+            player_types=new_pop,
             tremble=MIN_TREMBLE,
-            player_types=player_types,
-            legend=True,
-            file_name="ipd_rounds_%s" % label,
-            graph_kwargs={"color": color_list(player_types)},
-            **common_params,
+            file_name="heat_beta",
+            return_rounds=True,
+            **common_params_heat
         )
-
-        print("Running Tremble with", label)
-        limit_param_plot(
-            param="tremble",
-            # param_vals=TREMBLE_RANGE(tremble_ticks),
-            param_vals=TREMBLE_EXP,
-            rounds=10,
-            player_types=player_types,
-            legend=False,
-            file_name="ipd_tremble_%s" % label,
-            graph_kwargs={"color": color_list(player_types)},
-            **common_params,
-        )
-
-    # Cognitive Costs
-    cog_cost_params = np.linspace(0, 0.8, 11)
-    def cog_cost_graph(ax):
-        vals = cog_cost_params
-        surplus = common_params["benefit"] - common_params["cost"]
-        percents = ["{:3.0f}%".format(x / surplus * 100) for x in vals]
-        percents = [percents[i] for i in ax.get_xticks()]
-        # print(vals, surplus, percents)
-        ax.set_xticklabels(percents)
-        # ax.set_xlabel("Cognitive Cost \n% of (b-c)")
-        ax.set_xlabel("Cognitive Cost")
-
-    print("Running Cog Cost")
-    limit_param_plot(
-        param="cog_cost",
-        tremble=MIN_TREMBLE,
-        rounds=n_rounds,
-        param_vals=cog_cost_params,
-        file_name="ipd_cogcosts",
-        player_types=new_pop,
-        graph_funcs=cog_cost_graph,
-        legend=False,
-        graph_kwargs={"color": color_list(new_pop)},
-        **common_params,
-    )
-
-    print("Running Beta IPD")
-    limit_param_plot(
-        param="beta",
-        tremble=MIN_TREMBLE,
-        rounds=5,
-        param_vals=np.linspace(1,7,13),
-        file_name="ipd_beta",
-        player_types=new_pop,
-        legend=False,
-        graph_kwargs={"color": color_list(new_pop)},
-        **common_params,        
-    )         
+    beta_heat_map()
   
 
 def agent():
@@ -376,7 +400,7 @@ def agent():
     titles_1 = [
         r"$k$ defects on $j$" + "\n" + r"$j$ defects on $k$",
         r"$k$ defects on $j$" + "\n" + r"$j$ cooperates w/ $k$",
-        r"$k$ cooperates w/ $j$" + "\n" + r"$j$ defects on $k$",
+        r"repeat",
     ]
 
     reciprocal_scenarios_1 = [
@@ -388,6 +412,30 @@ def agent():
         scenarios=reciprocal_scenarios_1,
         # titles = titles_1,
         file_name="scene_reciprocal_1",
+        **common_params,
+    )
+    
+    
+    reciprocal_scenarios_2 = [
+        [["BA", "AB"], "DD"],
+        [["BA", "AB"], "CC"],
+        [["BA", "AB"], "CD"],
+    ]
+    titles_2 = [
+        r"repeat",
+        r"$k$ cooperates w/ $j$" + "\n" + r"$j$ cooperates w/ $k$",
+        r"$k$ cooperates w/ $j$" + "\n" + r"$j$ defects on $k$",
+    ]
+
+    reciprocal_scenarios_2 = [
+        make_observations_from_scenario(s, **game_params)
+        for s in reciprocal_scenarios_2
+    ]
+    scene_plot(
+        observer=observer,
+        scenarios=reciprocal_scenarios_2,
+        # titles = titles_2,
+        file_name="scene_reciprocal_2",
         **common_params,
     )
 
@@ -422,7 +470,7 @@ def belief():
     common_params = dict(
         believer=agent,
         opponent_types=(agent,) + everyone,
-        believed_types=(agent,) + everyone,
+        believed_types=(agent,) + ToM[1:],
         tremble=MIN_TREMBLE,
         plot_dir=PLOT_DIR,
         deterministic=True,
@@ -499,13 +547,8 @@ def main():
     parser.add_argument("--heatmaps", action="store_true")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--debug", action="store_true")
-    # parser.add_argument("--nomemoize", action="store_true")
-    # parser.add_argument("--cpus", default=1, type=int)
 
     args = parser.parse_args()
-    # params.n_jobs = args.cpus
-    # params.n_jobs = 2
-    # params.memoized = args.nomemoize == False
 
     if args.all:
         game_engine()

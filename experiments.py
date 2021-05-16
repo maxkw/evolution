@@ -159,26 +159,20 @@ def matchup(player_types, game, **kwargs):
                         continue
 
                     for believed_type in believed_types:
-                        attr_to_val = {
-                            "belief": b[o_id][
-                                genomes[a_id]["agent_types"].index(believed_type)
-                            ]
-                        }
-
-                        for attr, val in attr_to_val.items():
-                            record.append(
-                                {
-                                    "player_types": tuple(player_types),
-                                    "type": repr(t),
-                                    "id": a_id,
-                                    "round": r,
-                                    "attribute": attr,
-                                    "value": val,
-                                    "believed_type": repr(believed_type),
-                                    "actual_type": repr(player_types[o_id]),
-                                    "fitness": p,
-                                }
-                            )
+                        belief = b[o_id][genomes[a_id]["agent_types"].index(believed_type)]
+                        record.append(
+                            {
+                                "player_types": tuple(player_types),
+                                "type": repr(t),
+                                "id": a_id,
+                                "round": r,
+                                "attribute": "belief",
+                                "value": belief,
+                                "believed_type": repr(believed_type),
+                                "actual_type": repr(player_types[o_id]),
+                                "fitness": p,
+                            }
+                        )
 
             else:
                 # assert 0
@@ -261,7 +255,6 @@ def plot_beliefs(
         for t, believed, actual in product(list(range(max_trials)), type_names, type_names)
     ]
 
-    color = {t: c for t, c in zip(type_names, colors)}
 
     prior_dat = pd.DataFrame.from_records(prior_data)
     data = pd.concat([prior_dat, data], sort=True)
@@ -289,8 +282,13 @@ def plot_beliefs(
         # Default
         return str(t_n)
 
-    fig, axes = plt.subplots(figsize=(8*len(type_names)/3, 3))
-    axes = {t: plt.subplot(1, len(type_names), type_names.index(t) + 1) for t in type_names}
+    short_names = list(map(name, type_names))
+    fig, axes = plt.subplots(figsize=(8*len(short_names)/3, 3))
+    axes = {t: plt.subplot(1, len(short_names), short_names.index(t) + 1) for t in short_names}
+    color = {t: c for t, c in zip(short_names, colors)}
+
+    data.actual_type = data.actual_type.apply(name)
+    data.believed_type = data.believed_type.apply(name)
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
         ax = axes[actual]
 

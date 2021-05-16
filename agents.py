@@ -1,3 +1,4 @@
+import pdb
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
@@ -848,10 +849,6 @@ class ModelNode(object):
 
         prior = np.log(self.pop_prior)
         for decider_id, new_likelihood in self.new_likelihoods.items():
-            # if set([8,9]) == self.ids and decider_id == 9:
-            #     print(game.actions, action_index, participants, self.models[9].belief[8])
-            #     print(self.ids, self.likelihood[decider_id], new_likelihood)
-                
             self.likelihood[decider_id] += new_likelihood
 
             self.belief[decider_id] = np.exp(prior+self.likelihood[decider_id])
@@ -997,8 +994,8 @@ class JoinLatticeModel(object):
         #observer_sets = sorted(set().union(self.subsets[o] for o in observers), key = len)
         observer_subsets = sorted(set().union(*[self.subsets[o] for o in observers]), key = len)
         for s in observer_subsets:
-            self.model[s].observe(observations)
-            if self.model[s].observe(observations):
+            debug = self.model[s].observe(observations)
+            if debug:
                 import pdb; pdb.set_trace()
             
         return new_top
