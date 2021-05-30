@@ -181,11 +181,11 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
-    heat_map()
-    search_bc()
     gamma_plot()
     tremble_plot()
     observe_plot()
+    heat_map()
+    search_bc()
 
 
     # # Agent Sim Plots
@@ -262,59 +262,59 @@ def ipd():
     
 
 
-    # # for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
-    # for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
-    #     print("Running Expected Rounds with", label)
-    #     limit_param_plot(
-    #         param="rounds",
-    #         rounds=n_rounds,
-    #         tremble=MIN_TREMBLE,
-    #         player_types=player_types,
-    #         legend=True,
-    #         file_name="ipd_rounds_%s" % label,
-    #         graph_kwargs={"color": color_list(player_types)},
-    #         **common_params,
-    #     )
+    # for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
+    for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
+        print("Running Expected Rounds with", label)
+        limit_param_plot(
+            param="rounds",
+            rounds=n_rounds,
+            tremble=MIN_TREMBLE,
+            player_types=player_types,
+            legend=True,
+            file_name="ipd_rounds_%s" % label,
+            graph_kwargs={"color": color_list(player_types)},
+            **common_params,
+        )
 
-    #     print("Running Tremble with", label)
-    #     limit_param_plot(
-    #         param="tremble",
-    #         # param_vals=TREMBLE_RANGE(tremble_ticks),
-    #         param_vals=TREMBLE_EXP,
-    #         rounds=10,
-    #         player_types=player_types,
-    #         legend=False,
-    #         file_name="ipd_tremble_%s" % label,
-    #         graph_kwargs={"color": color_list(player_types)},
-    #         **common_params,
-    #     )
+        print("Running Tremble with", label)
+        limit_param_plot(
+            param="tremble",
+            # param_vals=TREMBLE_RANGE(tremble_ticks),
+            param_vals=TREMBLE_EXP,
+            rounds=10,
+            player_types=player_types,
+            legend=False,
+            file_name="ipd_tremble_%s" % label,
+            graph_kwargs={"color": color_list(player_types)},
+            **common_params,
+        )
 
-    # # Cognitive Costs
-    # cog_cost_params = np.linspace(0, 0.8, 11)
-    # def cog_cost_graph(ax):
-    #     vals = cog_cost_params
-    #     surplus = common_params["benefit"] - common_params["cost"]
-    #     percents = ["{:3.0f}%".format(x / surplus * 100) for x in vals]
-    #     percents = [percents[i] for i in ax.get_xticks()]
-    #     # print(vals, surplus, percents)
-    #     ax.set_xticklabels(percents)
-    #     # ax.set_xlabel("Cognitive Cost \n% of (b-c)")
-    #     ax.set_xlabel("Cognitive Cost")
+    # Cognitive Costs
+    cog_cost_params = np.linspace(0, 0.6, 11)
+    def cog_cost_graph(ax):
+        vals = cog_cost_params
+        surplus = common_params["benefit"] - common_params["cost"]
+        percents = ["{:3.0f}%".format(x / surplus * 100) for x in vals]
+        percents = [percents[i] for i in ax.get_xticks()]
+        # print(vals, surplus, percents)
+        ax.set_xticklabels(percents)
+        # ax.set_xlabel("Cognitive Cost \n% of (b-c)")
+        ax.set_xlabel("Cognitive Cost")
 
-    # print("Running Cog Cost")
-    # limit_param_plot(
-    #     param="cog_cost",
-    #     tremble=MIN_TREMBLE,
-    #     rounds=n_rounds,
-    #     param_vals=cog_cost_params,
-    #     file_name="ipd_cogcosts",
-    #     player_types=new_pop,
-    #     graph_funcs=cog_cost_graph,
-    #     legend=False,
-    #     graph_kwargs={"color": color_list(new_pop)},
-    #     **common_params,
-    # )
-
+    print("Running Cog Cost")
+    limit_param_plot(
+        param="cog_cost",
+        tremble=MIN_TREMBLE,
+        rounds=n_rounds,
+        param_vals=cog_cost_params,
+        file_name="ipd_cogcosts",
+        player_types=new_pop,
+        graph_funcs=cog_cost_graph,
+        legend=False,
+        graph_kwargs={"color": color_list(new_pop)},
+        **common_params,
+    )
+    # # Commented out because the # of rounds should be calibrated to be right on the edge. 
     # print("Running Beta IPD")
     # limit_param_plot(
     #     param="beta",
@@ -371,73 +371,97 @@ def agent():
     # SCENARIO PLOTS
     from scenarios import scene_plot, make_observations_from_scenario
 
-    reciprocal_scenarios_0 = [[["AB"], "C"], [["AB"], "D"]]
-    titles_0 = [
-        "Prior" + "\n ",
-        r"$j$ cooperates w/ $k$" + "\n ",
-        r"$j$ defects on $k$" + "\n ",
-    ]
-
-    reciprocal_scenarios_0 = [
-        make_observations_from_scenario(s, **game_params)
-        for s in reciprocal_scenarios_0
-    ]
-    reciprocal_scenarios_0.insert(0, [])
-
-    scene_plot(
-        observer=observer,
-        scenarios=reciprocal_scenarios_0,
-        # titles = titles_0,
-        file_name="scene_reciprocal_0",
-        **common_params,
-    )
-
-    reciprocal_scenarios_1 = [
+    scenarios = [
+        [["AB"], "C"],
+        [["AB"], "D"],  
         [["BA", "AB"], "DD"],
         [["BA", "AB"], "DC"],
-        [["BA", "AB"], "CD"],
-    ]
-    titles_1 = [
-        r"$k$ defects on $j$" + "\n" + r"$j$ defects on $k$",
-        r"$k$ defects on $j$" + "\n" + r"$j$ cooperates w/ $k$",
-        r"repeat",
-    ]
-
-    reciprocal_scenarios_1 = [
-        make_observations_from_scenario(s, **game_params)
-        for s in reciprocal_scenarios_1
-    ]
-    scene_plot(
-        observer=observer,
-        scenarios=reciprocal_scenarios_1,
-        # titles = titles_1,
-        file_name="scene_reciprocal_1",
-        **common_params,
-    )
-    
-    
-    reciprocal_scenarios_2 = [
-        [["BA", "AB"], "DD"],
         [["BA", "AB"], "CC"],
         [["BA", "AB"], "CD"],
-    ]
-    titles_2 = [
-        r"repeat",
-        r"$k$ cooperates w/ $j$" + "\n" + r"$j$ cooperates w/ $k$",
-        r"$k$ cooperates w/ $j$" + "\n" + r"$j$ defects on $k$",
+        [["prior"], "prior"]
     ]
 
-    reciprocal_scenarios_2 = [
-        make_observations_from_scenario(s, **game_params)
-        for s in reciprocal_scenarios_2
-    ]
-    scene_plot(
-        observer=observer,
-        scenarios=reciprocal_scenarios_2,
-        # titles = titles_2,
-        file_name="scene_reciprocal_2",
-        **common_params,
-    )
+    for s in scenarios:
+        if s[1] == "prior":
+            obs = []
+        else:
+            obs = make_observations_from_scenario(s, **game_params)
+            
+        scene_plot(
+            observer=observer,
+            scenarios=[obs],
+            file_name="scene_reciprocal_" + s[1],
+            **common_params,
+        )
+
+
+    # reciprocal_scenarios_0 = [[["AB"], "C"], [["AB"], "D"]]
+    # titles_0 = [
+    #     "Prior" + "\n ",
+    #     r"$j$ cooperates w/ $k$" + "\n ",
+    #     r"$j$ defects on $k$" + "\n ",
+    # ]
+
+    # reciprocal_scenarios_0 = [
+    #     make_observations_from_scenario(s, **game_params)
+    #     for s in reciprocal_scenarios_0
+    # ]
+    # reciprocal_scenarios_0.insert(0, [])
+
+    # scene_plot(
+    #     observer=observer,
+    #     scenarios=reciprocal_scenarios_0,
+    #     # titles = titles_0,
+    #     file_name="scene_reciprocal_0",
+    #     **common_params,
+    # )
+
+    # reciprocal_scenarios_1 = [
+    #     [["BA", "AB"], "DD"],
+    #     [["BA", "AB"], "DC"],
+    #     [["BA", "AB"], "CD"],
+    # ]
+    # titles_1 = [
+    #     r"$k$ defects on $j$" + "\n" + r"$j$ defects on $k$",
+    #     r"$k$ defects on $j$" + "\n" + r"$j$ cooperates w/ $k$",
+    #     r"repeat",
+    # ]
+
+    # reciprocal_scenarios_1 = [
+    #     make_observations_from_scenario(s, **game_params)
+    #     for s in reciprocal_scenarios_1
+    # ]
+    # scene_plot(
+    #     observer=observer,
+    #     scenarios=reciprocal_scenarios_1,
+    #     # titles = titles_1,
+    #     file_name="scene_reciprocal_1",
+    #     **common_params,
+    # )
+    
+    
+    # reciprocal_scenarios_2 = [
+    #     [["BA", "AB"], "DD"],
+    #     [["BA", "AB"], "CC"],
+    #     [["BA", "AB"], "CD"],
+    # ]
+    # titles_2 = [
+    #     r"repeat",
+    #     r"$k$ cooperates w/ $j$" + "\n" + r"$j$ cooperates w/ $k$",
+    #     r"$k$ cooperates w/ $j$" + "\n" + r"$j$ defects on $k$",
+    # ]
+
+    # reciprocal_scenarios_2 = [
+    #     make_observations_from_scenario(s, **game_params)
+    #     for s in reciprocal_scenarios_2
+    # ]
+    # scene_plot(
+    #     observer=observer,
+    #     scenarios=reciprocal_scenarios_2,
+    #     # titles = titles_2,
+    #     file_name="scene_reciprocal_2",
+    #     **common_params,
+    # )
 
     # # FORGIVENESS AND REPUTATION
     # from scenarios import forgive_plot

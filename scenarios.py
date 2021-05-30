@@ -60,7 +60,7 @@ def scene_plot(agent_types, titles=None,  data=[], color = sns.color_palette(['C
     f_grid = sns.catplot(data=data, y="type", x='belief', col='scenario', 
                             kind='bar', orient='h', order=order,
                             palette=color,
-                            aspect=1.5, height=1.8, 
+                            aspect=1.2, height=1.8, 
                             sharex=False, sharey=False,
                             **graph_kwargs
     )
@@ -76,7 +76,8 @@ def scene_plot(agent_types, titles=None,  data=[], color = sns.color_palette(['C
      .set_ylabels("")
      .set(xlim=(0, 1),
           xticks=np.linspace(0, 1, 5),
-          xticklabels=['0', '', '0.5', '', '1'])
+          xticklabels=['0', '', '0.5', '', '1'],
+          yticklabels=[])
      )
 
     if titles is not None:
