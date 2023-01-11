@@ -150,7 +150,11 @@ def ssd_v_param(param, player_types, **kwargs):
         for r, pop in enumerate(expected_pop_per_round, start=1):
             for t, p in zip(player_types, pop):
                 records.append(
-                    {"rounds": r, "type": t.short_name("agent_types"), "proportion": p,}
+                    {
+                        "rounds": r,
+                        "type": t.short_name("agent_types"),
+                        "proportion": p,
+                    }
                 )
 
         return pd.DataFrame(records)
@@ -161,14 +165,14 @@ def ssd_v_param(param, player_types, **kwargs):
 
         return_rounds = kwargs.get("return_rounds", False)
         kwargs["per_round"] = kwargs.get("return_rounds", False)
-            
+
         for x in tqdm(vals, disable=params.disable_tqdm):
             if param == "beta":
                 # Change the beta of each player that has a beta
                 for i, t in enumerate(player_types):
-                    if hasattr(t,"genome") and 'beta' in t.genome:
-                        player_types[i].genome['beta'] = x
-                                    
+                    if hasattr(t, "genome") and "beta" in t.genome:
+                        player_types[i].genome["beta"] = x
+
             expected_pop = evo_analysis(
                 player_types=player_types, **dict(kwargs, **{param: x})
             )
@@ -177,15 +181,24 @@ def ssd_v_param(param, player_types, **kwargs):
                 for r, pop in enumerate(expected_pop, start=1):
                     for t, p in zip(player_types, pop):
                         records.append(
-                            {"rounds": r, param: x, "type": t.short_name("agent_types"), "proportion": p,}
-                        )                
+                            {
+                                "rounds": r,
+                                param: x,
+                                "type": t.short_name("agent_types"),
+                                "proportion": p,
+                            }
+                        )
             else:
                 assert len(expected_pop) == 1
 
                 expected_pop = expected_pop[-1]
                 for t, p in zip(player_types, expected_pop):
                     records.append(
-                        {param: x, "type": t.short_name("agent_types"), "proportion": p,}
+                        {
+                            param: x,
+                            "type": t.short_name("agent_types"),
+                            "proportion": p,
+                        }
                     )
 
         return pd.DataFrame(records)
@@ -283,11 +296,14 @@ def bc_plot(
 
     fig, ax = plt.subplots(figsize=(3.5, 3))
 
-    sns.pointplot(x="observability", y="expected_interactions", hue="benefit", data=data, ax = ax)
+    sns.pointplot(
+        x="observability", y="expected_interactions", hue="benefit", data=data, ax=ax
+    )
     plt.xlabel("Probability of observation")
     plt.ylabel("Expected Interactions")
     sns.despine()
     plt.tight_layout()
+
 
 def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
     return ssd_v_params(
@@ -304,19 +320,19 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
         except Exception as e:
             print("`param_dict` likely has duplicate values")
             raise e
-        
+
         ax = sns.heatmap(d, **kwargs)
         ax.invert_yaxis()
 
     assert len(param_dict) == 2
 
-    if graph_kwargs['onlyRA']:
+    if graph_kwargs["onlyRA"]:
         fig, ax = plt.subplots(figsize=(3.5, 3))
         draw_heatmap(
-            graph_kwargs['xy'][0],
-            graph_kwargs['xy'][1],
+            graph_kwargs["xy"][0],
+            graph_kwargs["xy"][1],
             "proportion",
-            data=data[data['type'].str.contains('WeAgent')],
+            data=data[data["type"].str.contains("WeAgent")],
             cbar=True,
             square=True,
             vmin=0,
@@ -325,13 +341,13 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
             cmap=plt.cm.Blues,
             linewidths=0.5,
         )
-    
+
     else:
         g = sns.FacetGrid(data=data, col="type")
         g.map_dataframe(
             draw_heatmap,
-            graph_kwargs['xy'][0],
-            graph_kwargs['xy'][1],
+            graph_kwargs["xy"][0],
+            graph_kwargs["xy"][1],
             "proportion",
             cbar=False,
             square=True,
@@ -342,9 +358,10 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
             linewidths=0.5,
         )
 
-    plt.xlabel(graph_kwargs['xlabel'])
-    plt.ylabel(graph_kwargs['ylabel'])
+    plt.xlabel(graph_kwargs["xlabel"])
+    plt.ylabel(graph_kwargs["ylabel"])
     plt.tight_layout()
+
 
 @plotter(ssd_v_param)
 def beta_heat(param_vals, player_types, data=[], graph_kwargs={}, **kwargs):
@@ -355,17 +372,17 @@ def beta_heat(param_vals, player_types, data=[], graph_kwargs={}, **kwargs):
         except Exception as e:
             print("`param_dict` likely has duplicate values")
             raise e
-        
+
         ax = sns.heatmap(d, **kwargs)
         ax.invert_yaxis()
 
-    if graph_kwargs['onlyRA']:
+    if graph_kwargs["onlyRA"]:
         fig, ax = plt.subplots(figsize=(3.5, 3))
         draw_heatmap(
-            graph_kwargs['xy'][0],
-            graph_kwargs['xy'][1],
+            graph_kwargs["xy"][0],
+            graph_kwargs["xy"][1],
             "proportion",
-            data=data[data['type'].str.contains('WeAgent')],
+            data=data[data["type"].str.contains("WeAgent")],
             cbar=True,
             square=True,
             vmin=0,
@@ -373,15 +390,16 @@ def beta_heat(param_vals, player_types, data=[], graph_kwargs={}, **kwargs):
             # vmax=data['frequency'].max(),
             cmap=plt.cm.Blues,
             linewidths=0.5,
-            xticklabels = 2, yticklabels = 2,
+            xticklabels=2,
+            yticklabels=2,
         )
 
-    plt.xlabel(graph_kwargs['xlabel'])
-    plt.ylabel(graph_kwargs['ylabel'])
+    plt.xlabel(graph_kwargs["xlabel"])
+    plt.ylabel(graph_kwargs["ylabel"])
     plt.yticks(rotation=0)
     plt.xticks(rotation=0)
     plt.tight_layout()
-    
+
 
 def ssd_param_search(
     param, param_lim, player_types, target, param_tol, mean_tol, **kwargs
@@ -488,7 +506,6 @@ def limit_param_plot(
     data = data[[param, "proportion", "type"]].pivot(
         columns="type", index=param, values="proportion"
     )
-    # data = gaussian_filter(data, sigma = 1)
 
     type_order = dict(
         list(
@@ -497,38 +514,50 @@ def limit_param_plot(
             )
         )
     )
-    
-    if param=="beta":
+
+    if param == "beta":
         # Need to merge the WeAgents if the parameter is Beta
-        WeAgent_columns = list(filter(lambda x: 'WeAgent' in x, data.columns))
-        merge_into = list(filter(lambda x: 'WeAgent' in x, type_order))[0]
+        WeAgent_columns = list(filter(lambda x: "WeAgent" in x, data.columns))
+        merge_into = list(filter(lambda x: "WeAgent" in x, type_order))[0]
         for c in WeAgent_columns:
-            if c == merge_into: continue
+            if c == merge_into:
+                continue
+
             data[merge_into] = data[merge_into].combine_first(data[c])
             data = data.drop(columns=[c])
 
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
-    
+
     if stacked:
-        data.plot.bar(stacked=True, ax=ax, width=.99, ylim=[0, 1], legend=False, linewidth=0, **graph_kwargs)
+        data.plot.bar(
+            stacked=True,
+            ax=ax,
+            width=0.99,
+            ylim=[0, 1],
+            legend=False,
+            linewidth=0,
+            **graph_kwargs
+        )
         if legend:
             make_legend()
 
         if param == "rounds":
-            ax.set_xticks(range(4,kwargs['rounds'],5))
-            ax.set_xticklabels(range(1,kwargs['rounds']+1)[4::5], rotation='horizontal')
+            ax.set_xticks(range(4, kwargs["rounds"], 5))
+            ax.set_xticklabels(
+                range(1, kwargs["rounds"] + 1)[4::5], rotation="horizontal"
+            )
 
         elif param == "tremble":
-            plt.xticks(rotation='horizontal')
+            plt.xticks(rotation="horizontal")
 
         else:
-            ax.set_xticks(range(0,len(kwargs["param_vals"]),2))
-            ax.set_xticklabels(kwargs["param_vals"][::2], rotation='horizontal')
+            ax.set_xticks(range(0, len(kwargs["param_vals"]), 2))
+            ax.set_xticklabels(kwargs["param_vals"][::2], rotation="horizontal")
 
         if param in ["rounds", "expected_interactions"]:
             plt.xlabel("Mean Pairwise Interactions")
             # plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
-            
+
             # if param == 'expected_interactions':
             # plt.xticks(range(1,11))
 

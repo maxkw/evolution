@@ -292,7 +292,7 @@ def plot_beliefs(
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
         ax = axes[actual]
 
-        dm = d.groupby("round").mean().reset_index()
+        dm = d.groupby("round").mean(numeric_only=True).reset_index()
         dm.plot(
             x="round",
             y="value",
@@ -313,12 +313,11 @@ def plot_beliefs(
     # because it will screw up the legend.
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
         ax = axes[actual]
-        
-        for trial, t in d.groupby(["trial"]):
+        for trial, t in d.groupby(("trial")):
             if trial >= traces:
                 break
 
-            t = t.groupby("round").mean().reset_index()
+            t = t.groupby("round").mean(numeric_only=True).reset_index()
             t.plot(
                 x="round",
                 y="value",

@@ -7,9 +7,9 @@ from functools import wraps, reduce
 from pickle import load, dump
 from copy import deepcopy
 from joblib import Memory
-memory = Memory(cachedir='./memo_cache', verbose=0)
+memory = Memory(location='./memo_cache', verbose=0)
 
-pd.set_option('precision', 5)
+pd.set_option('display.precision', 5)
 
 def splits(n):
     """

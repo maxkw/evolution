@@ -1128,49 +1128,8 @@ def RepeatedPrisonersTournament(
 
     return g
 
+
 direct = RepeatedPrisonersTournament
-
-@literal
-def cog_sci_dynamic(
-    expected_interactions=1,
-    observability=0,
-    cost=1,
-    benefit=10,
-    intervals=2,
-    tremble=0.1,
-    **kwargs
-):
-    assert intervals >= 0
-
-    def Gen():
-        N_actions = 1 + np.random.poisson(intervals - 1)
-        N_players = np.random.choice([2, 3])
-        t = np.random.beta(tremble, 10)
-
-        # initialize set of choices with the zero-action
-        choices = [np.zeros(N_players)]
-        for n in range(intervals - 1):
-            c = np.random.poisson(cost)
-            w = np.random.exponential(benefit / 2)
-            e = np.random.exponential(benefit / 2)
-            for p in range(1, N_players):
-                choice = np.zeros(N_players)
-                choice[0] = -c
-                choice[p] = c * w + e
-                choices.append(copy(choice))
-        decision = Decision(OrderedDict((str(p), p) for p in choices))
-        decision.tremble = t
-
-        return decision
-
-    dictator = Dynamic(Gen)
-    dictator.name = "dynamic"
-    gamma = 1 - 1 / expected_interactions
-    game = AnnotatedGame(
-        IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator))
-    )
-    return game
-
 
 def engine_gen(intervals, max_players, benefit, cost, tremble):
     # Number of actions, not including the zero-action. 
@@ -1185,12 +1144,13 @@ def engine_gen(intervals, max_players, benefit, cost, tremble):
     
     for n in range(N_actions):
         c = np.random.poisson(cost)
-        w = np.random.exponential(benefit / 2)
-        e = np.random.exponential(benefit / 2)
+        b = np.random.exponential(benefit - cost)
         for p in range(1, N_players):
             choice = np.zeros(N_players)
             choice[0] = -c
-            choice[p] = c * w + e
+            choice[p] = c + b
+            assert(-choice[0] < choice[p])
+            
             choices.append(copy(choice))
     decision = Decision(OrderedDict((str(p), p) for p in choices))
     decision.tremble = tremble

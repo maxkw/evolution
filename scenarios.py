@@ -77,7 +77,7 @@ def scene_plot(agent_types, titles=None,  data=[], color = sns.color_palette(['C
      .set(xlim=(0, 1),
           xticks=np.linspace(0, 1, 5),
           xticklabels=['0', '', '0.5', '', '1'],
-          yticklabels=[])
+          yticklabels=['B', 'A', 'S'])
      )
 
     if titles is not None:

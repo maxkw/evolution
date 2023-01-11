@@ -19,7 +19,7 @@ from evolve import (
 
 import params
 
-PLOT_DIR = "./plots/" + inspect.stack()[0][1][:-3] + "/"
+PLOT_DIR = "./plots/"
 WE_BETA = 5
 # NOTE: Setting OTHER_BETA=inf makes tremble=0 blow up
 OTHER_BETA = np.inf
@@ -29,7 +29,7 @@ TREMBLE_RANGE = lambda ticks: np.round(
     np.geomspace(MIN_TREMBLE, 0.25, ticks),
     3
 )
-TREMBLE_EXP = [.00, .01, .02, .04, .08, .16, .32, .64]
+TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
 ZD = ag.ZDAgent(B=3, C=1, chi=3, phi="midpoint",)
 
 def color_list(agent_list, sort=True):
@@ -72,6 +72,8 @@ Evolution of Cooperation in the Game Engine:
 def game_engine():
     # 100 was good enough for the search_bc plot
     TRIALS = 100
+    heat_ticks = 5
+
     opponents = (ag.SelfishAgent(beta=OTHER_BETA), ag.AltruisticAgent(beta=OTHER_BETA))
     ToM = ("self",) + (ag.SelfishAgent(beta=WE_BETA), ag.AltruisticAgent(beta=WE_BETA))
     agents = (ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM),) + opponents
@@ -86,7 +88,6 @@ def game_engine():
         benefit=10,
         cost=1,
         plot_dir=PLOT_DIR,
-        observability=0,
         memoized=params.memoized,
         graph_kwargs={"color": color_list(agents)},
     )
@@ -100,6 +101,7 @@ def game_engine():
             param="expected_interactions",
             param_vals=np.round(np.linspace(1, max_expected_interactions, ticks), 2),
             tremble=MIN_TREMBLE,
+            observability=0,
             legend=True,
             analysis_type="limit",
             file_name="game_engine_gamma",
@@ -117,6 +119,7 @@ def game_engine():
             param="tremble",
             # param_vals=TREMBLE_RANGE(ticks),
             param_vals=TREMBLE_EXP,
+            observability=0,
             expected_interactions=max_expected_interactions,
             legend=False,
             analysis_type="limit",
@@ -136,8 +139,19 @@ def game_engine():
             **common_params,
         )
         
-    heat_ticks = 5
-    def heat_map():
+    def observe_tremble_plot():
+        # Vary observability
+        limit_param_plot(
+            param="tremble",
+            param_vals=TREMBLE_EXP,
+            observability=1,
+            expected_interactions=1,
+            analysis_type="complete",
+            file_name="game_engine_tremble_public",
+            **common_params,
+        )        
+        
+    def heat_map_gamma_omega():
         # Heatmap based on gamma vs. observability
         param_dict = dict(
             expected_interactions=np.round(np.linspace(1, 3, heat_ticks), 2),
@@ -160,7 +174,62 @@ def game_engine():
             param_dict=param_dict,
             tremble=MIN_TREMBLE,
             analysis_type="complete",
-            file_name="game_engine_indirect_direct",
+            file_name="game_engine_gamma_omega",
+            **common_params_heat
+        )
+
+    def heat_map_gamma_tremble():
+        # Heatmap based on gamma vs. tremble
+        param_dict = dict(
+            expected_interactions=np.round(np.linspace(1, 3, heat_ticks), 2),
+            tremble=TREMBLE_EXP,
+        )
+
+        heat_graph_kwargs = dict(
+            xlabel = 'Probability of tremble',
+            ylabel = '# of Interactions',
+            xy = ("tremble", "expected_interactions"),
+            onlyRA = True,
+        )
+        common_params_heat = common_params.copy()
+        common_params_heat['graph_kwargs'] = {
+            **common_params_heat['graph_kwargs'],
+            **heat_graph_kwargs
+        }
+
+        params_heat(
+            param_dict=param_dict,
+            tremble=MIN_TREMBLE,
+            analysis_type="complete",
+            observability=0,
+            file_name="game_engine_gamma_tremble",
+            **common_params_heat
+        )
+
+    def heat_map_omega_tremble():
+        # Heatmap based on gamma vs. tremble
+        param_dict = dict(
+            tremble=TREMBLE_EXP,
+            observability=np.round(np.linspace(0, 1, heat_ticks), 2),
+        )
+
+        heat_graph_kwargs = dict(
+            xlabel = 'Probability of tremble',
+            ylabel = 'Probability of observation',
+            xy = ("tremble", "observability"),
+            onlyRA = True,
+        )
+        common_params_heat = common_params.copy()
+        common_params_heat['graph_kwargs'] = {
+            **common_params_heat['graph_kwargs'],
+            **heat_graph_kwargs
+        }
+
+        params_heat(
+            param_dict=param_dict,
+            tremble=MIN_TREMBLE,
+            analysis_type="complete",
+            expected_interactions=1,            file_name="game_engine_omega_tremble",
             **common_params_heat
         )
 
@@ -181,10 +250,13 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
+    heat_map_omega_tremble()
+    heat_map_gamma_tremble()
+    observe_tremble_plot()
     gamma_plot()
     tremble_plot()
     observe_plot()
-    heat_map()
+    heat_map_gamma_omega()
     search_bc()
 
 
@@ -223,11 +295,12 @@ def ipd():
         ag.GTFT,
         ag.WSLS,
         ag.TFT,
+        ZD,
     )
     new_pop = old_pop + (
         ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=("self",) + old_pop),
     )
-    ZD_pop = new_pop + (ZD, )
+    # ZD_pop = new_pop + (ZD, )
 
     common_params = dict(
         game="direct",
@@ -314,19 +387,20 @@ def ipd():
         graph_kwargs={"color": color_list(new_pop)},
         **common_params,
     )
-    # # Commented out because the # of rounds should be calibrated to be right on the edge. 
-    # print("Running Beta IPD")
-    # limit_param_plot(
-    #     param="beta",
-    #     tremble=MIN_TREMBLE,
-    #     rounds=5,
-    #     param_vals=np.linspace(1,7,13),
-    #     file_name="ipd_beta",
-    #     player_types=new_pop,
-    #     legend=False,
-    #     graph_kwargs={"color": color_list(new_pop)},
-    #     **common_params,        
-    # )         
+    # Commented out because the # of rounds should be calibrated to be right on the edge. 
+    print("Running Beta IPD")
+    limit_param_plot(
+        param="beta",
+        tremble=MIN_TREMBLE,
+        rounds=5,
+        param_vals=np.linspace(1,7,13),
+        file_name="ipd_beta",
+        # player_types = ZD_pop,
+        player_types=new_pop,
+        legend=False,
+        graph_kwargs={"color": color_list(new_pop)},
+        **common_params,        
+    )         
 
     def beta_heat_map():
         # Heatmap based on beta vs. rounds
@@ -538,7 +612,7 @@ def belief():
         ag.TFT,
         ag.WSLS,
         ag.GTFT,
-        # ZD,
+        ZD,
     )
     ToM = ("self",) + old_pop
     agent = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
@@ -579,7 +653,6 @@ def main():
         belief()
         ipd()
         agent()
-        heatmaps()
 
     if args.belief:
         belief()
@@ -594,7 +667,7 @@ def main():
         game_engine()
 
     if args.heatmaps:
-        heatmaps()
+        pass
 
     if args.debug:
         import pdb; pdb.set_trace()
