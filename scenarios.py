@@ -53,7 +53,7 @@ def scenarios(scenarios, agent_types, **kwargs):
     return record
 
 @plotter(scenarios, plot_exclusive_args=['data', 'color', 'graph_kwargs'])
-def scene_plot(agent_types, titles=None,  data=[], color = sns.color_palette(['C5', 'C0', 'C1']), graph_kwargs={}):
+def scene_plot(agent_types, titles=None, xlabel=None, data=[], color = sns.color_palette(['C5', 'C0', 'C1']), graph_kwargs={}):
     sns.set_context("talk", font_scale=.8)
 
     order = ["Reciprocal", "Altruistic", "Selfish"]
@@ -68,7 +68,8 @@ def scene_plot(agent_types, titles=None,  data=[], color = sns.color_palette(['C
     if titles is not None  and 'Prior' in titles[0]:
         f_grid.set_xlabels(" ")
     else:
-        f_grid.set_xlabels("Belief")
+        # f_grid.set_xlabels("Belief")
+        f_grid.set_xlabels(xlabel)
         
         
     (f_grid
