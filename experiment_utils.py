@@ -1,19 +1,17 @@
 import os.path
 import pandas as pd
-import collections
 from itertools import product
 from inspect import getargspec
 from collections import OrderedDict
 import numpy as np
 from copy import copy, deepcopy
-from utils import pickled, unpickled
 from operator import itemgetter
 import matplotlib.pyplot as plt
-import sys
 from tqdm import tqdm
 import joblib
 from joblib import Parallel, delayed
 import params
+from utils import CACHEDIR
 
 def product_of_vals(orderedDict):
     keys, val_lists = list(orderedDict.keys()), list(orderedDict.values())
@@ -154,10 +152,9 @@ def transform_inputs(*functions):
 
 experiment_transformer = transform_inputs(tuple, unordered)
 
-def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
-    data_dir = "./memo_cache/"
-    if memoize and not os.path.exists(data_dir):
-        os.makedirs(data_dir)
+def experiment(overwrite=False, memoize=True, **kwargs):
+    if memoize and not os.path.exists(CACHEDIR):
+        os.makedirs(CACHEDIR)
 
     transform_arg_dict = experiment_transformer(kwargs)
 
@@ -180,12 +177,12 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
             try:
                 # Try to hash the arg dict to get a unique file name for caching. 
                 arg_hash = joblib.hash(str(tuple(sorted(args.items()))))
-                # if verbose >= 1: print "\nExperiment " + str(call_data["call"])
+
             except TypeError as te:
                 print("these are the provided args\n", args)
                 raise te
 
-            cache_file = data_dir + str(arg_hash) + ".pkl"
+            cache_file = CACHEDIR + str(arg_hash) + ".pkl"
             
             if os.path.exists(cache_file) and memoized and not overwrite:
                 # print "Loading cache...",
@@ -237,7 +234,7 @@ def experiment(overwrite=False, memoize=True, verbose=0, **kwargs):
     return wrapper
 
                                          
-def multi_call(unpack=False, verbose=2, **kwargs):
+def multi_call(unpack=False, **kwargs):
 
     transform_arg_dict = experiment_transformer(kwargs)
 
@@ -286,7 +283,7 @@ def multi_call(unpack=False, verbose=2, **kwargs):
             else:
                 arg_calls = [static_args]
                 return function(**static_args)
-
+    
             dfs = Parallel(n_jobs=params.n_jobs)(delayed(function)(**arg_call) for arg_call in tqdm(arg_calls, disable=params.disable_tqdm))
             dfs = pd.concat(dfs)
             return dfs
