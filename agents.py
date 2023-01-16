@@ -710,7 +710,7 @@ GTFT = Memory1PDAgent(p_vec = (1, 0.66, 1, 0.66),
                      initial=('give', 'give'),
                      subtype_name = "GTFT")
 
-def ZDAgent(B, C, chi=3, phi='midpoint'):
+def ZDAgent(B, C, chi=3, phi='midpoint', subtype_name="ZD"):
     R = B - C; T = B; S = -C; P = 0
     if phi == 'midpoint':
         phi = (P-S) / ((P-S) + chi * (T-P)) / 2
@@ -727,8 +727,8 @@ def ZDAgent(B, C, chi=3, phi='midpoint'):
     )
     
     return Memory1PDAgent(p_vec = p_vec,
-                     initial=('give', 'give'),
-                     subtype_name = "ZD")
+                     initial=('keep', 'keep'),
+                     subtype_name = subtype_name)
 
 class RandomAgent(Agent):
     def decide_likelihood(self, game, *args, **kwargs):
