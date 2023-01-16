@@ -7,7 +7,10 @@ from functools import wraps, reduce
 from pickle import load, dump
 from copy import deepcopy
 from joblib import Memory
-memory = Memory(location='./memo_cache', verbose=0)
+import os
+
+CACHEDIR = os.path.expanduser('~/evocache/')
+memory = Memory(location=CACHEDIR, verbose=0)
 
 pd.set_option('display.precision', 5)
 
