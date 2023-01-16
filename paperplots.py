@@ -286,6 +286,7 @@ def ipd():
     COST = 1
     # 10000 puts SEM around 0.001-0.002
     TRIALS = 1000
+    # TRIALS = 100
 
     new_pop = old_pop + (
         ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=("self",) + old_pop),
@@ -411,7 +412,7 @@ def ipd():
         
         param_dict = dict(
             beta=np.append(np.linspace(1,8,8), np.inf),
-            rounds=[39],
+            rounds=[10],
         )
         # common_params_heat['trials'] = 20
 
@@ -423,6 +424,7 @@ def ipd():
             file_name="heat_beta",
             return_rounds=True,
             per_round=True,
+            line = True
             graph_kwargs=heat_graph_kwargs,
             **common_params
         )
