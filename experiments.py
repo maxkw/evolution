@@ -31,8 +31,8 @@ import operator
 import games
 
 
-@multi_call(unordered=["player_types", "agent_types"], verbose=3)
-@experiment(verbose=3)
+@multi_call(unordered=["player_types", "agent_types"])
+@experiment()
 def matchup(player_types, game, **kwargs):
     # np.random.seed(kwargs["trial"])
     
@@ -233,6 +233,8 @@ def population_beliefs(believer, opponent_types, believed_types, population, **k
 def plot_beliefs(
     believer, opponent_types, believed_types, traces=50, colors=None, data=[], **kwargs
 ):
+    from params import AGENT_NAME
+
     if kwargs["observability"] != 0 and kwargs["observability"] != 1:
         raise Warning("Observability must be 0 or 1 for the axes to make sense")
 
@@ -271,9 +273,9 @@ def plot_beliefs(
 
     def name(t_n):
         if "We" in t_n:
-            return "Reciprocal"
+            return AGENT_NAME
         if "Reciprocal" in t_n:
-            return "Reciprocal"
+            return AGENT_NAME
         if "Selfish" in t_n:
             return "Selfish"
         if "Altruistic" in t_n:
@@ -330,17 +332,15 @@ def plot_beliefs(
                 alpha=0.1,
             )
 
-        
-        if actual == type_names[0]:
-            ax.set_ylabel("Average Belief")
+        ax.set_ylabel("")
+        if "xlabel" in kwargs:
+            ax.set_xlabel(kwargs["xlabel"])
+        elif "population" in kwargs:
+            ax.set_xlabel("# Observations")
         else:
-            ax.set_ylabel("")
+            ax.set_xlabel("# Interactions")
 
-        if "population" in kwargs:
-            ax.set_xlabel("Avg. Observations")
-        else:
-            ax.set_xlabel("Pairwise Interactions")
-
+    axes[AGENT_NAME].set_ylabel("$P(U)$")
     sns.despine()
     plt.tight_layout()
 

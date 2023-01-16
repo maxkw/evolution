@@ -4,23 +4,20 @@ import seaborn as sns
 import pandas as pd
 from itertools import product
 import agents as ag
-from evolve import beta_heat, limit_param_plot, params_heat
+from evolve import limit_param_plot, params_heat
 from experiments import plot_beliefs, population_beliefs
 import matplotlib.pyplot as plt
 from evolve import (
-    param_v_rounds_heat,
-    ssd_v_xy,
     ssd_param_search,
     ssd_v_params,
     ssd_bc,
     bc_plot,
-    beta_heat
 )
 
 import params
 
 PLOT_DIR = "./plots/"
-WE_BETA = 5
+WE_BETA = 3
 # NOTE: Setting OTHER_BETA=inf makes tremble=0 blow up
 OTHER_BETA = np.inf
 PRIOR = 0.5
@@ -30,7 +27,16 @@ TREMBLE_RANGE = lambda ticks: np.round(
     3
 )
 TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
-ZD = ag.ZDAgent(B=3, C=1, chi=3, phi="midpoint",)
+Extort2 = ag.ZDAgent(B=3, C=1, chi=2, phi="midpoint", subtype_name="Extort2")
+old_pop = (
+    ag.AllC,
+    ag.AllD,
+    ag.GTFT,
+    ag.WSLS,
+    ag.TFT,
+    Extort2,
+)
+
 
 def color_list(agent_list, sort=True):
     """takes a list of agent types `agent_list` and returns the correctly
@@ -51,7 +57,7 @@ def color_list(agent_list, sort=True):
             return "C4"
         if "TFT" in a:
             return "C5"
-        if "ZD" in a:
+        if "Extort2" in a:
             return "C6"
         raise "Color not defined for agent %s"
 
@@ -59,15 +65,6 @@ def color_list(agent_list, sort=True):
         return sns.color_palette([lookup(a) for a in sorted(agent_list, key=str)])
     else:
         return sns.color_palette([lookup(a) for a in agent_list])
-
-
-"""
-Evolution of Cooperation in the Game Engine:
-1. As a function of repeated interactions
-2. As a function of tremble
-3. TODO what about b/c, what about # of actions?
-"""
-
 
 def game_engine():
     # 100 was good enough for the search_bc plot
@@ -145,6 +142,7 @@ def game_engine():
             param="tremble",
             param_vals=TREMBLE_EXP,
             observability=1,
+            legend=False,
             expected_interactions=1,
             analysis_type="complete",
             file_name="game_engine_tremble_public",
@@ -200,7 +198,7 @@ def game_engine():
         params_heat(
             param_dict=param_dict,
             tremble=MIN_TREMBLE,
-            analysis_type="complete",
+            analysis_type="limit",
             observability=0,
             file_name="game_engine_gamma_tremble",
             **common_params_heat
@@ -250,14 +248,14 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
-    heat_map_omega_tremble()
-    heat_map_gamma_tremble()
-    observe_tremble_plot()
+    # heat_map_omega_tremble()
+    # heat_map_gamma_tremble()
     gamma_plot()
     tremble_plot()
     observe_plot()
     heat_map_gamma_omega()
     search_bc()
+    # observe_tremble_plot()
 
 
     # # Agent Sim Plots
@@ -289,18 +287,9 @@ def ipd():
     # 10000 puts SEM around 0.001-0.002
     TRIALS = 1000
 
-    old_pop = (
-        ag.AllC,
-        ag.AllD,
-        ag.GTFT,
-        ag.WSLS,
-        ag.TFT,
-        ZD,
-    )
     new_pop = old_pop + (
         ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=("self",) + old_pop),
     )
-    # ZD_pop = new_pop + (ZD, )
 
     common_params = dict(
         game="direct",
@@ -313,14 +302,14 @@ def ipd():
         trials=TRIALS,
         stacked=True,
     )
-    # tremble_ticks = 5
+    
     n_rounds = 25
+    tremble = MIN_TREMBLE
     
     # from experiments import matchup_matrix_per_round, payoff_heatmap
-    # tremble = MIN_TREMBLE
     # payoffs = payoff_heatmap(
     #     player_types=new_pop,
-    #     max_rounds=20,
+    #     max_rounds=n_rounds,
     #     game="direct",
     #     tremble=MIN_TREMBLE,
     #     benefit=BENEFIT,
@@ -331,12 +320,8 @@ def ipd():
     #     per_round = True,
     #     file_name="ipd_payoffs_tremble_%0.2f" % tremble,
     # )
-    # assert 0
     
-
-
-    # for label, player_types in zip(["wRA", "woRA", "wRAZD"], [new_pop, old_pop, ZD_pop]):
-    for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
+    for label, player_types in zip(["wRA", "woRA"], [old_pop, new_pop]):
         print("Running Expected Rounds with", label)
         limit_param_plot(
             param="rounds",
@@ -345,16 +330,30 @@ def ipd():
             player_types=player_types,
             legend=True,
             file_name="ipd_rounds_%s" % label,
-            graph_kwargs={"color": color_list(player_types)},
+            graph_kwargs={"color": color_list(player_types),
+                          "xlabel": "# Pairwise Interactions"},
+            **common_params,
+        )
+
+        print("Running Pop Size with", label)
+        limit_param_plot(
+            param="pop_size",
+            param_vals=(2,4,8,16,32,64,128),
+            rounds=n_rounds,
+            tremble=MIN_TREMBLE,
+            player_types=player_types,
+            legend=False,
+            file_name="ipd_popsize_%s" % label,
+            graph_kwargs={"color": color_list(player_types),
+                          "xlabel": "Population Size"},
             **common_params,
         )
 
         print("Running Tremble with", label)
         limit_param_plot(
             param="tremble",
-            # param_vals=TREMBLE_RANGE(tremble_ticks),
             param_vals=TREMBLE_EXP,
-            rounds=10,
+            rounds=n_rounds,
             player_types=player_types,
             legend=False,
             file_name="ipd_tremble_%s" % label,
@@ -387,40 +386,45 @@ def ipd():
         graph_kwargs={"color": color_list(new_pop)},
         **common_params,
     )
-    # Commented out because the # of rounds should be calibrated to be right on the edge. 
+
     print("Running Beta IPD")
     limit_param_plot(
         param="beta",
         tremble=MIN_TREMBLE,
-        rounds=5,
-        param_vals=np.linspace(1,7,13),
+        rounds=39,
+        param_vals=np.append(np.linspace(1,6.5,12), np.inf),
         file_name="ipd_beta",
-        # player_types = ZD_pop,
         player_types=new_pop,
         legend=False,
-        graph_kwargs={"color": color_list(new_pop)},
+        graph_kwargs={"color": color_list(new_pop),
+                      "xlabel": r"Softmax ($\beta$)"},
         **common_params,        
     )         
 
+    print('Running Beat Heat Map')
     def beta_heat_map():
-        # Heatmap based on beta vs. rounds
-        common_params_heat = common_params.copy()
-        common_params_heat['graph_kwargs'] = dict(
-                xlabel = 'Beta',
-                ylabel = 'Mean Pairwise Interactions',
+        heat_graph_kwargs = dict(
+                xlabel = r'Softmax ($\beta$)',
+                ylabel = '# Pairwise Interactions',
                 xy = ("beta", "rounds"),
                 onlyRA = True)
+        
+        param_dict = dict(
+            beta=np.append(np.linspace(1,8,8), np.inf),
+            rounds=[39],
+        )
         # common_params_heat['trials'] = 20
 
-        beta_heat(
-            param_vals=np.linspace(1,7,13),
+        params_heat(
+            param_dict=param_dict,
             param="beta",
-            rounds=13,
             player_types=new_pop,
             tremble=MIN_TREMBLE,
             file_name="heat_beta",
             return_rounds=True,
-            **common_params_heat
+            per_round=True,
+            graph_kwargs=heat_graph_kwargs,
+            **common_params
         )
     beta_heat_map()
   
@@ -446,16 +450,17 @@ def agent():
     from scenarios import scene_plot, make_observations_from_scenario
 
     scenarios = [
-        [["AB"], "C"],
-        [["AB"], "D"],  
-        [["BA", "AB"], "DD"],
-        [["BA", "AB"], "DC"],
-        [["BA", "AB"], "CC"],
-        [["BA", "AB"], "CD"],
-        [["prior"], "prior"]
+        ('Alice', [["AB"], "C"]),
+        ('Alice', [["AB"], "D"]),  
+        ('Bob', [["BA", "AB"], "DD"]),
+        ('Bob', [["BA", "AB"], "DC"]),
+        ('Bob', [["BA", "AB"], "CC"]),
+        ('Bob', [["BA", "AB"], "CD"]),
+        ('Alice', [["prior"], "prior"]),
+        ('Bob', [["prior"], "prior"])
     ]
 
-    for s in scenarios:
+    for xlabel, s in scenarios:
         if s[1] == "prior":
             obs = []
         else:
@@ -464,78 +469,10 @@ def agent():
         scene_plot(
             observer=observer,
             scenarios=[obs],
-            file_name="scene_reciprocal_" + s[1],
+            xlabel="$P(U_{" + xlabel + "})$",
+            file_name="scene_reciprocal_{}_{}".format(s[1], xlabel),
             **common_params,
         )
-
-
-    # reciprocal_scenarios_0 = [[["AB"], "C"], [["AB"], "D"]]
-    # titles_0 = [
-    #     "Prior" + "\n ",
-    #     r"$j$ cooperates w/ $k$" + "\n ",
-    #     r"$j$ defects on $k$" + "\n ",
-    # ]
-
-    # reciprocal_scenarios_0 = [
-    #     make_observations_from_scenario(s, **game_params)
-    #     for s in reciprocal_scenarios_0
-    # ]
-    # reciprocal_scenarios_0.insert(0, [])
-
-    # scene_plot(
-    #     observer=observer,
-    #     scenarios=reciprocal_scenarios_0,
-    #     # titles = titles_0,
-    #     file_name="scene_reciprocal_0",
-    #     **common_params,
-    # )
-
-    # reciprocal_scenarios_1 = [
-    #     [["BA", "AB"], "DD"],
-    #     [["BA", "AB"], "DC"],
-    #     [["BA", "AB"], "CD"],
-    # ]
-    # titles_1 = [
-    #     r"$k$ defects on $j$" + "\n" + r"$j$ defects on $k$",
-    #     r"$k$ defects on $j$" + "\n" + r"$j$ cooperates w/ $k$",
-    #     r"repeat",
-    # ]
-
-    # reciprocal_scenarios_1 = [
-    #     make_observations_from_scenario(s, **game_params)
-    #     for s in reciprocal_scenarios_1
-    # ]
-    # scene_plot(
-    #     observer=observer,
-    #     scenarios=reciprocal_scenarios_1,
-    #     # titles = titles_1,
-    #     file_name="scene_reciprocal_1",
-    #     **common_params,
-    # )
-    
-    
-    # reciprocal_scenarios_2 = [
-    #     [["BA", "AB"], "DD"],
-    #     [["BA", "AB"], "CC"],
-    #     [["BA", "AB"], "CD"],
-    # ]
-    # titles_2 = [
-    #     r"repeat",
-    #     r"$k$ cooperates w/ $j$" + "\n" + r"$j$ cooperates w/ $k$",
-    #     r"$k$ cooperates w/ $j$" + "\n" + r"$j$ defects on $k$",
-    # ]
-
-    # reciprocal_scenarios_2 = [
-    #     make_observations_from_scenario(s, **game_params)
-    #     for s in reciprocal_scenarios_2
-    # ]
-    # scene_plot(
-    #     observer=observer,
-    #     scenarios=reciprocal_scenarios_2,
-    #     # titles = titles_2,
-    #     file_name="scene_reciprocal_2",
-    #     **common_params,
-    # )
 
     # # FORGIVENESS AND REPUTATION
     # from scenarios import forgive_plot
@@ -588,8 +525,9 @@ def belief():
     plot_beliefs(
         observability=0,
         # Below computes makes it so the number of interactions are
-        # equivalent in both cases.
+        # equivalent in both cases. 
         rounds=int(sum(population) * (sum(population) - 1) / 2 / 3),
+        xlabbel="# Observations",
         file_name="intra_gen_belief_private",
         **common_params,
     )
@@ -602,18 +540,11 @@ def belief():
         rounds=1,
         observability=1,
         file_name="intra_gen_belief_public",
+        xlabel = "# Obersevations",
         **common_params,
     )
 
-    # Use the FSA agents as comparison agents too
-    old_pop = (
-        ag.AllC,
-        ag.AllD,
-        ag.TFT,
-        ag.WSLS,
-        ag.GTFT,
-        ZD,
-    )
+    # FSA agents
     ToM = ("self",) + old_pop
     agent = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
     common_params.update(
@@ -630,6 +561,7 @@ def belief():
         observability=0,
         rounds=15,
         file_name="fsa_belief",
+        xlabel="# Pairwise Interactions",
         **common_params,
     )
 
