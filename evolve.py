@@ -145,6 +145,7 @@ def ssd_v_param(param, player_types, **kwargs):
     records = []
 
     if param == "rounds" and "param_vals" not in kwargs:
+        # If the variable is rounds we are in IPD and so we want to do evolution over the average fitness per round not the total fitness. 
         kwargs["per_round"] = True
         expected_pop_per_round = evo_analysis(player_types=player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start=1):
@@ -221,6 +222,13 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     product_params = list(product(*list(param_dict.values())))
     for pvs in tqdm(product_params, disable=params.disable_tqdm):
         ps = dict(list(zip(param_dict, pvs)))
+        
+        if "beta" in ps:
+            # Change the beta of each player that has a beta
+            for i, t in enumerate(player_types):
+                if hasattr(t, "genome") and "beta" in t.genome:
+                    player_types[i].genome["beta"] = ps["beta"]
+        
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
@@ -228,6 +236,9 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         # Only return all of the rounds if return_rounds is True
         if return_rounds:
             start = 1
+            # Need to delete the rounds key from the param dict so that it doesn't overwrite it below.
+            if "rounds" in ps:
+                del ps["rounds"]
         else:
             start = len(expected_pop_per_round) - 1
 
@@ -305,14 +316,10 @@ def bc_plot(
     plt.tight_layout()
 
 
-def ssd_v_xy(x_param, y_param, x_vals, y_vals, player_types, **kwargs):
-    return ssd_v_params(
-        params={x_param: x_vals, y_param: y_vals}, player_types=player_types, **kwargs
-    )
-
-
 @plotter(ssd_v_params)
-def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
+def params_heat(
+    param_dict, player_types, line=None, data=[], graph_kwargs={}, **kwargs
+):
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop("data")
         try:
@@ -324,7 +331,26 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
         ax = sns.heatmap(d, **kwargs)
         ax.invert_yaxis()
 
+        if line is not None:
+            nonlocal player_types
+            ntypes = len(player_types)
+
+            # Find the first index in d where the value is greater than 0.5
+            first = d.ge(0.5).idxmax()
+            import pdb; pdb.set_trace()
+
     assert len(param_dict) == 2
+    
+    graph_params = dict(
+        cbar=True,
+        square=True,
+        vmin=0,
+        vmax=1,
+        # vmax=data['frequency'].max(),
+        linewidths=0.5,
+        xticklabels=2,
+        yticklabels=2,
+    )
 
     if graph_kwargs["onlyRA"]:
         fig, ax = plt.subplots(figsize=(3.5, 3))
@@ -333,13 +359,8 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
             graph_kwargs["xy"][1],
             "proportion",
             data=data[data["type"].str.contains("WeAgent")],
-            cbar=True,
-            square=True,
-            vmin=0,
-            vmax=1,
-            # vmax=data['frequency'].max(),
             cmap=plt.cm.Blues,
-            linewidths=0.5,
+            **graph_params,
         )
 
     else:
@@ -349,49 +370,8 @@ def params_heat(param_dict, player_types, data=[], graph_kwargs={}, **kwargs):
             graph_kwargs["xy"][0],
             graph_kwargs["xy"][1],
             "proportion",
-            cbar=False,
-            square=True,
-            vmin=0,
-            vmax=1,
-            # vmax=data['frequency'].max(),
             cmap=plt.cm.gray_r,
-            linewidths=0.5,
-        )
-
-    plt.xlabel(graph_kwargs["xlabel"])
-    plt.ylabel(graph_kwargs["ylabel"])
-    plt.tight_layout()
-
-
-@plotter(ssd_v_param)
-def beta_heat(param_vals, player_types, data=[], graph_kwargs={}, **kwargs):
-    def draw_heatmap(*args, **kwargs):
-        data = kwargs.pop("data")
-        try:
-            d = data.pivot(index=args[1], columns=args[0], values=args[2])
-        except Exception as e:
-            print("`param_dict` likely has duplicate values")
-            raise e
-
-        ax = sns.heatmap(d, **kwargs)
-        ax.invert_yaxis()
-
-    if graph_kwargs["onlyRA"]:
-        fig, ax = plt.subplots(figsize=(3.5, 3))
-        draw_heatmap(
-            graph_kwargs["xy"][0],
-            graph_kwargs["xy"][1],
-            "proportion",
-            data=data[data["type"].str.contains("WeAgent")],
-            cbar=True,
-            square=True,
-            vmin=0,
-            vmax=1,
-            # vmax=data['frequency'].max(),
-            cmap=plt.cm.Blues,
-            linewidths=0.5,
-            xticklabels=2,
-            yticklabels=2,
+            **graph_params,
         )
 
     plt.xlabel(graph_kwargs["xlabel"])
@@ -464,10 +444,12 @@ def ssd_param_search(
 
 
 def make_legend():
+    from params import AGENT_NAME
+
     legend = plt.legend(frameon=True, framealpha=1)
     for i, texts in enumerate(legend.get_texts()):
         if "WeAgent" in texts.get_text():
-            texts.set_text("Reciprocal")
+            texts.set_text(AGENT_NAME)
         elif "SelfishAgent" in texts.get_text():
             texts.set_text("Selfish")
         elif "AltruisticAgent" in texts.get_text():
@@ -554,72 +536,38 @@ def limit_param_plot(
             ax.set_xticks(range(0, len(kwargs["param_vals"]), 2))
             ax.set_xticklabels(kwargs["param_vals"][::2], rotation="horizontal")
 
-        if param in ["rounds", "expected_interactions"]:
-            plt.xlabel("Mean Pairwise Interactions")
-            # plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
-
-            # if param == 'expected_interactions':
-            # plt.xticks(range(1,11))
-
-        elif param == "observability":
-            # plt.xlabel("Probability of observation\n" r"$\omega$")
-            plt.xlabel(r"Prob. of observation ($\omega$)")
-
-        elif param == "tremble":
-            plt.xlabel(r"Prob. of action error ($\epsilon$)")
-
-        else:
-            plt.xlabel(param)
-
     else:
-
         data.plot(ax=ax, ylim=[0, 1.05], **graph_kwargs)
-
-        if param in ["pop_size"]:
-            plt.axes().set_xscale("log", basex=2)
-        elif param == "s":
-            plt.axes().set_xscale("log")
-
-        # elif param in ["beta"]:
-        #     plt.axes().set_xscale('log',basex=10)
-        # elif if param in ['rounds']:
-        #     pass
-
-        plt.xlabel(param)
         plt.legend()
 
+    if "xlabel" in graph_kwargs:
+        plt.xlabel(graph_kwargs["xlabel"])
+
+    elif param in ["rounds", "expected_interactions"]:
+        plt.xlabel("Mean Pairwise Interactions")
+        # plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
+
+        # if param == 'expected_interactions':
+        # plt.xticks(range(1,11))
+
+    elif param == "observability":
+        # plt.xlabel("Probability of observation\n" r"$\omega$")
+        plt.xlabel(r"Prob. of observation ($\omega$)")
+
+    elif param == "tremble":
+        plt.xlabel(r"Prob. of action error ($\epsilon$)")
+
+    else:
+        plt.xlabel(param)
+
     plt.yticks([0, 0.5, 1])
-    plt.ylabel("Equilibrium Frequency")
+    plt.ylabel("Relative abundance")
 
     if graph_funcs is not None:
         graph_funcs(ax)
 
     sns.despine()
     plt.tight_layout()
-
-
-@plotter(ssd_v_xy)
-def param_v_rounds_heat(
-    x_param, y_param, x_vals, y_vals, player_types, data=[], **kwargs
-):
-    def draw_heatmap(*args, **kwargs):
-        data = kwargs.pop("data")
-        d = data.pivot(index=y_param, columns=x_param, values="proportion")
-        ax = sns.heatmap(d, **kwargs)
-        ax.invert_yaxis()
-
-    g = sns.FacetGrid(data=data, col="type")
-    g.map_dataframe(
-        draw_heatmap,
-        cbar=False,  # square=True,
-        vmin=0,
-        vmax=1,
-        # vmax=data['frequency'].max(),
-        cmap=plt.cm.gray_r,
-    )
-
-    # linewidths=.5)
-
 
 if __name__ == "__main__":
     pass
