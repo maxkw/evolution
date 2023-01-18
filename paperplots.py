@@ -19,7 +19,8 @@ MIN_TREMBLE = 0.01
 #     np.geomspace(MIN_TREMBLE, 0.25, ticks),
 #     3
 # )
-TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
+# TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
+TREMBLE_EXP = np.round(np.linspace(0,.6,13),2)
 Extort2 = ag.ZDAgent(B=3, C=1, chi=2, phi="midpoint", subtype_name="Extort2")
 old_pop = (
     ag.AllC,
@@ -29,7 +30,6 @@ old_pop = (
     ag.TFT,
     Extort2,
 )
-
 
 def color_list(agent_list, sort=True):
     """takes a list of agent types `agent_list` and returns the correctly
@@ -90,8 +90,6 @@ def game_engine():
         print('Running gamma plot')
         limit_param_plot(
             param_dict={"expected_interactions": np.round(np.linspace(1, max_expected_interactions, ticks), 2)},
-            # param="expected_interactions",
-            # param_vals=np.round(np.linspace(1, max_expected_interactions, ticks), 2),
             tremble=MIN_TREMBLE,
             observability=0,
             legend=True,
@@ -107,12 +105,8 @@ def game_engine():
         # observability.
         limit_param_plot(
             param_dict={"tremble": TREMBLE_EXP},
-            # param="tremble",
-            # param_vals=TREMBLE_RANGE(ticks),
-            # param_vals=TREMBLE_EXP,
             observability=0,
             expected_interactions=max_expected_interactions,
-            legend=False,
             analysis_type="limit",
             file_name="game_engine_tremble",
             **common_params,
@@ -122,8 +116,6 @@ def game_engine():
         print('Running observability plot')
         limit_param_plot(
             param_dict={"observability": np.round(np.linspace(0, 1, ticks), 2)},
-            # param="observability",
-            # param_vals=np.round(np.linspace(0, 1, ticks), 2),
             tremble=MIN_TREMBLE,
             expected_interactions=1,
             analysis_type="complete",
@@ -135,10 +127,7 @@ def game_engine():
         print('Running tremble plot with observability')
         limit_param_plot(
             param_dict={"tremble": TREMBLE_EXP},
-            # param="tremble",
-            # param_vals=TREMBLE_EXP,
             observability=1,
-            legend=False,
             expected_interactions=1,
             analysis_type="complete",
             file_name="game_engine_tremble_public",
@@ -248,14 +237,14 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
-    # heat_map_omega_tremble()
-    # heat_map_gamma_tremble()
-    gamma_plot()
-    tremble_plot()
-    observe_plot()
-    heat_map_gamma_omega()
-    search_bc()
+    # gamma_plot()
+    # tremble_plot()
+    # observe_plot()
     # observe_tremble_plot()
+    heat_map_gamma_omega()
+    # heat_map_gamma_tremble()
+    # heat_map_omega_tremble()
+    # search_bc()
 
 
     # # Agent Sim Plots
@@ -302,10 +291,18 @@ def ipd():
         plot_dir=PLOT_DIR,
         trials=TRIALS,
         stacked=True,
+        return_rounds=True,
+        per_round=True,            
     )
     
     n_rounds = 25
 
+    selfpayoff_params = common_params.copy()
+    selfpayoff_params.update(
+        stacked=False,
+        var='selfpayoff',
+    )
+    
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
         print("Running Expected Rounds with", label)
         limit_param_plot(
@@ -313,8 +310,6 @@ def ipd():
             tremble=MIN_TREMBLE,
             player_types=player_types,
             legend=True,
-            return_rounds=True,
-            per_round=True,        
             file_name="ipd_rounds_%s" % label,
             graph_kwargs={"color": color_list(player_types),
                           "xlabel": "# Pairwise Interactions"},
@@ -327,38 +322,51 @@ def ipd():
             rounds=n_rounds,
             tremble=MIN_TREMBLE,
             player_types=player_types,
-            legend=False,
             file_name="ipd_popsize_%s" % label,
             graph_kwargs={"color": color_list(player_types),
                           "xlabel": "Population Size"},
             **common_params,
         )
 
-        print("Running Tremble with", label)
+        print("Running Tremble with", label, TREMBLE_EXP)
         limit_param_plot(
             param_dict=dict(tremble=TREMBLE_EXP),
             rounds=n_rounds,
             player_types=player_types,
-            legend=False,
             file_name="ipd_tremble_%s" % label,
             graph_kwargs={"color": color_list(player_types)},
             **common_params,
         )
 
+    print('Running Self Payoff')
+    limit_param_plot(
+        param_dict=dict(rounds=[n_rounds]),
+        tremble=MIN_TREMBLE,
+        player_types=new_pop,
+        file_name="ipd_rounds_selfpay",
+        graph_kwargs={"color": color_list(new_pop),
+                        "xlabel": "# Pairwise Interactions"},
+        **selfpayoff_params,
+    )
+    limit_param_plot(
+        param_dict=dict(tremble=TREMBLE_EXP),
+        rounds=n_rounds,
+        tremble=MIN_TREMBLE,
+        player_types=new_pop,
+        file_name="ipd_tremble_selfpay",
+        graph_kwargs={"color": color_list(new_pop)},
+        **selfpayoff_params,
+    )
+   
     print('Running Payoff Heatmap')
     for r in [5, n_rounds]:
         payoff_heatmap(
-            player_types=new_pop,
             rounds=r,
-            game="direct",
+            player_types=new_pop,
             tremble=MIN_TREMBLE,
-            benefit=BENEFIT,
-            trials=TRIALS,
-            cost=COST,
-            plot_dir=PLOT_DIR,
-            per_round = True,
             sem=False,
             file_name="ipd_payoffs_rounds_{}".format(r),
+            **common_params
         )    
 
     cog_cost_params = np.linspace(0, 0.6, 11)
@@ -367,7 +375,6 @@ def ipd():
         surplus = common_params["benefit"] - common_params["cost"]
         percents = ["{:3.0f}%".format(x / surplus * 100) for x in vals]
         percents = [percents[i] for i in ax.get_xticks()]
-        # print(vals, surplus, percents)
         ax.set_xticklabels(percents)
         # ax.set_xlabel("Cognitive Cost \n% of (b-c)")
         ax.set_xlabel("Cognitive Cost")
@@ -380,7 +387,6 @@ def ipd():
         file_name="ipd_cogcosts",
         player_types=new_pop,
         graph_funcs=cog_cost_graph,
-        legend=False,
         graph_kwargs={"color": color_list(new_pop)},
         **common_params,
     )
@@ -392,7 +398,6 @@ def ipd():
         rounds=5,
         file_name="ipd_beta",
         player_types=new_pop,
-        legend=False,
         graph_kwargs={"color": color_list(new_pop),
                       "xlabel": r"Softmax ($\beta$)"},
         **common_params,        
@@ -407,7 +412,7 @@ def ipd():
                 onlyRA = True)
         
         param_dict = dict(
-            beta=np.append(np.linspace(1,8,15), np.inf),
+            beta=np.append(np.linspace(1,7.5,14), np.inf),
             rounds=[10],
         )
         
@@ -416,8 +421,6 @@ def ipd():
             player_types=new_pop,
             tremble=MIN_TREMBLE,
             file_name="ipd_heat_beta",
-            return_rounds=True,
-            per_round=True,
             line = True,
             graph_kwargs=heat_graph_kwargs,
             **common_params
@@ -433,15 +436,13 @@ def ipd():
         
         param_dict = dict(
             tremble=TREMBLE_EXP,
-            rounds=[10],
+            rounds=[n_rounds],
         )
         
         params_heat(
             param_dict=param_dict,
             player_types=new_pop,
             file_name="ipd_heat_tremble",
-            return_rounds=True,
-            per_round=True,
             line = True,
             graph_kwargs=heat_graph_kwargs,
             **common_params

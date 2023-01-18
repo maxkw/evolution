@@ -137,7 +137,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     # Copy the player types because they can be modified (e.g., beta) which can corrupt other experiments
     player_types = deepcopy(player_types)
 
-    # TODO: Check on why this is always happening
+    # If we aren't returning all the rounds we can't return a per_round average
     if return_rounds == False:
         kwargs["per_round"] = False
 
@@ -154,7 +154,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
-
+        
         # Compute the self-payoffs in the direct game
         if kwargs["game"] == "direct":
             # Delete the unnecessary parameters so that we get a cache hit on `matchup_matrix_per_round`
@@ -175,7 +175,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         else:
             start = len(expected_pop_per_round) - 1
 
-        for r, pop in enumerate(expected_pop_per_round[start:], start=start):
+        for r, pop in enumerate(expected_pop_per_round, start=start):
             for t_idx, (t, p) in enumerate(zip(player_types, pop)):
                 records.append(
                     dict(
@@ -190,7 +190,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                 
                 # Add the self payoff if we are in the direct game
                 if kwargs["game"] == "direct":
-                    records[-1]["selfpayoff"] = payoffs[r - 1][1][t_idx][t_idx]
+                    records[-1]["selfpayoff"] = payoffs[r - start][1][t_idx][t_idx]
 
     return pd.DataFrame(records)
 
@@ -288,13 +288,17 @@ def params_heat(
             )
 
             # The first y where the proportion is equal to the max proportion
-            first = d.eq(max_proportion).idxmax().reset_index()
-            # Adjust the row number for the step plotter
-            first[0] = first[0] - 1
+            first = d.eq(max_proportion).idxmax().reset_index()[0]
 
+            # Get the index integer of d that matches first
+            first = d.index.get_indexer(first)
+            
+            # Double the first entry to make the first step
+            first = [first[0]] + list(first)
+            
             plt.step(
-                [0] + list(first.index + 1),
-                [first[0][0]] + list(first[0]),
+                range(len(first)),
+                first,
                 color="red",
                 linewidth=1,
             )
@@ -360,10 +364,34 @@ def make_legend():
     plot_exclusive_args=[
         "experiment",
         "data",
+        "legend",
+        "graph_kwargs",
+        "graph_funcs",
+    ],
+)
+def selfpayoff_param_plot(
+    param_dict,
+    player_types,
+    data=[],
+    legend=True,
+    graph_funcs=None,
+    graph_kwargs={},
+    **kwargs
+):
+    assert 'game' == 'direct'
+    
+    
+
+@plotter(
+    ssd_v_params,
+    plot_exclusive_args=[
+        "experiment",
+        "data",
         "stacked",
         "legend",
         "graph_kwargs",
         "graph_funcs",
+        "var"
     ],
 )
 def limit_param_plot(
@@ -371,7 +399,8 @@ def limit_param_plot(
     player_types,
     data=[],
     stacked=False,
-    legend=True,
+    var='proportion',
+    legend=False,
     graph_funcs=None,
     graph_kwargs={},
     **kwargs
@@ -383,12 +412,14 @@ def limit_param_plot(
     
     fig, ax = plt.subplots(figsize=(3.5, 3))
     # TODO: Investigate this, some weird but necessary data cleaning
-    data[data["proportion"] < 0] = 0
-    # data[data["proportion"]] = 0
+    data[data[var] < 0] = 0
     data = data[data["type"] != 0]
 
-    data = data[[param, "proportion", "type"]].pivot(
-        columns="type", index=param, values="proportion"
+    if kwargs.get("return_rounds", False) and param != "rounds":
+        data = data[data["rounds"] == kwargs["rounds"]]
+        
+    data = data[[param, var, "type"]].pivot(
+        columns="type", index=param, values=var
     )
 
     type_order = dict(
@@ -417,6 +448,7 @@ def limit_param_plot(
 
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
 
+
     if stacked:
         data.plot.bar(
             stacked=True,
@@ -431,22 +463,25 @@ def limit_param_plot(
             make_legend()
 
         if param == "rounds":
-            ax.set_xticks(range(4, param_values[0], 5))
-            ax.set_xticklabels(
-                range(1, param_values[0] + 1)[4::5], rotation="horizontal"
-            )
+            # ax.set_xticks(range(4, param_values[0], 5))
+            # ax.set_xticklabels(
+            #     range(1, param_values[0] + 1)[4::5], rotation="horizontal"
+            # )
+            pass
 
         elif param == "tremble":
-            plt.xticks(rotation="horizontal")
-
+            from matplotlib.ticker import FormatStrFormatter
+            ax.set_xticks(range(0, len(param_values), 2))
+            ax.set_xticklabels(param_values[::2], rotation="horizontal")
         else:
             ax.set_xticks(range(0, len(param_values), 2))
             ax.set_xticklabels(param_values[::2], rotation="horizontal")
 
     else:
-        data.plot(ax=ax, ylim=[0, 1.05], **graph_kwargs)
-        plt.legend()
-
+        data.plot(ax=ax, legend=False, **graph_kwargs)
+        if legend:
+            make_legend()
+            
     if "xlabel" in graph_kwargs:
         plt.xlabel(graph_kwargs["xlabel"])
 
@@ -467,8 +502,11 @@ def limit_param_plot(
     else:
         plt.xlabel(param)
 
-    plt.yticks([0, 0.5, 1])
-    plt.ylabel("Relative abundance")
+    if var == "proportion":
+        plt.yticks([0, 0.5, 1])
+        plt.ylabel("Relative abundance")
+    else:
+        pass
 
     if graph_funcs is not None:
         graph_funcs(ax)
