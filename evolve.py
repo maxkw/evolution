@@ -126,91 +126,6 @@ def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwa
 
     plt.tight_layout()
 
-
-def ssd_v_param(param, player_types, **kwargs):
-    """
-    This should be optimized to reflect the fact that
-    in terms of complexity
-    rounds=s>=pop_size>=anything_else
-
-    for 'rounds' you do a single analysis and then plot each round
-    for 's' you should only make the RMCP once and then do the analysis for different s
-    for 'pop_size',
-       in direct reciprocity you only need to make the payoff matrix once
-       in indirect you need to make an rmcp for each value of pop_size
-    for anything else, the whole thing needs to be rerun
-
-
-    """
-    records = []
-
-    # Copy the player types because they can be modified (e.g., beta) which can corrupt other experiments
-    player_types = deepcopy(player_types)
-
-    if param == "rounds" and "param_vals" not in kwargs:
-        # If the variable is rounds we are in IPD and so we want to do evolution over the average fitness per round not the total fitness.
-        kwargs["per_round"] = True
-        expected_pop_per_round = evo_analysis(player_types=player_types, **kwargs)
-        for r, pop in enumerate(expected_pop_per_round, start=1):
-            for t, p in zip(player_types, pop):
-                records.append(
-                    {
-                        "rounds": r,
-                        "type": t.short_name("agent_types"),
-                        "proportion": p,
-                    }
-                )
-
-        return pd.DataFrame(records)
-
-    if "param_vals" in kwargs:
-        vals = kwargs["param_vals"]
-        del kwargs["param_vals"]
-
-        return_rounds = kwargs.get("return_rounds", False)
-        kwargs["per_round"] = kwargs.get("return_rounds", False)
-
-        for x in tqdm(vals, disable=params.disable_tqdm):
-            if param == "beta":
-                # Change the beta of each player that has a beta
-                for i, t in enumerate(player_types):
-                    if hasattr(t, "genome") and "beta" in t.genome:
-                        player_types[i].genome["beta"] = x
-
-            expected_pop = evo_analysis(
-                player_types=player_types, **dict(kwargs, **{param: x})
-            )
-
-            if return_rounds:
-                for r, pop in enumerate(expected_pop, start=1):
-                    for t, p in zip(player_types, pop):
-                        records.append(
-                            {
-                                "rounds": r,
-                                param: x,
-                                "type": t.short_name("agent_types"),
-                                "proportion": p,
-                            }
-                        )
-            else:
-                assert len(expected_pop) == 1
-
-                expected_pop = expected_pop[-1]
-                for t, p in zip(player_types, expected_pop):
-                    records.append(
-                        {
-                            param: x,
-                            "type": t.short_name("agent_types"),
-                            "proportion": p,
-                        }
-                    )
-
-        return pd.DataFrame(records)
-
-    else:
-        raise Exception("`param_vals` %s is not defined. Pass this variable" % param)
-
-
 def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     """`param_dict`: <dict> with <string> keys that name the parameter and
     values that are lists of the parameters to range over.
@@ -222,6 +137,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     # Copy the player types because they can be modified (e.g., beta) which can corrupt other experiments
     player_types = deepcopy(player_types)
 
+    # TODO: Check on why this is always happening
     if return_rounds == False:
         kwargs["per_round"] = False
 
@@ -440,7 +356,7 @@ def make_legend():
 
 
 @plotter(
-    ssd_v_param,
+    ssd_v_params,
     plot_exclusive_args=[
         "experiment",
         "data",
@@ -451,7 +367,7 @@ def make_legend():
     ],
 )
 def limit_param_plot(
-    param,
+    param_dict,
     player_types,
     data=[],
     stacked=False,
@@ -460,6 +376,11 @@ def limit_param_plot(
     graph_kwargs={},
     **kwargs
 ):
+    # This function only plots a single parameter
+    assert len(param_dict) == 1
+    param = list(param_dict.keys())[0]
+    param_values = param_dict[param]
+    
     fig, ax = plt.subplots(figsize=(3.5, 3))
     # TODO: Investigate this, some weird but necessary data cleaning
     data[data["proportion"] < 0] = 0
@@ -510,17 +431,17 @@ def limit_param_plot(
             make_legend()
 
         if param == "rounds":
-            ax.set_xticks(range(4, kwargs["rounds"], 5))
+            ax.set_xticks(range(4, param_values[0], 5))
             ax.set_xticklabels(
-                range(1, kwargs["rounds"] + 1)[4::5], rotation="horizontal"
+                range(1, param_values[0] + 1)[4::5], rotation="horizontal"
             )
 
         elif param == "tremble":
             plt.xticks(rotation="horizontal")
 
         else:
-            ax.set_xticks(range(0, len(kwargs["param_vals"]), 2))
-            ax.set_xticklabels(kwargs["param_vals"][::2], rotation="horizontal")
+            ax.set_xticks(range(0, len(param_values), 2))
+            ax.set_xticklabels(param_values[::2], rotation="horizontal")
 
     else:
         data.plot(ax=ax, ylim=[0, 1.05], **graph_kwargs)

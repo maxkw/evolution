@@ -87,9 +87,11 @@ def game_engine():
     # max_expected_interactions = (1+ticks)/2
     # Expected number of interactions
     def gamma_plot():
+        print('Running gamma plot')
         limit_param_plot(
-            param="expected_interactions",
-            param_vals=np.round(np.linspace(1, max_expected_interactions, ticks), 2),
+            param_dict={"expected_interactions": np.round(np.linspace(1, max_expected_interactions, ticks), 2)},
+            # param="expected_interactions",
+            # param_vals=np.round(np.linspace(1, max_expected_interactions, ticks), 2),
             tremble=MIN_TREMBLE,
             observability=0,
             legend=True,
@@ -99,16 +101,15 @@ def game_engine():
         )
 
     def tremble_plot():
-        # Vary tremble
-
+        print('Running tremble plot')
         # NOTE: Tremble = 0, beta = inf, and max_players = 3 will cause an error
         # because between three-player subsets there might be some partial
         # observability.
-
         limit_param_plot(
-            param="tremble",
+            param_dict={"tremble": TREMBLE_EXP},
+            # param="tremble",
             # param_vals=TREMBLE_RANGE(ticks),
-            param_vals=TREMBLE_EXP,
+            # param_vals=TREMBLE_EXP,
             observability=0,
             expected_interactions=max_expected_interactions,
             legend=False,
@@ -118,10 +119,11 @@ def game_engine():
         )
 
     def observe_plot():
-        # Vary observability
+        print('Running observability plot')
         limit_param_plot(
-            param="observability",
-            param_vals=np.round(np.linspace(0, 1, ticks), 2),
+            param_dict={"observability": np.round(np.linspace(0, 1, ticks), 2)},
+            # param="observability",
+            # param_vals=np.round(np.linspace(0, 1, ticks), 2),
             tremble=MIN_TREMBLE,
             expected_interactions=1,
             analysis_type="complete",
@@ -130,10 +132,11 @@ def game_engine():
         )
         
     def observe_tremble_plot():
-        # Vary observability
+        print('Running tremble plot with observability')
         limit_param_plot(
-            param="tremble",
-            param_vals=TREMBLE_EXP,
+            param_dict={"tremble": TREMBLE_EXP},
+            # param="tremble",
+            # param_vals=TREMBLE_EXP,
             observability=1,
             legend=False,
             expected_interactions=1,
@@ -143,7 +146,7 @@ def game_engine():
         )        
         
     def heat_map_gamma_omega():
-        # Heatmap based on gamma vs. observability
+        print('Running heat map gamma vs. omega')
         param_dict = dict(
             expected_interactions=np.round(np.linspace(1, 3, heat_ticks), 2),
             observability=np.round(np.linspace(0, 1, heat_ticks), 2),
@@ -171,7 +174,7 @@ def game_engine():
         )
 
     def heat_map_gamma_tremble():
-        # Heatmap based on gamma vs. tremble
+        print('Running heat map gamma vs. tremble')
         param_dict = dict(
             expected_interactions=np.round(np.linspace(1, 3, heat_ticks), 2),
             tremble=TREMBLE_EXP,
@@ -200,7 +203,7 @@ def game_engine():
         )
 
     def heat_map_omega_tremble():
-        # Heatmap based on gamma vs. tremble
+        print('Running heat map omega vs. tremble')
         param_dict = dict(
             tremble=TREMBLE_EXP,
             observability=np.round(np.linspace(0, 1, heat_ticks), 2),
@@ -228,6 +231,7 @@ def game_engine():
         )
 
     def search_bc():
+        print('Running search bc')
         bcs = {
             (15, 1): 3,
             (10, 1): 4,
@@ -305,11 +309,12 @@ def ipd():
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
         print("Running Expected Rounds with", label)
         limit_param_plot(
-            param="rounds",
-            rounds=n_rounds,
+            param_dict=dict(rounds=[n_rounds]),
             tremble=MIN_TREMBLE,
             player_types=player_types,
             legend=True,
+            return_rounds=True,
+            per_round=True,        
             file_name="ipd_rounds_%s" % label,
             graph_kwargs={"color": color_list(player_types),
                           "xlabel": "# Pairwise Interactions"},
@@ -318,8 +323,7 @@ def ipd():
 
         print("Running Pop Size with", label)
         limit_param_plot(
-            param="pop_size",
-            param_vals=(2,4,8,16,32,64,128),
+            param_dict=dict(pop_size=[2,4,8,16,32,64,128]),
             rounds=n_rounds,
             tremble=MIN_TREMBLE,
             player_types=player_types,
@@ -332,8 +336,7 @@ def ipd():
 
         print("Running Tremble with", label)
         limit_param_plot(
-            param="tremble",
-            param_vals=TREMBLE_EXP,
+            param_dict=dict(tremble=TREMBLE_EXP),
             rounds=n_rounds,
             player_types=player_types,
             legend=False,
@@ -371,10 +374,9 @@ def ipd():
 
     print("Running Cog Cost")
     limit_param_plot(
-        param="cog_cost",
+        param_dict=dict(cog_cost=cog_cost_params),
         tremble=MIN_TREMBLE,
         rounds=n_rounds,
-        param_vals=cog_cost_params,
         file_name="ipd_cogcosts",
         player_types=new_pop,
         graph_funcs=cog_cost_graph,
@@ -385,10 +387,9 @@ def ipd():
     
     print("Running Beta IPD")
     limit_param_plot(
-        param="beta",
+        param_dict=dict(beta=np.append(np.linspace(1,6.5,12), np.inf)),
         tremble=MIN_TREMBLE,
         rounds=5,
-        param_vals=np.append(np.linspace(1,6.5,12), np.inf),
         file_name="ipd_beta",
         player_types=new_pop,
         legend=False,
@@ -406,13 +407,12 @@ def ipd():
                 onlyRA = True)
         
         param_dict = dict(
-            beta=np.append(np.linspace(1,8,5), np.inf),
+            beta=np.append(np.linspace(1,8,15), np.inf),
             rounds=[10],
         )
         
         params_heat(
             param_dict=param_dict,
-            param="beta",
             player_types=new_pop,
             tremble=MIN_TREMBLE,
             file_name="ipd_heat_beta",
@@ -438,7 +438,6 @@ def ipd():
         
         params_heat(
             param_dict=param_dict,
-            param="tremble",
             player_types=new_pop,
             file_name="ipd_heat_tremble",
             return_rounds=True,
