@@ -1,19 +1,19 @@
 import pandas as pd
-from datetime import date
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import product, permutations
-from scipy.ndimage.filters import gaussian_filter1d
 import agents as ag
 from utils import excluding_keys, softmax, memoize
 from experiment_utils import experiment, plotter
+from experiments import matchup_matrix_per_round
 import params
 from agents import WeAgent
 from steady_state import evo_analysis, simulation
 from steady_state import simulation, matchups_and_populations
 from multiprocessing import Pool
 from tqdm import tqdm
+from copy import deepcopy
 
 
 def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwargs):
@@ -115,7 +115,7 @@ def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwa
         ylim=[0, sum(kwargs["start_pop"])],
         xlim=[0, generations],
         lw=0.5,
-        **graph_kwargs
+        **graph_kwargs,
     )
 
     make_legend()
@@ -144,8 +144,11 @@ def ssd_v_param(param, player_types, **kwargs):
     """
     records = []
 
+    # Copy the player types because they can be modified (e.g., beta) which can corrupt other experiments
+    player_types = deepcopy(player_types)
+
     if param == "rounds" and "param_vals" not in kwargs:
-        # If the variable is rounds we are in IPD and so we want to do evolution over the average fitness per round not the total fitness. 
+        # If the variable is rounds we are in IPD and so we want to do evolution over the average fitness per round not the total fitness.
         kwargs["per_round"] = True
         expected_pop_per_round = evo_analysis(player_types=player_types, **kwargs)
         for r, pop in enumerate(expected_pop_per_round, start=1):
@@ -216,22 +219,36 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
 
     records = []
 
+    # Copy the player types because they can be modified (e.g., beta) which can corrupt other experiments
+    player_types = deepcopy(player_types)
+
     if return_rounds == False:
         kwargs["per_round"] = False
 
     product_params = list(product(*list(param_dict.values())))
     for pvs in tqdm(product_params, disable=params.disable_tqdm):
         ps = dict(list(zip(param_dict, pvs)))
-        
+
         if "beta" in ps:
             # Change the beta of each player that has a beta
             for i, t in enumerate(player_types):
                 if hasattr(t, "genome") and "beta" in t.genome:
                     player_types[i].genome["beta"] = ps["beta"]
-        
+
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
+
+        # Compute the self-payoffs in the direct game
+        if kwargs["game"] == "direct":
+            # Delete the unnecessary parameters so that we get a cache hit on `matchup_matrix_per_round`
+            combined_kwargs = dict(kwargs, **ps)
+            for key in ["analysis_type", "pop_size", "s"]:
+                del combined_kwargs[key]
+
+            payoffs = matchup_matrix_per_round(
+                player_types=player_types, **combined_kwargs
+            )
 
         # Only return all of the rounds if return_rounds is True
         if return_rounds:
@@ -243,7 +260,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
             start = len(expected_pop_per_round) - 1
 
         for r, pop in enumerate(expected_pop_per_round[start:], start=start):
-            for t, p in zip(player_types, pop):
+            for t_idx, (t, p) in enumerate(zip(player_types, pop)):
                 records.append(
                     dict(
                         {
@@ -251,9 +268,13 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                             "type": t.short_name("agent_types"),
                             "proportion": p,
                         },
-                        **ps
+                        **ps,
                     )
                 )
+                
+                # Add the self payoff if we are in the direct game
+                if kwargs["game"] == "direct":
+                    records[-1]["selfpayoff"] = payoffs[r - 1][1][t_idx][t_idx]
 
     return pd.DataFrame(records)
 
@@ -277,8 +298,8 @@ def ssd_bc(ei_stop, observe_param, delta, player_types, **kwargs):
                 # If WeAgent has both the largest share of any agents
                 # Second line is break ties -- if they are all equal it must be higher than equal
                 WA_expected_pop = expected_pop[WA_index]
-                if WA_expected_pop == max(expected_pop) and WA_expected_pop > 1 / len(
-                    player_types
+                if (WA_expected_pop == max(expected_pop)) and (
+                    WA_expected_pop > 1 / len(player_types)
                 ):
 
                     records.append(
@@ -318,12 +339,18 @@ def bc_plot(
 
 @plotter(ssd_v_params)
 def params_heat(
-    param_dict, player_types, line=None, data=[], graph_kwargs={}, **kwargs
+    param_dict, player_types, line=False, data=[], graph_kwargs={}, **kwargs
 ):
+    original_data = data.copy()
+
     def draw_heatmap(*args, **kwargs):
         data = kwargs.pop("data")
+        x = args[0]
+        y = args[1]
+        proportion = args[2]
+
         try:
-            d = data.pivot(index=args[1], columns=args[0], values=args[2])
+            d = data.pivot(index=y, columns=x, values=proportion)
         except Exception as e:
             print("`param_dict` likely has duplicate values")
             raise e
@@ -331,22 +358,38 @@ def params_heat(
         ax = sns.heatmap(d, **kwargs)
         ax.invert_yaxis()
 
-        if line is not None:
-            nonlocal player_types
-            ntypes = len(player_types)
+        nonlocal original_data, line
+        if line:
 
             # Find the first index in d where the value is greater than 0.5
-            first = d.ge(0.5).idxmax()
-            import pdb; pdb.set_trace()
+            original_data.groupby([y, x]).max()
+
+            # The type with the highest proportion had this much proportion
+            max_proportion = (
+                original_data.groupby([x, y], as_index=False)
+                .max()
+                .pivot(index=y, columns=x, values=proportion)
+            )
+
+            # The first y where the proportion is equal to the max proportion
+            first = d.eq(max_proportion).idxmax().reset_index()
+            # Adjust the row number for the step plotter
+            first[0] = first[0] - 1
+
+            plt.step(
+                [0] + list(first.index + 1),
+                [first[0][0]] + list(first[0]),
+                color="red",
+                linewidth=1,
+            )
 
     assert len(param_dict) == 2
-    
+
     graph_params = dict(
         cbar=True,
         square=True,
         vmin=0,
         vmax=1,
-        # vmax=data['frequency'].max(),
         linewidths=0.5,
         xticklabels=2,
         yticklabels=2,
@@ -379,68 +422,6 @@ def params_heat(
     plt.yticks(rotation=0)
     plt.xticks(rotation=0)
     plt.tight_layout()
-
-
-def ssd_param_search(
-    param, param_lim, player_types, target, param_tol, mean_tol, **kwargs
-):
-
-    min_val, max_val = param_lim
-
-    def is_mode(ssd):
-        return sorted(zip(ssd, player_types))[-1][1] == target
-
-    def tolerable(ssd):
-        y, z = sorted(ssd)[-2:]
-        return z - y <= mean_tol
-
-    @memoize
-    def get_ssd(val):
-        return evo_analysis(player_types=player_types, **dict(kwargs, **{param: val}))[
-            -1
-        ]
-
-    min_p = get_ssd(min_val)
-    if is_mode(min_p):
-        if tolerable(min_p):
-            best = min_val
-        else:
-            best = min_val  # "poor min"
-    else:
-        max_p = get_ssd(max_val)
-        if not is_mode(max_p):
-            best = max_val
-        elif tolerable(max_p):
-            best = max_val
-        else:
-
-            def finder(max_val, min_val):
-                mid_val = np.round(np.mean((max_val, min_val)), 5)
-                # check tolerance
-                if max_val - mid_val <= param_tol:
-                    return max_val
-                mid_p = get_ssd(mid_val)
-                if is_mode(mid_p):
-                    if tolerable(mid_p):
-                        return mid_val
-                    else:
-                        return finder(mid_val, min_val)
-                else:
-                    return finder(max_val, mid_val)
-
-            best = finder(max_val, min_val)
-
-    ret = dict(
-        kwargs,
-        **{
-            param: best,
-            "proportion": get_ssd(best),
-            "player_types": player_types,
-            "type": target,
-        }
-    )
-
-    return ret
 
 
 def make_legend():
@@ -500,13 +481,18 @@ def limit_param_plot(
     if param == "beta":
         # Need to merge the WeAgents if the parameter is Beta
         WeAgent_columns = list(filter(lambda x: "WeAgent" in x, data.columns))
-        merge_into = list(filter(lambda x: "WeAgent" in x, type_order))[0]
+        merge_into = WeAgent_columns[0]
+
         for c in WeAgent_columns:
             if c == merge_into:
                 continue
 
             data[merge_into] = data[merge_into].combine_first(data[c])
             data = data.drop(columns=[c])
+
+        # Need to rename the column to the type in the type_order list
+        rename = list(filter(lambda x: "WeAgent" in x, type_order))[0]
+        data.rename(columns={merge_into: rename}, inplace=True)
 
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
 
@@ -518,7 +504,7 @@ def limit_param_plot(
             ylim=[0, 1],
             legend=False,
             linewidth=0,
-            **graph_kwargs
+            **graph_kwargs,
         )
         if legend:
             make_legend()
@@ -568,6 +554,7 @@ def limit_param_plot(
 
     sns.despine()
     plt.tight_layout()
+
 
 if __name__ == "__main__":
     pass

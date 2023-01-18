@@ -4,7 +4,7 @@ import seaborn as sns
 from tqdm import tqdm
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
-from params import default_genome
+from params import default_genome, AGENT_NAME
 from world import World
 import agents as ag
 from agents import (
@@ -29,6 +29,7 @@ from copy import copy, deepcopy
 from utils import softmax_utility, _issubclass, normalized, memoize
 import operator
 import games
+from utils import memory
 
 
 @multi_call(unordered=["player_types", "agent_types"])
@@ -233,7 +234,6 @@ def population_beliefs(believer, opponent_types, believed_types, population, **k
 def plot_beliefs(
     believer, opponent_types, believed_types, traces=50, colors=None, data=[], **kwargs
 ):
-    from params import AGENT_NAME
 
     if kwargs["observability"] != 0 and kwargs["observability"] != 1:
         raise Warning("Observability must be 0 or 1 for the axes to make sense")
@@ -344,8 +344,9 @@ def plot_beliefs(
     sns.despine()
     plt.tight_layout()
 
-
-def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **kwargs):
+@memory.cache
+def matchup_matrix_per_round(player_types, rounds, cog_cost=0, sem=False, **kwargs):
+    max_rounds = rounds
     player_combos = MultiArg(combinations_with_replacement(player_types, 2))
     all_data = matchup(player_combos, rounds=max_rounds, **kwargs)
 
@@ -400,7 +401,7 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **
     
         payoffs_list.append(copy(payoffs))
         
-        # TODO: These two formula should be equivalent but they are not!
+        # TODO: These two formula for the variance should be equivalent but they are not!
         if per_round:
             # Need to change the variances into SEs
             payoffs_var_list.append(np.sqrt((payoffs_var / r ** 2) / kwargs["trials"]))
@@ -413,12 +414,16 @@ def matchup_matrix_per_round(player_types, max_rounds, cog_cost=0, sem=False, **
     if sem:
         return list(zip(rounds, payoffs_list)), list(zip(rounds, payoffs_var_list)) 
 
-    return list(zip(rounds, payoffs_list))
+    return list(zip(rounds, payoffs_list))    
         
 @plotter(matchup_matrix_per_round, plot_exclusive_args=["data"])
-def payoff_heatmap(player_types, max_rounds, cog_cost=0, sem=True, data=[], **kwargs):
+def payoff_heatmap(player_types, rounds, cog_cost=0, sem=True, data=[], **kwargs):
     # Get the last round
-    data, data_sem = data[0][-1][1], data[1][-1][1]
+    if sem:
+        data, data_sem = data[0][-1][1], data[1][-1][1]
+    else:
+        data = data[-1][1]
+        
     fig, ax = plt.subplots()
     im = ax.imshow(
         data,
@@ -431,7 +436,7 @@ def payoff_heatmap(player_types, max_rounds, cog_cost=0, sem=True, data=[], **kw
     names = []
     for t in player_types:
         if "We" in str(t):
-            names.append("Reciprocal")
+            names.append(AGENT_NAME)
         else:
             names.append(str(t))
 
@@ -446,10 +451,15 @@ def payoff_heatmap(player_types, max_rounds, cog_cost=0, sem=True, data=[], **kw
     # Loop over data dimensions and create text annotations.
     for i in range(len(player_types)):
         for j in range(len(player_types)):
+            if sem:
+                annotation = "%0.3f\n%0.3f" % (data[i, j], data_sem[i, j])
+            else:
+                annotation = "%0.2f" % data[i, j]
+
             text = ax.text(
                 j,
                 i,
-                "%0.3f\n%0.3f" % (data[i, j], data_sem[i, j]),
+                annotation,
                 ha="center",
                 va="center",
                 color="w",

@@ -58,7 +58,7 @@ def mm_to_limit_mcp(payoff, pop_size):
 # @memory.cache
 def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     payoffs = matchup_matrix_per_round(
-        player_types=player_types, max_rounds=rounds, **kwargs
+        player_types=player_types, rounds=rounds, **kwargs
     )
     rmcp = np.array([mm_to_limit_mcp(payoff, pop_size) for r, payoff in payoffs])
     return rmcp
@@ -111,16 +111,17 @@ def limit_analysis(player_types, s, direct=False, **kwargs):
         rmcp = sim_to_mcp(player_types, analysis_type="limit", **kwargs)
 
     ssds = []
-    rmcp = np.exp(s * rmcp)
+    e_rmcp = np.exp(s * rmcp)
 
     # This is for the case that it is calculated per_round so need to
     # compute steady state for each round independently.
-    if len(rmcp.shape) == 4:
-        for mcp in rmcp:
-            ssds.append(steady_state(mcp_to_invasion(mcp, len(player_types))))
+    if len(e_rmcp.shape) == 4:
+        for mcp in e_rmcp:
+            ssd = steady_state(mcp_to_invasion(mcp, len(player_types)))
+            ssds.append(ssd)
 
     else:
-        ssds.append(steady_state(mcp_to_invasion(rmcp, len(player_types))))
+        ssds.append(steady_state(mcp_to_invasion(e_rmcp, len(player_types))))
 
     return np.array(ssds)
 
@@ -166,7 +167,7 @@ def cp_to_transition(cp, populations, pop_size, mu=None, **kwargs):
 
 def complete_payoffs(player_types, rounds, pop_size, **kwargs):
     return matchup_matrix_per_round(
-        player_types=player_types, max_rounds=rounds, **kwargs
+        player_types=player_types, rounds=rounds, **kwargs
     )
 
 
@@ -234,8 +235,6 @@ def complete_analysis(player_types, s, direct=False, mu=None, **kwargs):
 
 def steady_state(matrix):
     for i, c in enumerate(matrix.T):
-        # print 'test starts'
-        # np.testing.assert_approx_equal(np.sum(c),1)
         try:
             np.testing.assert_approx_equal(np.sum(c), 1)
             assert all(c >= 0)
@@ -243,6 +242,7 @@ def steady_state(matrix):
             print("has some negative?", c)
             print(matrix)
             raise
+
     vals, vecs = np.linalg.eig(matrix)
 
     def negative_vec(vec):
@@ -264,9 +264,6 @@ def steady_state(matrix):
         steady_states = steady_states[1]
 
     except Exception as e:
-        import pdb
-
-        pdb.set_trace()
         print(Warning("Multiple Steady States"))
         return steady_states[0][1]
         raise e

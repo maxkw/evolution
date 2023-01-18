@@ -4,16 +4,9 @@ import seaborn as sns
 import pandas as pd
 from itertools import product
 import agents as ag
-from evolve import limit_param_plot, params_heat
-from experiments import plot_beliefs, population_beliefs
+from evolve import limit_param_plot, params_heat, bc_plot
+from experiments import plot_beliefs, population_beliefs, payoff_heatmap
 import matplotlib.pyplot as plt
-from evolve import (
-    ssd_param_search,
-    ssd_v_params,
-    ssd_bc,
-    bc_plot,
-)
-
 import params
 
 PLOT_DIR = "./plots/"
@@ -22,10 +15,10 @@ WE_BETA = 3
 OTHER_BETA = np.inf
 PRIOR = 0.5
 MIN_TREMBLE = 0.01
-TREMBLE_RANGE = lambda ticks: np.round(
-    np.geomspace(MIN_TREMBLE, 0.25, ticks),
-    3
-)
+# TREMBLE_RANGE = lambda ticks: np.round(
+#     np.geomspace(MIN_TREMBLE, 0.25, ticks),
+#     3
+# )
 TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
 Extort2 = ag.ZDAgent(B=3, C=1, chi=2, phi="midpoint", subtype_name="Extort2")
 old_pop = (
@@ -172,6 +165,7 @@ def game_engine():
             param_dict=param_dict,
             tremble=MIN_TREMBLE,
             analysis_type="complete",
+            line=True,
             file_name="game_engine_gamma_omega",
             **common_params_heat
         )
@@ -199,6 +193,7 @@ def game_engine():
             param_dict=param_dict,
             tremble=MIN_TREMBLE,
             analysis_type="limit",
+            line=True,
             observability=0,
             file_name="game_engine_gamma_tremble",
             **common_params_heat
@@ -227,6 +222,7 @@ def game_engine():
             param_dict=param_dict,
             tremble=MIN_TREMBLE,
             analysis_type="complete",
+            line=True,
             expected_interactions=1,            file_name="game_engine_omega_tremble",
             **common_params_heat
         )
@@ -305,24 +301,8 @@ def ipd():
     )
     
     n_rounds = 25
-    tremble = MIN_TREMBLE
-    
-    # from experiments import matchup_matrix_per_round, payoff_heatmap
-    # payoffs = payoff_heatmap(
-    #     player_types=new_pop,
-    #     max_rounds=n_rounds,
-    #     game="direct",
-    #     tremble=MIN_TREMBLE,
-    #     benefit=BENEFIT,
-    #     trials=TRIALS,
-    #     cost=COST,
-    #     memoized=False,
-    #     plot_dir=PLOT_DIR,
-    #     per_round = True,
-    #     file_name="ipd_payoffs_tremble_%0.2f" % tremble,
-    # )
-    
-    for label, player_types in zip(["wRA", "woRA"], [old_pop, new_pop]):
+
+    for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
         print("Running Expected Rounds with", label)
         limit_param_plot(
             param="rounds",
@@ -362,7 +342,22 @@ def ipd():
             **common_params,
         )
 
-    # Cognitive Costs
+    print('Running Payoff Heatmap')
+    for r in [5, n_rounds]:
+        payoff_heatmap(
+            player_types=new_pop,
+            rounds=r,
+            game="direct",
+            tremble=MIN_TREMBLE,
+            benefit=BENEFIT,
+            trials=TRIALS,
+            cost=COST,
+            plot_dir=PLOT_DIR,
+            per_round = True,
+            sem=False,
+            file_name="ipd_payoffs_rounds_{}".format(r),
+        )    
+
     cog_cost_params = np.linspace(0, 0.6, 11)
     def cog_cost_graph(ax):
         vals = cog_cost_params
@@ -387,12 +382,12 @@ def ipd():
         graph_kwargs={"color": color_list(new_pop)},
         **common_params,
     )
-
+    
     print("Running Beta IPD")
     limit_param_plot(
         param="beta",
         tremble=MIN_TREMBLE,
-        rounds=39,
+        rounds=5,
         param_vals=np.append(np.linspace(1,6.5,12), np.inf),
         file_name="ipd_beta",
         player_types=new_pop,
@@ -401,9 +396,9 @@ def ipd():
                       "xlabel": r"Softmax ($\beta$)"},
         **common_params,        
     )         
-
-    print('Running Beat Heat Map')
+    
     def beta_heat_map():
+        print('Running Beat Heat Map')
         heat_graph_kwargs = dict(
                 xlabel = r'Softmax ($\beta$)',
                 ylabel = '# Pairwise Interactions',
@@ -411,24 +406,50 @@ def ipd():
                 onlyRA = True)
         
         param_dict = dict(
-            beta=np.append(np.linspace(1,8,8), np.inf),
+            beta=np.append(np.linspace(1,8,5), np.inf),
             rounds=[10],
         )
-        # common_params_heat['trials'] = 20
-
+        
         params_heat(
             param_dict=param_dict,
             param="beta",
             player_types=new_pop,
             tremble=MIN_TREMBLE,
-            file_name="heat_beta",
+            file_name="ipd_heat_beta",
             return_rounds=True,
             per_round=True,
-            line = True
+            line = True,
             graph_kwargs=heat_graph_kwargs,
             **common_params
         )
-    beta_heat_map()
+    
+    def tremble_heat_map():
+        print('Running Tremble Heat Map')
+        heat_graph_kwargs = dict(
+                xlabel = r"Prob. of action error ($\epsilon$)",
+                ylabel = '# Pairwise Interactions',
+                xy = ("tremble", "rounds"),
+                onlyRA = True)
+        
+        param_dict = dict(
+            tremble=TREMBLE_EXP,
+            rounds=[10],
+        )
+        
+        params_heat(
+            param_dict=param_dict,
+            param="tremble",
+            player_types=new_pop,
+            file_name="ipd_heat_tremble",
+            return_rounds=True,
+            per_round=True,
+            line = True,
+            graph_kwargs=heat_graph_kwargs,
+            **common_params
+        )
+        
+    tremble_heat_map()
+    beta_heat_map()    
   
 
 def agent():

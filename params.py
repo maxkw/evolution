@@ -7,7 +7,7 @@ n_jobs = 8
 disable_tqdm = False
 memoized = True
 
-AGENT_NAME = 'Bayesian Reciprocator'
+AGENT_NAME = 'Bayesian\nReciprocator'
 
 def default_genome(agent_type = False, agent_types = None, prior = .5, **extra_args):
     try:
