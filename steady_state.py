@@ -4,7 +4,7 @@ from utils import normalized, softmax, excluding_keys
 from math import factorial
 import numpy as np
 from functools import partial
-from utils import memoize, memory, softmax
+from utils import memory, softmax
 from multiprocessing import Pool
 from experiments import matchup, matchup_matrix_per_round
 from copy import copy
@@ -309,8 +309,6 @@ def avg_payoff_per_type_from_sim(sim_data, player_types, cog_cost, game=None, **
 
     return running_fitness / running_interactions
 
-
-@memoize
 def simulation(player_types, cog_cost=0, *args, **kwargs):
     # types, _ = list(zip(*player_types))
     active_players = [p for p in player_types if p[1] != 0]

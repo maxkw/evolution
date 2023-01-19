@@ -16,7 +16,7 @@ def add_tremble(p, tremble):
     if tremble == 0:
         return p
     else:
-        return (1 - tremble) * p + tremble * np.ones(len(p)) / len(p)
+        return (1 - tremble) * p + np.full(len(p), tremble/len(p))
 
 
 class AgentType(type):
@@ -101,10 +101,10 @@ class PrefabAgent(Agent):
         # NOTE: This will not change if you change the genome after
         # initialization, that means that anything using this field might be
         # using something out of date
-        self.__name__ = str(a_type) + "(%s)" % ",".join(
-            ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.items())]
-        )
-
+        # self.__name__ = str(a_type) + "(%s)" % ",".join(
+        #     ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.items())]
+        # )
+        
         self.genome = HashableDict(genome_kwargs)
 
     def __call__(self, genome, world_id=None):
@@ -129,14 +129,15 @@ class PrefabAgent(Agent):
                     for key, val in sorted(genome.items())
                 ]
             )
-
+        
     def __str__(self):
         try:
             return self._nickname
         except:
-            return str(self.type) + "(%s)" % ",".join(
+            # return "%s(%s)" % (str(self.type), str(sorted(self.genome.items())))
+            return "%s(%s)" % (str(self.type), ",".join(
                 ["%s=%s" % (key, val) for key, val in sorted(self.genome.items())]
-            )
+            ))
 
     def __repr__(self):
         # return self.short_name('agent_types')
@@ -432,249 +433,249 @@ class ConstantDefaultDict(dict):
 #         return [ReciprocalAgent]
 
 
-class HyperAgent(Agent):
-    """NOTE: THIS IS NOT WORKING. IT SHOULD FOLLOW STEWART AND PLOTKIN AN
-    IMPLEMENT ZD-ROBUST AGENTS
+# class HyperAgent(Agent):
+#     """NOTE: THIS IS NOT WORKING. IT SHOULD FOLLOW STEWART AND PLOTKIN AN
+#     IMPLEMENT ZD-ROBUST AGENTS
 
-    FEASIBLE:
-    kappa | 0 <= kappa <= B-C
-    chi | -1 <= max((kap-B)/(kap+C),(kap+C)/(kap-B)) <= chi <= 1
-    phi | 0 < phi <= chi*B/(chi*B/chi*C+B)
-    lamda |
-    (chi+1)/C + (B-C) <= lambda <= (chi+1)/(-B) + (B-C)
-    -(chi*B+C)<= lambda <= (B+chi*C)
+#     FEASIBLE:
+#     kappa | 0 <= kappa <= B-C
+#     chi | -1 <= max((kap-B)/(kap+C),(kap+C)/(kap-B)) <= chi <= 1
+#     phi | 0 < phi <= chi*B/(chi*B/chi*C+B)
+#     lamda |
+#     (chi+1)/C + (B-C) <= lambda <= (chi+1)/(-B) + (B-C)
+#     -(chi*B+C)<= lambda <= (B+chi*C)
 
-    ROBUST:
-    X is robust against mutant Y
-    if the odds off Y replacing X are <1/N
-    for N->inf robustness reduces to ESS
+#     ROBUST:
+#     X is robust against mutant Y
+#     if the odds off Y replacing X are <1/N
+#     for N->inf robustness reduces to ESS
 
-    EXTORTION:
-    kap = 0 = P
-    chi > 0
+#     EXTORTION:
+#     kap = 0 = P
+#     chi > 0
 
-    COOPERATIVE:
-    kappa = R = B-C
+#     COOPERATIVE:
+#     kappa = R = B-C
 
-    GENEROUS:
-    cooperative
-    chi > 0
+#     GENEROUS:
+#     cooperative
+#     chi > 0
 
-    GOOD:
-    COOPERATIVE
+#     GOOD:
+#     COOPERATIVE
 
-    (lambda > -(B-C)*chi AND lambda > -(B+C)*chi)
-    OR
-    lambda | -(chi*B+C) <= lambda <= (B+chi*C)
+#     (lambda > -(B-C)*chi AND lambda > -(B+C)*chi)
+#     OR
+#     lambda | -(chi*B+C) <= lambda <= (B+chi*C)
 
-    GOOD+ROBUST (IN POP = N)
-    FEASIBLE
-    COOPERATIVE (IMPLIED)
-    lambda |
-    lambda >(B-C)/(3N)* (N+1-(2n-1)*chi)
-    AND
-    lambda >(B+C)/(N-2)*(N+1-(2n-1)*chi)
+#     GOOD+ROBUST (IN POP = N)
+#     FEASIBLE
+#     COOPERATIVE (IMPLIED)
+#     lambda |
+#     lambda >(B-C)/(3N)* (N+1-(2n-1)*chi)
+#     AND
+#     lambda >(B+C)/(N-2)*(N+1-(2n-1)*chi)
 
-    ROBUST ZD FOR N>2
-    COOPERATIVE
-    GENEROUS (IMPLIED)
-    1 > chi >= (N+1)/(2N-1)
+#     ROBUST ZD FOR N>2
+#     COOPERATIVE
+#     GENEROUS (IMPLIED)
+#     1 > chi >= (N+1)/(2N-1)
 
-    ZD
-    lambda = 0
+#     ZD
+#     lambda = 0
 
-    WSLS AT LEAST HAS
-    chi = -C/B < 0
+#     WSLS AT LEAST HAS
+#     chi = -C/B < 0
 
-    """
+#     """
 
-    def __init__(self, genome, world_id=None):
-        defaults = dict(
-            chi=2 / 3, kap=None, lam=0, phi=3 / 11, N=None, varient=None, pop_size=None
-        )
-        keys = ["B", "C", "chi", "kap", "lam", "phi", "pop_size", "varient"]
-        B, C, chi, kap, lam, phi, pop_size, varient = [
-            genome[k] if k in genome else defaults[k] for k in keys
-        ]
-        R = B - C
-        T = B
-        S = -C
-        P = 0
-        if phi == "midpoint":
-            phi = (P - S) / ((P - S) + chi * (T - P)) / 2
+#     def __init__(self, genome, world_id=None):
+#         defaults = dict(
+#             chi=2 / 3, kap=None, lam=0, phi=3 / 11, N=None, varient=None, pop_size=None
+#         )
+#         keys = ["B", "C", "chi", "kap", "lam", "phi", "pop_size", "varient"]
+#         B, C, chi, kap, lam, phi, pop_size, varient = [
+#             genome[k] if k in genome else defaults[k] for k in keys
+#         ]
+#         R = B - C
+#         T = B
+#         S = -C
+#         P = 0
+#         if phi == "midpoint":
+#             phi = (P - S) / ((P - S) + chi * (T - P)) / 2
 
-        self.world_id = world_id
+#         self.world_id = world_id
 
-        # From Stewart & Plotkin 2013
-        if kap == None:
-            # Make strategies "Cooperative"
-            kap = B - C
+#         # From Stewart & Plotkin 2013
+#         if kap == None:
+#             # Make strategies "Cooperative"
+#             kap = B - C
 
-        # assert 0 <= kap <= B-C
-        # assert max((kap - B)/(kap + C), (kap + C)/(kap - B)) <= chi <= 1
+#         # assert 0 <= kap <= B-C
+#         # assert max((kap - B)/(kap + C), (kap + C)/(kap - B)) <= chi <= 1
 
-        # if phi == None:
-        #     #max out phi, at bottom it's TFT
-        #     #phi = (chi*B)/(chi*C+B)
-        #     phi = C / (C + chi * B)
+#         # if phi == None:
+#         #     #max out phi, at bottom it's TFT
+#         #     #phi = (chi*B)/(chi*C+B)
+#         #     phi = C / (C + chi * B)
 
-        assert lam >= -B * (chi + 1) + B - C
-        assert lam <= C * (chi + 1) + B - C
+#         assert lam >= -B * (chi + 1) + B - C
+#         assert lam <= C * (chi + 1) + B - C
 
-        if varient == "ZD-robust":
-            assert 0  # NO CONFIDENCE: The equations in Stewart Plotkin are listed in a different order!
-            assert 1 > chi >= (pop_size + 1) / (2 * pop_size - 1)
-            assert 0 < phi <= chi * B / (chi * C + B)
-            assert kap == B - C
+#         if varient == "ZD-robust":
+#             assert 0  # NO CONFIDENCE: The equations in Stewart Plotkin are listed in a different order!
+#             assert 1 > chi >= (pop_size + 1) / (2 * pop_size - 1)
+#             assert 0 < phi <= chi * B / (chi * C + B)
+#             assert kap == B - C
 
-            p_vec = (
-                1 - phi * (1 - chi) * (B - C - kap),
-                1 - phi * (chi * C + B - (1 - chi) * kap + lam),
-                phi * (chi * B + C + (1 - chi) * kap - lam),
-                phi * (1 - chi) * kap,
-            )
+#             p_vec = (
+#                 1 - phi * (1 - chi) * (B - C - kap),
+#                 1 - phi * (chi * C + B - (1 - chi) * kap + lam),
+#                 phi * (chi * B + C + (1 - chi) * kap - lam),
+#                 phi * (1 - chi) * kap,
+#             )
 
-        for i, p in enumerate(p_vec):
-            if not p <= 1 and p >= 0:
-                print(chi, kap, lam, phi)
-                print(B, C)
-                print(i, p)
-                raise Exception("p out of bounds: %s" % str(p_vec))
+#         for i, p in enumerate(p_vec):
+#             if not p <= 1 and p >= 0:
+#                 print(chi, kap, lam, phi)
+#                 print(B, C)
+#                 print(i, p)
+#                 raise Exception("p out of bounds: %s" % str(p_vec))
 
-        joint_actions = [
-            ("give", "give"),
-            ("give", "keep"),
-            ("keep", "give"),
-            ("keep", "keep"),
-        ]
+#         joint_actions = [
+#             ("give", "give"),
+#             ("give", "keep"),
+#             ("keep", "give"),
+#             ("keep", "keep"),
+#         ]
 
-        self.reaction = {
-            a: {"give": p, "keep": 1 - p} for a, p in zip(joint_actions, p_vec)
-        }
-        self.memory = defaultdict(lambda: ("give", "give"))
+#         self.reaction = {
+#             a: {"give": p, "keep": 1 - p} for a, p in zip(joint_actions, p_vec)
+#         }
+#         self.memory = defaultdict(lambda: ("give", "give"))
 
-        # # From Hilbe Chatterjee & Nowak
-        # chi = 1/2
-        # beta = -1/4
-        # alpha = -chi * beta
-        # gamma = beta * (chi-1) * P
+#         # # From Hilbe Chatterjee & Nowak
+#         # chi = 1/2
+#         # beta = -1/4
+#         # alpha = -chi * beta
+#         # gamma = beta * (chi-1) * P
 
-        # # If -beta / alpha > 1 its an extortion strategy
-        # assert P == 0
-        # assert 0 < chi < 1
-        # assert beta != 0
+#         # # If -beta / alpha > 1 its an extortion strategy
+#         # assert P == 0
+#         # assert 0 < chi < 1
+#         # assert beta != 0
 
-        # p_vec = (
-        #     alpha * R + beta * R + gamma + 1,
-        #     alpha * S + beta * T + gamma + 1,
-        #     alpha * T + beta * S + gamma,
-        #     alpha * P + beta * P + gamma,
-        # )
+#         # p_vec = (
+#         #     alpha * R + beta * R + gamma + 1,
+#         #     alpha * S + beta * T + gamma + 1,
+#         #     alpha * T + beta * S + gamma,
+#         #     alpha * P + beta * P + gamma,
+#         # )
 
-    def observe(self, observations):
-        # Can only judge a case where there are two observations
-        # TODO: This will not work on sequential PD since it requires two simultaneous observations
-        obs1, obs2 = observations
-        actions = (obs1["action"], obs2["action"])
-        players = (obs1["participant_ids"][0], obs2["participant_ids"][0])
-        me = self.world_id
+#     def observe(self, observations):
+#         # Can only judge a case where there are two observations
+#         # TODO: This will not work on sequential PD since it requires two simultaneous observations
+#         obs1, obs2 = observations
+#         actions = (obs1["action"], obs2["action"])
+#         players = (obs1["participant_ids"][0], obs2["participant_ids"][0])
+#         me = self.world_id
 
-        if me in players:
-            if me == players[1]:
-                players = tuple(reversed(players))
-                actions = tuple(reversed(actions))
+#         if me in players:
+#             if me == players[1]:
+#                 players = tuple(reversed(players))
+#                 actions = tuple(reversed(actions))
 
-            self.memory[players[1]] = actions
+#             self.memory[players[1]] = actions
 
-    def decide_likelihood(self, game, agents=None, tremble=None):
-        me, other = agents
-        assert me == self.world_id
+#     def decide_likelihood(self, game, agents=None, tremble=None):
+#         me, other = agents
+#         assert me == self.world_id
 
-        return add_tremble(
-            np.array(
-                [self.reaction[self.memory[other]][action] for action in game.actions]
-            ),
-            tremble,
-        )
-
-
-class Standing(Agent):
-    def __init__(self, genome, world_id=None):
-        self.genome = genome
-        self.world_id = world_id
-        self.image = ConstantDefaultDict(True)
-        self.action_dict = genome["action_dict"]
-        self.assesment_dict = genome["assesment_dict"]
-
-    def observe(self, observations):
-        # ASSUMPTION: You only see every agent act once, in a round.
-        for obs in observations:
-            assert self.world_id in set(obs[2])
-            decider, recipient = obs[1]
-            action = obs[3]
-            image = self.image
-            assesment = self.assesment_dict
-            image[decider] = assesment[(action, image[decider], image[recipient])]
-
-    def decide_likelihood(self, game, agents=None, tremble=0):
-        action_dict = self.action_dict
-        image = self.image
-        [decider, recipient] = agents
-        action = action_dict[(image[decider], image[recipient])]
-        return add_tremble(
-            np.array([1 if a == action else 0 for a in game.actions]), tremble
-        )
+#         return add_tremble(
+#             np.array(
+#                 [self.reaction[self.memory[other]][action] for action in game.actions]
+#             ),
+#             tremble,
+#         )
 
 
-def make_assesment_dict(assesment_list):
-    """refer to order of situations in table p98 calculus of selfishness"""
-    situation = product(["give", "keep"], [True, False], [True, False])
-    return dict(list(zip(situation, assesment_list)))
+# class Standing(Agent):
+#     def __init__(self, genome, world_id=None):
+#         self.genome = genome
+#         self.world_id = world_id
+#         self.image = ConstantDefaultDict(True)
+#         self.action_dict = genome["action_dict"]
+#         self.assesment_dict = genome["assesment_dict"]
+
+#     def observe(self, observations):
+#         # ASSUMPTION: You only see every agent act once, in a round.
+#         for obs in observations:
+#             assert self.world_id in set(obs[2])
+#             decider, recipient = obs[1]
+#             action = obs[3]
+#             image = self.image
+#             assesment = self.assesment_dict
+#             image[decider] = assesment[(action, image[decider], image[recipient])]
+
+#     def decide_likelihood(self, game, agents=None, tremble=0):
+#         action_dict = self.action_dict
+#         image = self.image
+#         [decider, recipient] = agents
+#         action = action_dict[(image[decider], image[recipient])]
+#         return add_tremble(
+#             np.array([1 if a == action else 0 for a in game.actions]), tremble
+#         )
 
 
-def make_action_dict(action_list):
-    """refer to order of situations in table p98 calculus of selfishness"""
-    strategies = product([True, False], repeat=2)
-    return dict(list(zip(strategies, action_list)))
+# def make_assesment_dict(assesment_list):
+#     """refer to order of situations in table p98 calculus of selfishness"""
+#     situation = product(["give", "keep"], [True, False], [True, False])
+#     return dict(list(zip(situation, assesment_list)))
 
 
-STANDING_SHORTHAND_TRANSLATOR = {"g": True, "b": False, "y": "give", "n": "keep"}
+# def make_action_dict(action_list):
+#     """refer to order of situations in table p98 calculus of selfishness"""
+#     strategies = product([True, False], repeat=2)
+#     return dict(list(zip(strategies, action_list)))
 
 
-def shorthand_to_standing(shorthand):
-    translated = [STANDING_SHORTHAND_TRANSLATOR[s] for s in shorthand]
-    assesments, actions = translated[:8], translated[8:12]
-
-    assert all([a in [True, False] for a in assesments])
-    assert len(assesments) == 8
-
-    assert all([a in ["keep", "give"] for a in actions])
-    assert len(actions) == 4
-    standing_type = Standing(
-        assesment_dict=make_assesment_dict(assesments),
-        action_dict=make_action_dict(actions),
-    )
-    standing_type._nickname = "Standing(" + shorthand + ")"
-    return standing_type
+# STANDING_SHORTHAND_TRANSLATOR = {"g": True, "b": False, "y": "give", "n": "keep"}
 
 
-def leading_8_dict():
-    # this is the transpose of the table in p 98 of TCoS
-    shorthands = [
-        "ggggbgbbynyy",
-        "gbggbgbbynyy",
-        "ggggbgbgynyn",
-        "gggbbgbgynyn",
-        "gbggbgbgynyn",
-        "gbgbbgbgynyn",
-        "gggbbgbbynyn",
-        "gbgbbgbbynyn",
-    ]
-    types = list(map(shorthand_to_standing, shorthands))
-    names = ["L" + str(n) for n in range(1, 9)]
-    for t, n in zip(types, names):
-        t._nickname = n
-    return dict(list(zip(names, types)))
+# def shorthand_to_standing(shorthand):
+#     translated = [STANDING_SHORTHAND_TRANSLATOR[s] for s in shorthand]
+#     assesments, actions = translated[:8], translated[8:12]
+
+#     assert all([a in [True, False] for a in assesments])
+#     assert len(assesments) == 8
+
+#     assert all([a in ["keep", "give"] for a in actions])
+#     assert len(actions) == 4
+#     standing_type = Standing(
+#         assesment_dict=make_assesment_dict(assesments),
+#         action_dict=make_action_dict(actions),
+#     )
+#     standing_type._nickname = "Standing(" + shorthand + ")"
+#     return standing_type
+
+
+# def leading_8_dict():
+#     # this is the transpose of the table in p 98 of TCoS
+#     shorthands = [
+#         "ggggbgbbynyy",
+#         "gbggbgbbynyy",
+#         "ggggbgbgynyn",
+#         "gggbbgbgynyn",
+#         "gbggbgbgynyn",
+#         "gbgbbgbgynyn",
+#         "gggbbgbbynyn",
+#         "gbgbbgbbynyn",
+#     ]
+#     types = list(map(shorthand_to_standing, shorthands))
+#     names = ["L" + str(n) for n in range(1, 9)]
+#     for t, n in zip(types, names):
+#         t._nickname = n
+#     return dict(list(zip(names, types)))
 
 
 class Memory1PDAgent(Agent):

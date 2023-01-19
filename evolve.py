@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import product, permutations
 import agents as ag
-from utils import excluding_keys, softmax, memoize
+from utils import excluding_keys, softmax
 from experiment_utils import experiment, plotter
 from experiments import matchup_matrix_per_round
 import params
@@ -37,7 +37,6 @@ def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwarg
     type_to_index = dict(list(map(reversed, enumerate(sorted(player_types)))))
     original_order = np.array([type_to_index[t] for t in player_types])
 
-    @memoize
     def sim(pop):
         f = simulation(list(zip(player_types, pop)), **kwargs)[-1]
 
@@ -148,8 +147,15 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         if "beta" in ps:
             # Change the beta of each player that has a beta
             for i, t in enumerate(player_types):
-                if hasattr(t, "genome") and "beta" in t.genome:
+                # Check for Agent Types since we only want to change the Beta on agents that have a ToM
+                if hasattr(t, "genome") and "agent_types" in t.genome:
+                    # Update the player's beta
                     player_types[i].genome["beta"] = ps["beta"]
+                    
+                    # Update the beta on their ToM models
+                    for j in range(len(t.genome["agent_types"])):
+                        if hasattr(t.genome["agent_types"][j], "genome"):
+                            player_types[i].genome["agent_types"][j].genome["beta"] = ps["beta"]
 
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
@@ -204,7 +210,7 @@ def ssd_bc(ei_stop, observe_param, delta, player_types, **kwargs):
         ei = 1
         for o in tqdm(observe_param, disable=params.disable_tqdm):
             while ei <= ei_stop:
-                ps = dict(observability=o, expected_interactions=ei, benefit=b, cost=c)
+                ps = dict(observability=o, rounds=ei, benefit=b, cost=c)
                 expected_pop = evo_analysis(
                     player_types=player_types, **dict(kwargs, **ps)
                 )
@@ -221,7 +227,7 @@ def ssd_bc(ei_stop, observe_param, delta, player_types, **kwargs):
                     records.append(
                         dict(
                             observability=o,
-                            expected_interactions=ei,
+                            rounds=ei,
                             benefit=b,
                             cost=c,
                             proportion=WA_expected_pop,
@@ -245,7 +251,7 @@ def bc_plot(
     fig, ax = plt.subplots(figsize=(3.5, 3))
 
     sns.pointplot(
-        x="observability", y="expected_interactions", hue="benefit", data=data, ax=ax
+        x="observability", y="rounds", hue="benefit", data=data, ax=ax
     )
     plt.xlabel("Probability of observation")
     plt.ylabel("Expected Interactions")
@@ -450,7 +456,6 @@ def limit_param_plot(
 
     data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
 
-
     if stacked:
         data.plot.bar(
             stacked=True,
@@ -464,15 +469,13 @@ def limit_param_plot(
         if legend:
             make_legend()
 
-        if param == "rounds":
-            # ax.set_xticks(range(4, param_values[0], 5))
-            # ax.set_xticklabels(
-            #     range(1, param_values[0] + 1)[4::5], rotation="horizontal"
-            # )
-            pass
+        if param == "rounds" and kwargs['game'] == "direct":
+            ax.set_xticks(range(4, param_values[0], 5))
+            ax.set_xticklabels(
+                range(1, param_values[0] + 1)[4::5], rotation="horizontal"
+            )
 
         elif param == "tremble":
-            from matplotlib.ticker import FormatStrFormatter
             ax.set_xticks(range(0, len(param_values), 2))
             ax.set_xticklabels(param_values[::2], rotation="horizontal")
         else:

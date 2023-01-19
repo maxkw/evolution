@@ -8,8 +8,12 @@ from pickle import load, dump
 from copy import deepcopy
 from joblib import Memory
 import os
+import params
 
-CACHEDIR = os.path.expanduser('~/evocache/')
+if params.memoized:
+    CACHEDIR = os.path.expanduser('~/evocache/')
+else:
+    CACHEDIR = None
 memory = Memory(location=CACHEDIR, verbose=0)
 
 pd.set_option('display.precision', 5)
@@ -77,116 +81,6 @@ def powerset(iterable):
 def flip(p = 0.5):
     """return true with probability p"""
     return np.random.rand() < p
-
-def memoize(obj):
-    cache = obj.cache = {}
-
-    @wraps(obj)
-    def memoizer(*args, **kwargs):
-        key = str(args) + str(kwargs)
-        if key not in cache:
-            cache[key] = obj(*args, **kwargs)
-        return deepcopy(cache[key])
-    return memoizer
-
-@memoize
-def namedArrayConstructor(fields, className = "NamedArray"):
-    """
-    this takes a canonical sequence of hashable objects and returns a class of arrays
-    where each of the elements in the first dimension of the array can be indexed 
-    using the object in the corresponding position in the canonical sequence
-
-    these classes are closed on themselves, operating two arrays with the same seed sequence 
-    will produce an array that can be indexed using the same sequence.
-   
-    Note: This constructor should always be memoized to avoid creation of functionally identical classes
-    """
-    fields = tuple(fields)
-    assert len(fields) == len(set(fields))
-
-    fields_error_msg = "\nThe following are also valid indices: "+", ".join(str(field) for field in fields)
-    reference = dict(list(map(reversed,enumerate(fields))))
-    repr_expr = '{name}[{seq}]'.format(
-        name = className,
-        seq = ", ".join("{}={{:.2f}}".format(field) for field in fields))
-    class NamedArray(np.ndarray):
-        """
-        these arrays function exactly the same as normal np.arrays
-        except that they can also be indexed using the elements provided to the constructor
-        in short, if we assume that the sequence 'fields' contains the element 'field'
-
-        namedArray = namedArrayConstructor(fields)
-
-        array = namedArray(sequence)
-
-        array[fields.index(field)] == array[field]
-        """
-        #def __repr__(self):
-        #    return np.array(self).__repr__()
-        def __new__(self, seq):            
-            return np.asarray(seq).view(self)
-        
-        #def __init__(self,seq,array_name = default_name):
-        #    self.__reset_repr_expr__()
-
-        def __reset_repr_expr__(self):
-            repr_expr = '{name}[{seq}]'.format(
-                name = self.array_name,
-                seq = ", ".join("{}={{:.2f}}".format(field) for field in fields))
-
-        def __str__(self):
-            try:
-                return repr_expr.format(*self)
-            except:
-                return super(NamedArray,self).__str__()
-        
-        def __getitem__(self,*args,**kwargs):
-            try:
-                return super(NamedArray,self).__getitem__(*args,**kwargs)
-            except IndexError as indexError:
-                try:
-                    [keys] = args
-                    try:
-                        keys = reference[keys]
-                    except TypeError:
-                        keys = [reference[key] for key in keys]
-                    return super(NamedArray,self).__getitem__(keys)
-                
-                except KeyError:
-                    indexError = type(indexError)(indexError.message+fields_error_msg) 
-                    raise indexError
-
-        def __setitem__(self,*args,**kwargs):
-            try:
-                super(NamedArray,self).__setitem__(*args,**kwargs)
-            except IndexError as indexError:
-                try:
-                    keys,vals = args
-                    try:
-                        keys = reference[keys]
-                    except TypeError:
-                        keys = [reference[key] for key in keys]  
-                    super(NamedArray,self).__setitem__(keys,vals,**kwargs)
-                
-                except KeyError:
-                    indexError = type(indexError)(indexError.message+fields_error_msg) 
-                    raise indexError
-                                
-        def rename(self,name):
-            self.array_name = name
-            self.__reset_repr_expr__()
-
-    return NamedArray
-
-
-def pickled(obj,path,mode = "w"):
-    with open(path,mode) as file:
-        dump(obj,file)
-        return obj
-    
-def unpickled(path,mode = "r"):
-    with open(path,mode) as file:
-        return load(file)
 
 def normalized(array):
     return array / np.sum(array)

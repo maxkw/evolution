@@ -4,15 +4,11 @@ import seaborn as sns
 from tqdm import tqdm
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
-from params import default_genome, AGENT_NAME
+from params import default_genome, AGENT_NAME, memoized
 from world import World
 import agents as ag
 from agents import (
     WeAgent,
-)
-from agents import (
-    leading_8_dict,
-    shorthand_to_standing,
 )
 from games import (
     RepeatedPrisonersTournament,
@@ -26,14 +22,14 @@ from itertools import product, permutations, combinations_with_replacement
 import matplotlib.pyplot as plt
 from numpy import array
 from copy import copy, deepcopy
-from utils import softmax_utility, _issubclass, normalized, memoize
+from utils import softmax_utility, _issubclass, normalized
 import operator
 import games
 from utils import memory
 
 
 @multi_call(unordered=["player_types", "agent_types"])
-@experiment()
+@experiment(memoize=memoized)
 def matchup(player_types, game, **kwargs):
     # np.random.seed(kwargs["trial"])
     

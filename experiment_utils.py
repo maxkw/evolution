@@ -182,9 +182,9 @@ def experiment(overwrite=False, memoize=True, **kwargs):
                 print("these are the provided args\n", args)
                 raise te
 
-            cache_file = CACHEDIR + str(arg_hash) + ".pkl"
+            cache_file = str(CACHEDIR) + str(arg_hash) + ".pkl"
             
-            if os.path.exists(cache_file) and memoized and not overwrite:
+            if memoized and os.path.exists(cache_file) and not overwrite:
                 # print "Loading cache...",
                 cache = pd.read_pickle(cache_file)
                 cached_trials = cache.index.levels[cache.index.names.index('trial')].tolist()
@@ -283,7 +283,7 @@ def multi_call(unpack=False, **kwargs):
             else:
                 arg_calls = [static_args]
                 return function(**static_args)
-    
+
             dfs = Parallel(n_jobs=params.n_jobs)(delayed(function)(**arg_call) for arg_call in tqdm(arg_calls, disable=params.disable_tqdm))
             dfs = pd.concat(dfs)
             return dfs

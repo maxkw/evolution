@@ -108,7 +108,7 @@ class Playable(object):
 
         intention = decider.decide(decision, participant_ids)
 
-        if flip(decision.tremble):
+        if np.random.rand() < decision.tremble:
             action = np.random.choice(decision.actions)
         else:
             action = intention
@@ -205,35 +205,6 @@ class PubliclyObserved(RandomlyObserved):
         super(PubliclyObserved, self).__init__(1, playable)
         self.name = "PubliclyObserved(%s)" % playable.name
 
-
-class ObservedByFollowers(Playable):
-    def __init__(self, observability, playable):
-        self.name = "ObservedByFollowers(%s,%s)" % (observability, playable.name)
-        self.observability = observability
-        self.followers = dict()
-        self.playable = playable
-        self.next_game()
-
-    def play(self, participants, observers=[], tremble=0):
-        a_id = participants[0].world_id
-
-        if a_id not in self.followers:
-            self.followers[a_id] = np.random.choice(
-                observers, size=int(len(observers) * self.observability), replace=False
-            )
-        observers = self.followers[a_id]
-
-        payoffs, observations, notes = self.playable.play(
-            participants, observers, tremble
-        )
-
-        for observer in set(list(observers) + list(participants)):
-            if hasattr(observer, "observe"):
-                observer.observe(observations)
-
-        return payoffs, observations, notes
-
-
 class AllNoneObserve(Playable):
     """
     randomly selects a specified percent of the provided observers
@@ -254,7 +225,7 @@ class AllNoneObserve(Playable):
         return self
 
     def play(self, participants, observers=[], tremble=0):
-        if flip(self.observability):
+        if np.random.rand() < self.observability:
             observers = observers
         else:
             observers = []
@@ -435,13 +406,10 @@ class DecisionSeq(Playable):
         observations = []
         payoffs = np.zeros(len(participants))
 
-        # cache the dot references
-        extend_obs = observations.extend
-
         for game, ordering in self.matchups(participants):
             pay, obs, rec = game.play(participants[ordering], observers, tremble)
             payoffs[ordering] += pay
-            extend_obs(obs)
+            observations.extend(obs)
 
         return payoffs, observations, []
 
@@ -469,34 +437,6 @@ Symmetric(BinaryDictator()).play(p)
 will play the same number of games for the same p
 """
 
-
-class CombinatorialMatchup(object):
-    """
-    the playable is played exactly once by every adequately sized
-    subset of the participants.
-
-    NOTE:
-    every subset plays exactly once
-    best for games that handle their own ordering
-    """
-
-    def __init__(self, game):
-        self.name = self._name = "Combinatorial(" + game.name + ")"
-        self.game = game
-        self.N_players = game.N_players
-
-    def matchups(self, participants):
-        matchups = list(combinations(range(len(participants)), self.game.N_players))
-        np.random.shuffle(matchups)
-        game = self.game
-        for matchup in matchups:
-            yield (game, list(matchup))
-
-
-class Combinatorial(CombinatorialMatchup, DecisionSeq):
-    pass
-
-
 class SymmetricMatchup(object):
     """
     plays the game with every possible permutation of the participants
@@ -521,161 +461,6 @@ class SymmetricMatchup(object):
 
 class Symmetric(SymmetricMatchup, DecisionSeq):
     pass
-
-
-class SymmetricRecipients(DecisionSeq):
-    def __init__(self, game):
-        self.game = game
-        self.N_players = game.N_players
-
-    def matchups(self, participants):
-        ids = set(range(len(participants)))
-        matchups = []
-        for i in ids:
-            matchups.extend([(i) + p for p in permutations(ids - i)])
-        np.random.shuffle(matchups)
-        game = self.game
-        for matchup in matchups:
-            yield (game, list(matchup))
-
-
-class CircularMatchup(object):
-    def __init__(self, game):
-        self.game = game
-        self.name = self._name = "Circular(" + game.name + ")"
-        self.N_players = game.N_players
-
-    def matchups(self, participants):
-        while True:
-            indices = list(range(len(participants)))
-            np.random.shuffle(indices)
-
-            matchups = list(
-                zip(*[indices[i:] + indices[:i] for i in range(self.game.N_players)])
-            )
-            # matchups = zip(indices,indices[1:]+indices[:1])
-
-            playable = self.game
-            for matchup in matchups:
-                yield (playable, list(matchup))
-
-
-class RandomMatching(DecisionSeq):
-    def __init__(self, game):
-        self.game = game
-        self.name = self._name = "RandomMatching(" + game.name + ")"
-
-    def matchups(self, participants):
-        indices = list(range(len(participants)))
-        while True:
-            # underlying = self.game.next_game()
-            self.game.next_game()
-            N_players = self.game.N_players
-            np.random.choice(indices, size=N_players, replace=False)
-            # print "Matchups"
-            # print self.game.playable.current_game
-            # print N_players
-            yield self.game, np.random.choice(indices, size=N_players, replace=False)
-
-
-class Circular(CircularMatchup, DecisionSeq):
-    pass
-
-
-class EveryoneDecidesMatchup(object):
-    """
-    plays the playable with every adequately sized subset of participants
-    and every participant gets to be the first player once per subset
-
-    NOTE:
-    This fixer is meant to handle playables where only the decider matters
-    in these games all payoffs to non-deciders are symmetrical and of equal
-    cost to deciders
-    """
-
-    def __init__(self, playable):
-        self.name = "EveryoneDecides(%s)" % playable.name
-        self.playable = playable
-        self.N_players = playable.N_players
-
-    def matchups(self, participants):
-        matchups = []
-        append = matchups.append
-        size = self.N_players
-        for combination in combinations(range(len(participants)), size):
-            for i in range(n):
-                append(
-                    combination[i : i + 1] + combination[:i] + combination[i + 1 : size]
-                )
-        np.random.shuffle(matchups)
-
-        playable = self.playable
-        for matchup in matchups:
-            yield (playable, list(matchup))
-
-
-class EveryoneDecides(EveryoneDecidesMatchup, DecisionSeq):
-    pass
-
-
-@literal
-def PrisonersDilemma(endowment=0, cost=COST, benefit=BENEFIT):
-    return Symmetric(BinaryDictator(endowment, cost, benefit))
-
-
-"""
-Dependent Decisions
-
-These are special Decisions whose characteristics are determined
-by the events of a previous playable.
-
-The first element in a sequence of these must be independent, of course.
-
-NOTE:
-although not enforced, it only makes sense that the playable that precedes a
-dependent decision be observed by an agent if they are present for both.
-"""
-
-
-class DecisionDependent(Decision):
-    """
-    This type of decision is defined solely by a payoff
-
-    this, along with DecisionDependentSeq are meant to be a framework
-    for implementing things like the ultimatum game
-    """
-
-
-class DecisionDependentSeq(DecisionSeq):
-    """
-    This Decision Seq is made up of Observed decisions
-    The first should be a Decision
-    The rest must be of type DecisionDependent
-
-    if this kind of DecisionSeq is itself observed it will be twice observed, as its
-    constituent decisions are observed
-    """
-
-    def __init__(self, decision_ordering_pairs):
-        self.decision_ordering_pairs = [
-            (d, array(o)) for d, o in decision_ordering_pairs
-        ]
-
-    def matchups(self, participants):
-        pairs = self.decision_ordering_pairs
-        last_decision, last_ordering = pairs[0]
-        # last_ordering = array(last_ordering)
-        yield pairs[0]  # [0],array(pairs[0][1])
-
-        last_action = last_decision.last_action
-        last_payoff = last_decision(last_action)
-        for decision_maker, ordering in pairs[1:]:
-            # Check if this is a bug in terms of payoff ordering
-            decision = decision_maker(last_payoff[last_ordering][ordering])
-            yield (decision, ordering)
-            last_decision, last_ordering = decision, ordering
-            last_action = last_decision.last_action
-            last_payoff = last_decision(last_action)
 
 
 """
@@ -725,20 +510,15 @@ class AnnotatedDS(DecisionSeq):
 
         record = []
 
-        # cache the dot references
-        extend_obs = observations.extend
-        extend_rec = record.append
-        annotate = self.annotate
-
-        extend_rec(annotate(participants, payoffs, [], [], notes))
+        record.append(self.annotate(participants, payoffs, [], [], notes))
 
         for game, ordering in self.matchups(participants):
             pay, obs, rec = game.play(participants[ordering], observers, tremble)
             new_payoffs = np.zeros(len(participants))
             new_payoffs[ordering] += pay
             payoffs += new_payoffs
-            extend_rec(annotate(participants, new_payoffs, obs, rec, notes))
-            extend_obs(obs)
+            record.append(self.annotate(participants, new_payoffs, obs, rec, notes))
+            observations.extend(obs)
 
         assert len(payoffs) == len(participants)
         return payoffs, observations, record
@@ -855,21 +635,16 @@ class AnnotatedGame(AnnotatedDS):
         payoffs = np.zeros(len(participants))
         record = []
 
-        # cache the dot references
-        extend_obs = observations.extend
-        extend_rec = record.append
-        annotate = self.annotate
-
         # record basic info for round 0
-        extend_rec(annotate(participants, payoffs, [], [], notes))
+        record.append(self.annotate(participants, payoffs, [], [], notes))
 
         for game, ordering in self.matchups(participants):
             new_payoffs = np.zeros(len(participants))
             pay, obs, rec = game.play(participants[ordering], observers, tremble)
             new_payoffs[ordering] += pay
             payoffs += new_payoffs
-            extend_rec(annotate(participants, new_payoffs, obs, rec, notes))
-            extend_obs(obs)
+            record.append(self.annotate(participants, new_payoffs, obs, rec, notes))
+            observations.extend(obs)
 
         assert len(payoffs) == len(participants)
         return payoffs, observations, record
@@ -905,53 +680,6 @@ class AnnotatedGame(AnnotatedDS):
         ):
             self.current_round = game_round
             yield game_ordering_pair
-
-
-class IndefiniteHorizon(DecisionSeq):
-    def __init__(self, gamma, game):
-        self.name = self._name = (
-            "IndefiniteHorizon(" + str(gamma) + ", " + game.name + ")"
-        )
-        self.game = game
-        self.gamma = gamma
-        self.N_players = game.N_players
-
-    def matchups(self, participants):
-        ordering = list(range(len(participants)))
-        player_count = self.game.N_players
-        potential_matchups = combinations(ordering, player_count)
-        # generate a list of lists of matchup. each sublist is the same matchup repeated some number of times, as determined by gamma.
-        matchup_repetitions = [
-            [np.array(matchup)] * np.random.geometric(1 - self.gamma)
-            for matchup in potential_matchups
-        ]
-        # the function below zips lists, filling any shorter lists with 'None' until it is as long as the longest list
-        zipped = list(utils.apply_izip_longest(matchup_repetitions))
-        # each of these matchup_lists corresponds to one round
-        for matchup_list in zipped:
-            # here we serve up a Decision where all the matchups are played out, but first we filter out the "None"s
-            yield (
-                DecisionSeq([(self.game, m) for m in matchup_list if m is not None]),
-                ordering,
-            )
-
-
-class FiniteHorizon(DecisionSeq):
-    """
-    repeats the underlying game a number of times
-    if wrapped with "AnnotatedGame" it reproduces the functions of "repeated"
-    """
-
-    def __init__(self, rounds, game):
-        self.name = self._name = "FiniteHorizon(" + str(rounds) + ", " + game.name + ")"
-        self.game = game
-        self.rounds = rounds
-        self.N_players = game.N_players
-
-    def matchups(self, participants):
-        ordering = list(range(len(participants)))
-        for r in range(self.rounds):
-            yield self.game, ordering
 
 class RandomizedMatchup(DecisionSeq):
     def __init__(self, rounds, game, deterministic=False, **kwargs):
@@ -995,7 +723,7 @@ class RandomizedMatchup(DecisionSeq):
             if len(decider_pool) == 0:
                 break
 
-            decider = decider_pool[np.random.choice(decider_pool)]
+            decider = np.random.choice(decider_pool)
 
             recipient_pool = indices[counts[decider] > 0]
             
@@ -1007,29 +735,6 @@ class RandomizedMatchup(DecisionSeq):
                 
             assert counts.min() >= 0
             yield (game, [decider] + list(recipients))
-
-@literal
-def AnnotatedCircular(game):
-    return Annotated(Circular(game))
-
-class IndefiniteHorizonGame(DecisionSeq):
-    def __init__(self, gamma, playable):
-        self.name = self._name = "IndefiniteHorizon(%s,%s)" % (gamma, playable.name)
-        self.playable = playable
-        self.gamma = gamma
-
-    def matchups(self, participants):
-        """
-        yields the game/ordering pair once
-        subsequently yields with probability gamma
-        """
-        game = self.playable
-        gamma = self.gamma
-        ordering = list(range(len(participants)))
-        yield game, ordering
-        while flip(gamma):
-            yield game, ordering
-
 
 class Dynamic(Playable):
     """
@@ -1078,9 +783,9 @@ def RepeatedPrisonersTournament(
 direct = RepeatedPrisonersTournament
 
 
-def engine_gen(intervals, max_players, benefit, cost, tremble):
+def engine_gen(nactions, max_players, benefit, cost, tremble):
     # Number of actions, not including the zero-action.
-    N_actions = 1 + np.random.poisson(intervals - 1)
+    N_actions = 1 + np.random.poisson(nactions - 1)
 
     # Number of players that will be affected by the decision
     N_players = np.random.choice(list(range(2, max_players + 1)))
@@ -1099,7 +804,8 @@ def engine_gen(intervals, max_players, benefit, cost, tremble):
             assert -choice[0] < choice[p]
 
             choices.append(copy(choice))
-    decision = Decision(OrderedDict((str(p), p) for p in choices))
+
+    decision = Decision(OrderedDict((i, p) for i, p in enumerate(choices)))
     decision.tremble = tremble
 
     return decision
@@ -1111,15 +817,15 @@ def game_engine(
     observability,
     cost=1,
     benefit=10,
-    intervals=2,
+    nactions=2,
     tremble=0,
     max_players=3,
     **kwargs
 ):
-    assert intervals >= 0
+    assert nactions >= 0
 
     dictator = Dynamic(
-        lambda: engine_gen(intervals, max_players, benefit, cost, tremble)
+        lambda: engine_gen(nactions, max_players, benefit, cost, tremble)
     )
     dictator.name = "dynamic"
     game = AnnotatedGame(
@@ -1130,16 +836,4 @@ def game_engine(
     return game
 
 if __name__ == "__main__":
-    import utils
-
-    assert 0
-    from agents import Puppet
-
-    puppets = array([Puppet("Alpha"), Puppet("Beta"), Puppet("C")])
-
-    game = TernaryTournament(10)  # RepeatedDynamicPrisoners(10)
-    print(game)
-    print(hash(game))
-    payoff, history, records = game.play(puppets)
-    print("Final Payoff:", payoff)
-    print(len(list(set(g for g, a, b, c in history))))
+    pass

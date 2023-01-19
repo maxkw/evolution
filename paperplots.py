@@ -77,19 +77,22 @@ def game_engine():
         stacked=True,
         benefit=10,
         cost=1,
+        nactions=2,
         plot_dir=PLOT_DIR,
         memoized=params.memoized,
+        deterministic=True,
         graph_kwargs={"color": color_list(agents)},
     )
 
     ticks = 11
-    max_expected_interactions = 5
+    max_expected_interactions = 9 
     # max_expected_interactions = (1+ticks)/2
     # Expected number of interactions
     def gamma_plot():
         print('Running gamma plot')
         limit_param_plot(
-            param_dict={"expected_interactions": np.round(np.linspace(1, max_expected_interactions, ticks), 2)},
+            # param_dict={"expected_interactions": np.round(np.linspace(1, max_expected_interactions, ticks), 2)},
+            param_dict={"rounds": range(1, max_expected_interactions+1)},
             tremble=MIN_TREMBLE,
             observability=0,
             legend=True,
@@ -106,7 +109,7 @@ def game_engine():
         limit_param_plot(
             param_dict={"tremble": TREMBLE_EXP},
             observability=0,
-            expected_interactions=max_expected_interactions,
+            rounds=max_expected_interactions,
             analysis_type="limit",
             file_name="game_engine_tremble",
             **common_params,
@@ -117,7 +120,7 @@ def game_engine():
         limit_param_plot(
             param_dict={"observability": np.round(np.linspace(0, 1, ticks), 2)},
             tremble=MIN_TREMBLE,
-            expected_interactions=1,
+            rounds=1,
             analysis_type="complete",
             file_name="game_engine_observability",
             **common_params,
@@ -128,7 +131,7 @@ def game_engine():
         limit_param_plot(
             param_dict={"tremble": TREMBLE_EXP},
             observability=1,
-            expected_interactions=1,
+            rounds=1,
             analysis_type="complete",
             file_name="game_engine_tremble_public",
             **common_params,
@@ -137,14 +140,14 @@ def game_engine():
     def heat_map_gamma_omega():
         print('Running heat map gamma vs. omega')
         param_dict = dict(
-            expected_interactions=np.round(np.linspace(1, 3, heat_ticks), 2),
+            rounds=range(1, max_expected_interactions+1),
             observability=np.round(np.linspace(0, 1, heat_ticks), 2),
         )
 
         heat_graph_kwargs = dict(
             xlabel = 'Probability of observation',
             ylabel = '# of Interactions',
-            xy = ("observability", "expected_interactions"),
+            xy = ("observability", "rounds"),
             onlyRA = True,
         )
         common_params_heat = common_params.copy()
@@ -165,14 +168,14 @@ def game_engine():
     def heat_map_gamma_tremble():
         print('Running heat map gamma vs. tremble')
         param_dict = dict(
-            expected_interactions=np.round(np.linspace(1, max_expected_interactions, heat_ticks), 2),
+            rounds=range(1, max_expected_interactions+1),
             tremble=TREMBLE_EXP[::2],
         )
 
         heat_graph_kwargs = dict(
             xlabel = 'Probability of tremble',
             ylabel = '# of Interactions',
-            xy = ("tremble", "expected_interactions"),
+            xy = ("tremble", "round"),
             onlyRA = True,
         )
         common_params_heat = common_params.copy()
@@ -215,7 +218,8 @@ def game_engine():
             tremble=MIN_TREMBLE,
             analysis_type="complete",
             line=True,
-            expected_interactions=1,            file_name="game_engine_omega_tremble",
+            rounds=1,
+            file_name="game_engine_omega_tremble",
             **common_params_heat
         )
 
@@ -237,14 +241,15 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
+    # beta_plot()
     gamma_plot()
-    # tremble_plot()
-    # observe_plot()
-    # observe_tremble_plot()
-    # heat_map_gamma_omega()
-    # heat_map_gamma_tremble()
-    # heat_map_omega_tremble()
-    # search_bc()
+    tremble_plot()
+    observe_plot()
+    observe_tremble_plot()
+    heat_map_gamma_omega()
+    heat_map_gamma_tremble()
+    heat_map_omega_tremble()
+    search_bc()
 
 
     # # Agent Sim Plots
@@ -292,7 +297,8 @@ def ipd():
         trials=TRIALS,
         stacked=True,
         return_rounds=True,
-        per_round=True,            
+        per_round=True,          
+        memoized=params.memoized,  
     )
     
     n_rounds = 25
@@ -315,7 +321,7 @@ def ipd():
                           "xlabel": "# Pairwise Interactions"},
             **common_params,
         )
-
+        
         print("Running Pop Size with", label)
         limit_param_plot(
             param_dict=dict(pop_size=[2,4,8,16,32,64,128]),
