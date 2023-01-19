@@ -1,4 +1,3 @@
-
 from collections import OrderedDict
 from utils import flip
 from itertools import combinations, cycle, permutations
@@ -76,11 +75,11 @@ class Playable(object):
     """
     this is the base class of all games
     these are defined by having the 'play' method
-    
+
     this class is robust and accepts any decision that an agent accepts
 
     Note on naming:
-    
+
     all Playable class instances should have a 'name' and '_name' variable
     whose value is the string representing the expression that generates it
     for example:
@@ -188,8 +187,8 @@ class RandomlyObserved(Playable):
         )
 
         for observer in set(list(observers) + list(participants)):
-            # Check if the observer implements observe 
-            if hasattr(observer, 'observe'):
+            # Check if the observer implements observe
+            if hasattr(observer, "observe"):
                 observer.observe(observations)
 
         return payoffs, observations, notes
@@ -229,7 +228,7 @@ class ObservedByFollowers(Playable):
         )
 
         for observer in set(list(observers) + list(participants)):
-            if hasattr(observer, 'observe'):
+            if hasattr(observer, "observe"):
                 observer.observe(observations)
 
         return payoffs, observations, notes
@@ -270,7 +269,7 @@ class AllNoneObserve(Playable):
         observer_indices = frozenset(list(id_to_observer.keys()))
 
         for observer_index in observer_indices:
-            if hasattr(id_to_observer[observer_index], 'observe'):
+            if hasattr(id_to_observer[observer_index], "observe"):
                 id_to_observer[observer_index].observe(observations)
 
         return payoffs, observations, notes
@@ -287,10 +286,10 @@ agents to actually play a decision.
 class Decision(Playable):
     """
     A decision is defined by a payoffDict
-    
+
     Makes a playable object from a dictionary whose values are arrays
     all values are assumed to have the same length
-    
+
     when called using 'play' the first agent will choose from among the keys
     the nth payoff then corresponds to the nth agent in the provided list
     """
@@ -383,7 +382,7 @@ class DecisionSeq(Playable):
     where an 'ordering' is actually the ordered indices of the players that will
     participate in the corresponding decision.
 
-    The length of an ordering must be the same as the number of players for the 
+    The length of an ordering must be the same as the number of players for the
     corresponding game
 
     games may have different numbers of players
@@ -421,15 +420,15 @@ class DecisionSeq(Playable):
         initialization
 
         what it does:
-        Repeatedly calls the 'play_decisions' provided by 'matchups' using the 
+        Repeatedly calls the 'play_decisions' provided by 'matchups' using the
         players whose indices are given by 'ordering'
 
         what it returns:
         the running tally of all payoffs accumulated by participants accross
         all decisions played
-        
+
         a list of observations in the order in which they occurred.
-        
+
         an empty list for compatibility with annotations
         """
         # initialize accumulators
@@ -473,9 +472,9 @@ will play the same number of games for the same p
 
 class CombinatorialMatchup(object):
     """
-    the playable is played exactly once by every adequately sized 
+    the playable is played exactly once by every adequately sized
     subset of the participants.
-    
+
     NOTE:
     every subset plays exactly once
     best for games that handle their own ordering
@@ -501,8 +500,8 @@ class Combinatorial(CombinatorialMatchup, DecisionSeq):
 class SymmetricMatchup(object):
     """
     plays the game with every possible permutation of the participants
-    
-    
+
+
     NOTE:
     there will be redundancy if ordering does not matter.
     this is best for games where every position is different.
@@ -551,9 +550,9 @@ class CircularMatchup(object):
             indices = list(range(len(participants)))
             np.random.shuffle(indices)
 
-            matchups = list(zip(
-                *[indices[i:] + indices[:i] for i in range(self.game.N_players)]
-            ))
+            matchups = list(
+                zip(*[indices[i:] + indices[:i] for i in range(self.game.N_players)])
+            )
             # matchups = zip(indices,indices[1:]+indices[:1])
 
             playable = self.game
@@ -653,7 +652,7 @@ class DecisionDependentSeq(DecisionSeq):
     The first should be a Decision
     The rest must be of type DecisionDependent
 
-    if this kind of DecisionSeq is itself observed it will be twice observed, as its 
+    if this kind of DecisionSeq is itself observed it will be twice observed, as its
     constituent decisions are observed
     """
 
@@ -692,7 +691,7 @@ class AnnotatedDS(DecisionSeq):
     its results will be appended to the record and passed up
 
     except for the 'annotate' method, this works exactly the same as DecisionSeq
-    
+
     This kind of sequence is used for collecting more data about the games.
     annotations happen AFTER the play function is called
     """
@@ -954,62 +953,15 @@ class FiniteHorizon(DecisionSeq):
         for r in range(self.rounds):
             yield self.game, ordering
 
-
-class IndefiniteMatchup(DecisionSeq):
-    def __init__(self, gamma, game):
-        self.gamma = gamma
-        self.game = game
-        self.name = self._name = (
-            "IndefiniteMatching(" + str(gamma) + ", " + game.name + ")"
-        )
-
-    def matchups(self, participants):
-        player_count = len(participants)
-        indices = np.arange(player_count)
-        counts = np.zeros(shape=(player_count, player_count))
-
-        for i, j in combinations(list(range(player_count)), 2):
-            counts[i, j] = counts[j, i] = np.random.geometric(1 - self.gamma)
-
-
-        while True:
-            game = self.game.next_game()
-            N_players = game.N_players
-            N_participants = N_players-1
-
-            # for each decider count the number of possible others
-            # they can still interact with. 
-            sums = (counts > 0).sum(axis=1)
-
-            # only pick from those that have sufficient possible
-            # interaction partners.
-            decider_pool = indices[sums >= N_participants]
-
-            if len(decider_pool) == 0:
-                return
-
-            decider = np.random.choice(decider_pool)
-
-            participant_pool = indices[counts[decider] > 0]
-            participant_pool_size = len(participant_pool)
-                
-            ps = np.random.choice(
-                participant_pool, N_participants, replace=False)
-
-            for participant in ps:
-                counts[decider, participant] -= 1
-                counts[participant, decider] -= 1
-
-            assert counts.min() >= 0
-
-            yield (game, [decider] + list(ps))
-
-
 class RandomizedMatchup(DecisionSeq):
     def __init__(self, rounds, game, deterministic=False, **kwargs):
         self.rounds = rounds
         self.game = game
         self.deterministic = deterministic
+
+        if self.deterministic == True:
+            assert isinstance(self.rounds, int)
+
         self.name = self._name = (
             "RandomizedMatchup(" + str(rounds) + ", " + game.name + ")"
         )
@@ -1018,7 +970,6 @@ class RandomizedMatchup(DecisionSeq):
         player_count = len(participants)
         indices = np.arange(player_count)
         counts = np.zeros(shape=(player_count, player_count))
-        partners = np.zeros(player_count)
 
         if self.deterministic:
             for i, j in combinations(list(range(player_count)), 2):
@@ -1027,45 +978,39 @@ class RandomizedMatchup(DecisionSeq):
             for i, j in combinations(list(range(player_count)), 2):
                 counts[i, j] = counts[j, i] = np.random.geometric(1.0 / self.rounds)
 
-        for i, row in enumerate(counts):
-            partners[i] = sum(row >= 1)
-
         # while there is anyone that has more than two partners remaining
         while True:
             game = self.game.next_game()
             N_players = game.N_players
-
-            # decider_pool is the indices of those agents that have enough partners left to play the game
-
-            decider_pool = indices[partners >= N_players - 1]
-            decider_pool_size = len(decider_pool)
-
-            if 0 == decider_pool_size:
+            N_participants = N_players - 1
+            
+            # for each decider count the number of possible others
+            # they can still interact with.
+            sums = (counts > 0).sum(axis=1)           
+            
+            # only pick from those that have sufficient possible
+            # interaction partners.
+            decider_pool = indices[sums >= N_participants] 
+    
+            if len(decider_pool) == 0:
                 break
 
-            decider = decider_pool[np.random.choice(decider_pool_size)]
+            decider = decider_pool[np.random.choice(decider_pool)]
 
             recipient_pool = indices[counts[decider] > 0]
-            recipient_pool_size = len(recipient_pool)
-
-            recipients = recipient_pool[
-                np.random.choice(recipient_pool_size, N_players - 1, replace=False)
-            ]
+            
+            recipients = np.random.choice(recipient_pool, N_participants, replace=False)
 
             for recipient in recipients:
                 counts[decider, recipient] -= 1
                 counts[recipient, decider] -= 1
-
-            for i, row in enumerate(counts):
-                partners[i] = sum(row >= 1)
-
+                
+            assert counts.min() >= 0
             yield (game, [decider] + list(recipients))
-
 
 @literal
 def AnnotatedCircular(game):
     return Annotated(Circular(game))
-
 
 class IndefiniteHorizonGame(DecisionSeq):
     def __init__(self, gamma, playable):
@@ -1084,6 +1029,7 @@ class IndefiniteHorizonGame(DecisionSeq):
         yield game, ordering
         while flip(gamma):
             yield game, ordering
+
 
 class Dynamic(Playable):
     """
@@ -1131,17 +1077,18 @@ def RepeatedPrisonersTournament(
 
 direct = RepeatedPrisonersTournament
 
+
 def engine_gen(intervals, max_players, benefit, cost, tremble):
-    # Number of actions, not including the zero-action. 
+    # Number of actions, not including the zero-action.
     N_actions = 1 + np.random.poisson(intervals - 1)
-    
+
     # Number of players that will be affected by the decision
     N_players = np.random.choice(list(range(2, max_players + 1)))
 
     # initialize set of choices with the zero-action. All games
     # contain the option to "do nothing"
     choices = [np.zeros(N_players)]
-    
+
     for n in range(N_actions):
         c = np.random.poisson(cost)
         b = np.random.exponential(benefit - cost)
@@ -1149,8 +1096,8 @@ def engine_gen(intervals, max_players, benefit, cost, tremble):
             choice = np.zeros(N_players)
             choice[0] = -c
             choice[p] = c + b
-            assert(-choice[0] < choice[p])
-            
+            assert -choice[0] < choice[p]
+
             choices.append(copy(choice))
     decision = Decision(OrderedDict((str(p), p) for p in choices))
     decision.tremble = tremble
@@ -1160,7 +1107,7 @@ def engine_gen(intervals, max_players, benefit, cost, tremble):
 
 @literal
 def game_engine(
-    expected_interactions,
+    rounds,
     observability,
     cost=1,
     benefit=10,
@@ -1175,51 +1122,12 @@ def game_engine(
         lambda: engine_gen(intervals, max_players, benefit, cost, tremble)
     )
     dictator.name = "dynamic"
-    gamma = 1 - 1 / expected_interactions
-    game = AnnotatedGame(
-        IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator, **kwargs))
-    )
-    return game
-
-
-@literal
-def belief_game(rounds, observability, cost, benefit, intervals=2, tremble=0, **kwargs):
-    assert intervals >= 0
-
-    dictator = Dynamic(lambda: engine_gen(intervals, 2, benefit, cost, tremble))
-    dictator.name = "dynamic"
-
     game = AnnotatedGame(
         RandomizedMatchup(
             rounds, AllNoneObserve(observability, dictator, **kwargs), **kwargs
         )
     )
     return game
-
-
-@literal
-def manual(
-    gamma,
-    cost=COST,
-    benefit=BENEFIT,
-    tremble=0,
-    observability=0,
-    intervals=2,
-    followers=True,
-    **kwargs
-):
-    # gamma = 1-1/rounds
-    dictator = SocialDictator(
-        cost=cost, benefit=benefit, tremble=tremble, intervals=intervals
-    )
-    # dictator = SocialGame()
-    # game = AnnotatedGame(IndefiniteHorizon(gamma, PrivatelyObserved(Symmetric(dictator))))
-    # game = AnnotatedGame(IndefiniteHorizon(gamma, AllNoneObserve(observability, Symmetric(dictator))))
-    game = AnnotatedGame(
-        IndefiniteMatchup(gamma, AllNoneObserve(observability, dictator))
-    )
-    return game
-
 
 if __name__ == "__main__":
     import utils
