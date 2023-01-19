@@ -275,8 +275,8 @@ def params_heat(
         ax.invert_yaxis()
 
         nonlocal original_data, line
+        
         if line:
-
             # Find the first index in d where the value is greater than 0.5
             original_data.groupby([y, x]).max()
 
@@ -291,11 +291,13 @@ def params_heat(
             first = d.eq(max_proportion).idxmax().reset_index()[0]
 
             # Get the index integer of d that matches first
-            first = d.index.get_indexer(first)
+            first = d.index.get_indexer(d.eq(max_proportion).idxmax().reset_index()[0])
             
+            # For the ones that never hit the max prop, make it a super higher number to get it off the plot
+            first[~d.eq(max_proportion).max()] = len(d.index)*2
+                        
             # Double the first entry to make the first step
             first = [first[0]] + list(first)
-            
             plt.step(
                 range(len(first)),
                 first,

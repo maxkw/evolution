@@ -165,8 +165,8 @@ def game_engine():
     def heat_map_gamma_tremble():
         print('Running heat map gamma vs. tremble')
         param_dict = dict(
-            expected_interactions=np.round(np.linspace(1, 3, heat_ticks), 2),
-            tremble=TREMBLE_EXP,
+            expected_interactions=np.round(np.linspace(1, max_expected_interactions, heat_ticks), 2),
+            tremble=TREMBLE_EXP[::2],
         )
 
         heat_graph_kwargs = dict(
@@ -194,7 +194,7 @@ def game_engine():
     def heat_map_omega_tremble():
         print('Running heat map omega vs. tremble')
         param_dict = dict(
-            tremble=TREMBLE_EXP,
+            tremble=TREMBLE_EXP[::2],
             observability=np.round(np.linspace(0, 1, heat_ticks), 2),
         )
 
@@ -237,11 +237,11 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
-    # gamma_plot()
+    gamma_plot()
     # tremble_plot()
     # observe_plot()
     # observe_tremble_plot()
-    heat_map_gamma_omega()
+    # heat_map_gamma_omega()
     # heat_map_gamma_tremble()
     # heat_map_omega_tremble()
     # search_bc()
@@ -532,7 +532,9 @@ def belief():
         tremble=MIN_TREMBLE,
         plot_dir=PLOT_DIR,
         deterministic=True,
-        game="belief_game",
+        game="game_engine",
+        # Max Players = 2 so we can more easily interpret the results
+        max_players=2,
         benefit=3,
         cost=1,
         traces=5,
