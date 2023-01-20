@@ -715,7 +715,7 @@ class RandomizedMatchup(DecisionSeq):
             # for each decider count the number of possible others
             # they can still interact with.
             sums = (counts > 0).sum(axis=1)           
-            
+
             # only pick from those that have sufficient possible
             # interaction partners.
             decider_pool = indices[sums >= N_participants] 

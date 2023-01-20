@@ -140,7 +140,7 @@ def game_engine():
     def heat_map_gamma_omega():
         print('Running heat map gamma vs. omega')
         param_dict = dict(
-            rounds=range(1, max_expected_interactions+1),
+            rounds=range(1, heat_ticks+1),
             observability=np.round(np.linspace(0, 1, heat_ticks), 2),
         )
 
@@ -168,14 +168,14 @@ def game_engine():
     def heat_map_gamma_tremble():
         print('Running heat map gamma vs. tremble')
         param_dict = dict(
-            rounds=range(1, max_expected_interactions+1),
+            rounds=range(1, max_expected_interactions+1, 2),
             tremble=TREMBLE_EXP[::2],
         )
 
         heat_graph_kwargs = dict(
             xlabel = 'Probability of tremble',
             ylabel = '# of Interactions',
-            xy = ("tremble", "round"),
+            xy = ("tremble", "rounds"),
             onlyRA = True,
         )
         common_params_heat = common_params.copy()
@@ -235,7 +235,7 @@ def game_engine():
         bc_plot(
             ei_stop=bcs,
             observe_param=np.round(np.linspace(1, 0, heat_ticks), 2),
-            delta=0.025,
+            delta=1,
             tremble=MIN_TREMBLE,
             analysis_type="complete",
             file_name="bc_plot",
@@ -303,10 +303,9 @@ def ipd():
     
     n_rounds = 25
 
-    selfpayoff_params = common_params.copy()
-    selfpayoff_params.update(
+    payoff_params = common_params.copy()
+    payoff_params.update(
         stacked=False,
-        var='selfpayoff',
     )
     
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
@@ -344,25 +343,38 @@ def ipd():
             **common_params,
         )
 
-    print('Running Self Payoff')
+    print('Running Payoffs')
     limit_param_plot(
         param_dict=dict(rounds=[n_rounds]),
         tremble=MIN_TREMBLE,
         player_types=new_pop,
-        file_name="ipd_rounds_selfpay",
+        file_name="ipd_rounds_wepay",
+        var='wepayoff',
         graph_kwargs={"color": color_list(new_pop),
-                        "xlabel": "# Pairwise Interactions"},
-        **selfpayoff_params,
+                      "xlabel": "# Pairwise Interactions"},
+        **payoff_params,
     )
     limit_param_plot(
         param_dict=dict(tremble=TREMBLE_EXP),
         rounds=n_rounds,
-        tremble=MIN_TREMBLE,
         player_types=new_pop,
         file_name="ipd_tremble_selfpay",
         graph_kwargs={"color": color_list(new_pop)},
-        **selfpayoff_params,
+        var='selfpayoff',
+        **payoff_params,
     )
+    limit_param_plot(
+        param_dict=dict(beta=np.append(np.linspace(1,6.5,12), np.inf)),
+        rounds=n_rounds,
+        tremble=MIN_TREMBLE,
+        player_types=new_pop,
+        file_name="ipd_beta_wepay",
+        graph_kwargs={"color": color_list(new_pop)},
+        var='wepayoff',
+        **payoff_params
+    )    
+    
+
    
     print('Running Payoff Heatmap')
     for r in [5, n_rounds]:

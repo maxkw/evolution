@@ -125,6 +125,21 @@ def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwa
 
     plt.tight_layout()
 
+def edit_beta(player_types, beta):
+    # Change the beta of each player that has a beta
+    for i, t in enumerate(player_types):
+        # Check for Agent Types since we only want to change the Beta on agents that have a ToM
+        if hasattr(t, "genome") and "agent_types" in t.genome:
+            # Update the player's beta
+            player_types[i].genome["beta"] = beta
+            
+            # Update the beta on their ToM models
+            for j in range(len(t.genome["agent_types"])):
+                if hasattr(t.genome["agent_types"][j], "genome"):
+                    player_types[i].genome["agent_types"][j].genome["beta"] = beta
+                    
+    return player_types
+
 def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     """`param_dict`: <dict> with <string> keys that name the parameter and
     values that are lists of the parameters to range over.
@@ -145,17 +160,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         ps = dict(list(zip(param_dict, pvs)))
 
         if "beta" in ps:
-            # Change the beta of each player that has a beta
-            for i, t in enumerate(player_types):
-                # Check for Agent Types since we only want to change the Beta on agents that have a ToM
-                if hasattr(t, "genome") and "agent_types" in t.genome:
-                    # Update the player's beta
-                    player_types[i].genome["beta"] = ps["beta"]
-                    
-                    # Update the beta on their ToM models
-                    for j in range(len(t.genome["agent_types"])):
-                        if hasattr(t.genome["agent_types"][j], "genome"):
-                            player_types[i].genome["agent_types"][j].genome["beta"] = ps["beta"]
+            edit_beta(player_types, ps["beta"])
 
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
@@ -197,6 +202,8 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                 # Add the self payoff if we are in the direct game
                 if kwargs["game"] == "direct":
                     records[-1]["selfpayoff"] = payoffs[r - start][1][t_idx][t_idx]
+                    records[-1]["wepayoff"] = payoffs[r - start][1][t_idx][-1]
+
 
     return pd.DataFrame(records)
 
@@ -419,9 +426,6 @@ def limit_param_plot(
     param_values = param_dict[param]
     
     fig, ax = plt.subplots(figsize=(3.5, 3))
-    # TODO: Investigate this, some weird but necessary data cleaning
-    data[data[var] < 0] = 0
-    data = data[data["type"] != 0]
 
     if kwargs.get("return_rounds", False) and param != "rounds":
         data = data[data["rounds"] == kwargs["rounds"]]
