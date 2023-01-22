@@ -340,7 +340,7 @@ def plot_beliefs(
     sns.despine()
     plt.tight_layout()
 
-# @memory.cache
+@memory.cache
 def matchup_matrix_per_round(player_types, rounds, cog_cost=0, sem=False, **kwargs):
     max_rounds = rounds
     player_combos = MultiArg(combinations_with_replacement(player_types, 2))

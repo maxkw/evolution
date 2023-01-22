@@ -3,9 +3,9 @@ import seaborn as sns
 sns.set_style('ticks')
 sns.set_context('paper', font_scale=1)
 
-n_jobs = 1
+n_jobs = 8
 disable_tqdm = False
-memoized = False
+memoized = True
 
 AGENT_NAME = 'Bayesian\nReciprocator'
 

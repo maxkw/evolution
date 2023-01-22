@@ -291,7 +291,7 @@ def ipd(game):
     )
 
     common_params = dict(
-        game='direct',
+        game=game,
         s=1,
         benefit=BENEFIT,
         cost=COST,
@@ -312,14 +312,14 @@ def ipd(game):
         stacked=False,
     )
      
-    for label, player_types in zip(["wRA", "woRA"], [old_pop, old_pop]):
+    for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
         print("Running Expected Rounds with", label)
         limit_param_plot(
             param_dict=dict(rounds=[n_rounds]),
             tremble=MIN_TREMBLE,
             player_types=player_types,
             legend=True,
-            file_name="ipd_rounds_%s" % label,
+            file_name="%s_rounds_%s" % (game, label),
             graph_kwargs={"color": color_list(player_types),
                           "xlabel": "# Pairwise Interactions"},
             **common_params,
@@ -331,7 +331,7 @@ def ipd(game):
             rounds=n_rounds,
             tremble=MIN_TREMBLE,
             player_types=player_types,
-            file_name="ipd_popsize_%s" % label,
+            file_name="%s_popsize_%s" % (game, label),
             graph_kwargs={"color": color_list(player_types),
                           "xlabel": "Population Size"},
             **common_params,
@@ -342,7 +342,7 @@ def ipd(game):
             param_dict=dict(tremble=TREMBLE_EXP),
             rounds=n_rounds,
             player_types=player_types,
-            file_name="ipd_tremble_%s" % label,
+            file_name="%s_tremble_%s" % (game, label),
             graph_kwargs={"color": color_list(player_types)},
             **common_params,
         )
@@ -352,7 +352,7 @@ def ipd(game):
         param_dict=dict(rounds=[n_rounds]),
         tremble=MIN_TREMBLE,
         player_types=new_pop,
-        file_name="ipd_rounds_wepay",
+        file_name="%s_rounds_wepay" % game,
         var='wepayoff',
         graph_kwargs={"color": color_list(new_pop),
                       "xlabel": "# Pairwise Interactions"},
@@ -362,7 +362,7 @@ def ipd(game):
         param_dict=dict(tremble=TREMBLE_EXP),
         rounds=n_rounds,
         player_types=new_pop,
-        file_name="ipd_tremble_selfpay",
+        file_name="%s_tremble_selfpay" % game,
         graph_kwargs={"color": color_list(new_pop)},
         var='selfpayoff',
         **payoff_params,
@@ -372,7 +372,7 @@ def ipd(game):
         rounds=n_rounds,
         tremble=MIN_TREMBLE,
         player_types=new_pop,
-        file_name="ipd_beta_wepay",
+        file_name="%s_beta_wepay" % game,
         graph_kwargs={"color": color_list(new_pop)},
         var='wepayoff',
         **payoff_params
@@ -385,7 +385,7 @@ def ipd(game):
             player_types=new_pop,
             tremble=MIN_TREMBLE,
             sem=False,
-            file_name="ipd_payoffs_rounds_{}".format(r),
+            file_name=("%s_payoffs_rounds_{}".format(r)) % game,
             **common_params
         )    
 
@@ -404,32 +404,19 @@ def ipd(game):
         param_dict=dict(cog_cost=cog_cost_params),
         tremble=MIN_TREMBLE,
         rounds=n_rounds,
-        file_name="ipd_cogcosts",
+        file_name="%s_cogcosts" % game,
         player_types=new_pop,
         graph_funcs=cog_cost_graph,
         graph_kwargs={"color": color_list(new_pop)},
         **common_params,
     )
-    
-
-    print('Running Payoff Heatmap')
-    for r in [1,5, n_rounds]:
-        payoff_heatmap(
-            rounds=r,
-            player_types=new_pop,
-            # tremble=MIN_TREMBLE,
-            tremble=MIN_TREMBLE,
-            sem=False,
-            file_name="ipd_payoffs_rounds_{}".format(r),
-            **common_params
-        )
-    
+       
     print("Running Beta IPD")
     limit_param_plot(
         param_dict=dict(beta=np.append(np.round(np.linspace(1,6.5,12),1), np.inf)),
         tremble=MIN_TREMBLE,
         rounds=5,
-        file_name="ipd_beta",
+        file_name="%s_beta" % game,
         player_types=new_pop,
         graph_kwargs={"color": color_list(new_pop),
                       "xlabel": r"Softmax ($\beta$)"},
@@ -453,7 +440,7 @@ def ipd(game):
             param_dict=param_dict,
             player_types=new_pop,
             tremble=MIN_TREMBLE,
-            file_name="ipd_heat_beta",
+            file_name="%s_heat_beta" % game,
             line = True,
             graph_kwargs=heat_graph_kwargs,
             **common_params
@@ -475,7 +462,7 @@ def ipd(game):
         params_heat(
             param_dict=param_dict,
             player_types=new_pop,
-            file_name="ipd_heat_tremble",
+            file_name="%s_heat_tremble" % game,
             line = True,
             graph_kwargs=heat_graph_kwargs,
             **common_params

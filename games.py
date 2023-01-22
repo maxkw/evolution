@@ -9,14 +9,11 @@ from inspect import getargspec
 
 # import random
 import itertools
-import utils
 
-# from explore import *
-
-COST = 1
-BENEFIT = 3
+COST = np.NaN
+BENEFIT = np.NAN
 ENDOWMENT = 0
-ROUNDS = 10
+ROUNDS = np.NaN
 
 
 def literal(constructor):
@@ -826,7 +823,7 @@ def engine_gen(nactions, max_players, benefit, cost, tremble):
 
             choices.append(copy(choice))
 
-    decision = Decision(OrderedDict((i, p) for i, p in enumerate(choices)))
+    decision = Decision(OrderedDict((i, p) for i, p in enumerate(choices)), tremble)
     decision.tremble = tremble
 
     return decision
