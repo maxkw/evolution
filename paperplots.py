@@ -22,12 +22,14 @@ MIN_TREMBLE = 0.01
 # TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
 TREMBLE_EXP = np.round(np.linspace(0,.6,13),2)
 Extort2 = ag.ZDAgent(B=3, C=1, chi=2, phi="midpoint", subtype_name="Extort2")
+
 old_pop = (
     ag.AllC,
     ag.AllD,
     ag.GTFT,
     ag.WSLS,
     ag.TFT,
+    ag.Forgiver,
     Extort2,
 )
 
@@ -52,6 +54,8 @@ def color_list(agent_list, sort=True):
             return "C5"
         if "Extort2" in a:
             return "C6"
+        if "Forgiver" in a:
+            return "C7"        
         raise "Color not defined for agent %s"
 
     if sort:
@@ -61,7 +65,7 @@ def color_list(agent_list, sort=True):
 
 def game_engine():
     # 100 was good enough for the search_bc plot
-    TRIALS = 100
+    TRIALS = 200
     heat_ticks = 5
 
     opponents = (ag.SelfishAgent(beta=OTHER_BETA), ag.AltruisticAgent(beta=OTHER_BETA))
@@ -145,7 +149,7 @@ def game_engine():
         )
 
         heat_graph_kwargs = dict(
-            xlabel = 'Probability of observation',
+            xlabel = r"Prob. of observation ($\omega$)",
             ylabel = '# of Interactions',
             xy = ("observability", "rounds"),
             onlyRA = True,
@@ -173,8 +177,8 @@ def game_engine():
         )
 
         heat_graph_kwargs = dict(
-            xlabel = 'Probability of tremble',
-            ylabel = '# of Interactions',
+            xlabel = r"Prob. of action error ($\epsilon$)",
+            ylabel = "# Pairwise Interactions",
             xy = ("tremble", "rounds"),
             onlyRA = True,
         )
@@ -197,13 +201,13 @@ def game_engine():
     def heat_map_omega_tremble():
         print('Running heat map omega vs. tremble')
         param_dict = dict(
-            tremble=TREMBLE_EXP[::2],
+            tremble=TREMBLE_EXP[::2][:-1],
             observability=np.round(np.linspace(0, 1, heat_ticks), 2),
         )
 
         heat_graph_kwargs = dict(
-            xlabel = 'Probability of tremble',
-            ylabel = 'Probability of observation',
+            xlabel = r"Prob. of action error ($\epsilon$)",
+            ylabel = r"Prob. of observation ($\omega$)",
             xy = ("tremble", "observability"),
             onlyRA = True,
         )
@@ -226,10 +230,10 @@ def game_engine():
     def search_bc():
         print('Running search bc')
         bcs = {
-            (15, 1): 3,
-            (10, 1): 4,
+            (15, 1): 4,
+            # (10, 1): 4,
             (5, 1): 6,
-            # (2, 1): 15,
+            (3, 1): 15,
         }
 
         bc_plot(
@@ -241,6 +245,7 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
+    search_bc()
     # beta_plot()
     gamma_plot()
     tremble_plot()
@@ -249,7 +254,6 @@ def game_engine():
     heat_map_gamma_omega()
     heat_map_gamma_tremble()
     heat_map_omega_tremble()
-    search_bc()
 
 
     # # Agent Sim Plots
@@ -275,7 +279,7 @@ def game_engine():
     #     **sim_params)
 
 
-def ipd():
+def ipd(game):
     BENEFIT = 3
     COST = 1
     # 10000 puts SEM around 0.001-0.002
@@ -287,7 +291,7 @@ def ipd():
     )
 
     common_params = dict(
-        game="direct",
+        game='direct',
         s=1,
         benefit=BENEFIT,
         cost=COST,
@@ -307,8 +311,8 @@ def ipd():
     payoff_params.update(
         stacked=False,
     )
-    
-    for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
+     
+    for label, player_types in zip(["wRA", "woRA"], [old_pop, old_pop]):
         print("Running Expected Rounds with", label)
         limit_param_plot(
             param_dict=dict(rounds=[n_rounds]),
@@ -373,9 +377,7 @@ def ipd():
         var='wepayoff',
         **payoff_params
     )    
-    
 
-   
     print('Running Payoff Heatmap')
     for r in [5, n_rounds]:
         payoff_heatmap(
@@ -409,9 +411,22 @@ def ipd():
         **common_params,
     )
     
+
+    print('Running Payoff Heatmap')
+    for r in [1,5, n_rounds]:
+        payoff_heatmap(
+            rounds=r,
+            player_types=new_pop,
+            # tremble=MIN_TREMBLE,
+            tremble=MIN_TREMBLE,
+            sem=False,
+            file_name="ipd_payoffs_rounds_{}".format(r),
+            **common_params
+        )
+    
     print("Running Beta IPD")
     limit_param_plot(
-        param_dict=dict(beta=np.append(np.linspace(1,6.5,12), np.inf)),
+        param_dict=dict(beta=np.append(np.round(np.linspace(1,6.5,12),1), np.inf)),
         tremble=MIN_TREMBLE,
         rounds=5,
         file_name="ipd_beta",
@@ -430,7 +445,7 @@ def ipd():
                 onlyRA = True)
         
         param_dict = dict(
-            beta=np.append(np.linspace(1,7.5,14), np.inf),
+            beta=np.append(np.round(np.linspace(1,6.5,12),1), np.inf),
             rounds=[10],
         )
         
@@ -626,14 +641,16 @@ def main():
     if args.all:
         game_engine()
         belief()
-        ipd()
+        ipd('direct')
+        ipd('direct_seq')
         agent()
 
     if args.belief:
         belief()
 
     if args.ipd:
-        ipd()
+        ipd('direct')
+        ipd('direct_seq')
 
     if args.agent:
         agent()

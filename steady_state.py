@@ -428,7 +428,8 @@ def evo_analysis(player_types, analysis_type="limit", direct=True, *args, **kwar
     # If playing the direct-reciprocity game then use the direct
     # method where we don't have to compute the payoffs for each
     # population composition.
-    if (kwargs["game"] == "direct") and direct:
+    direct_games = ["direct", "direct_seq"]
+    if kwargs["game"] in direct_games and direct:
         direct = True
     else:
         direct = False

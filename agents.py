@@ -55,7 +55,7 @@ class Agent(object, metaclass=AgentType):
     def utility(self, payoffs, agent_ids):
         raise NotImplementedError
 
-    def decide_likelihood(self, game, agents, tremble=0, **kwargs):
+    def decide_likelihood(self, game, agents, tremble=np.NaN, **kwargs):
         # The first agent is always the deciding agent
         # Only have one action so just pick it
         if len(game.actions) == 1:
@@ -68,7 +68,7 @@ class Agent(object, metaclass=AgentType):
 
         return add_tremble(softmax(Us, self.genome["beta"]), tremble)
 
-    def likelihood_of(self, game, participant_ids, tremble=0, action=None, **kwargs):
+    def likelihood_of(self, game, participant_ids, tremble=np.NaN, action=None, **kwargs):
         likelihoods = self.decide_likelihood(game, participant_ids, tremble)
         if action == None:
             return likelihoods
@@ -131,6 +131,7 @@ class PrefabAgent(Agent):
             )
         
     def __str__(self):
+        # TODO: This code is causing a lot of slowness because it gets called on every comparison and look up as part of hashing. Simple ways of caching fail because the cache isn't updated in the right way. The creation and concatenation of strings is the slow part
         try:
             return self._nickname
         except:
@@ -694,7 +695,7 @@ class Memory1PDAgent(Agent):
         self.world_id = world_id
 
         self.memory = ConstantDefaultDict(genome["initial"])
-
+        
         p_vec = genome["p_vec"]
         # Check that p_vec is a valid list of probabilities
         if (np.array(p_vec) < 0).any() or (np.array(p_vec) > 1).any():
@@ -705,21 +706,59 @@ class Memory1PDAgent(Agent):
         }
 
     def observe(self, observations):
-        assert len(observations) == 2
+        assert len(observations) <= 2
+        for obs in observations:
+            action = obs["action"]
+            participants = obs["participant_ids"]
+            
+            me = self.world_id
+            if me in participants:
+                # Memory is indexed by the other player world id so need to look it up
+                if me == participants[0]:
+                    other = participants[1]
+                else:
+                    other = participants[0]
+                    
+                # NOTE: Need to make a list here because the memories are stored as immutable tuples
+                new_memory = list(self.memory[other])
 
-        obs1, obs2 = observations
-        players = (obs1["participant_ids"][0], obs2["participant_ids"][0])
-        actions = (obs1["action"], obs2["action"])
-        me = self.world_id
+                if me == participants[0]:
+                    new_memory[0] = action                    
+                else:
+                    new_memory[1] = action                    
+                self.memory[other] = tuple(new_memory)
+            
+        
+        # if len(observations) == 2:
+        #     obs1, obs2 = observations
+        #     deciders = (obs1["participant_ids"][0], obs2["participant_ids"][0])
+        #     actions = (obs1["action"], obs2["action"])
+        #     me = self.world_id
 
-        if me in players:
-            if me == players[1]:
-                players = tuple(reversed(players))
-                actions = tuple(reversed(actions))
+        #     if me in deciders:
+        #         if me == deciders[1]:
+        #             deciders = tuple(reversed(deciders))
+        #             actions = tuple(reversed(actions))
 
-            self.memory[players[1]] = actions
+        #         self.memory[deciders[1]] = actions
+                
+        # elif len(observations) == 1:
+        #     player = observations["participant_ids"][0]
+        #     action = observations["action"]
+        #     me = self.world_id
+            
+        #     if me in observations['participant_ids']:
+        #         import pdb; pdb.set_trace()
+                
+        #         if me == player:
+        #             self.memory[player] = action
+        #         else:
+        #             self.memory[me] = action
+        
+        # else:
+        #     raise Exception("Observations must be length 1 or 2")
 
-    def decide_likelihood(self, game, agents=None, tremble=None):
+    def decide_likelihood(self, game, agents=None, tremble=np.NaN):
         me, other = agents
         assert me == self.world_id
 
@@ -734,6 +773,7 @@ class Memory1PDAgent(Agent):
 WSLS = Memory1PDAgent(p_vec=(1, 0, 0, 1), initial=("give", "give"), subtype_name="WSLS")
 
 TFT = Memory1PDAgent(p_vec=(1, 0, 1, 0), initial=("give", "give"), subtype_name="TFT")
+Forgiver = Memory1PDAgent(p_vec=(1, 0, 1, 1), initial=("give", "give"), subtype_name="Forgiver")
 
 AllC = Memory1PDAgent(p_vec=(1, 1, 1, 1), initial=("give", "give"), subtype_name="AllC")
 
@@ -871,7 +911,7 @@ class ModelNode(object):
 
         return np.dot(payoffs, weights)
 
-    def decide_likelihood(self, game, agents, tremble=0):
+    def decide_likelihood(self, game, agents, tremble=np.NaN):
         if len(game.actions) == 1:
             return np.array([1])
 

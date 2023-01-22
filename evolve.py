@@ -125,6 +125,7 @@ def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwa
 
     plt.tight_layout()
 
+
 def edit_beta(player_types, beta):
     # Change the beta of each player that has a beta
     for i, t in enumerate(player_types):
@@ -132,13 +133,14 @@ def edit_beta(player_types, beta):
         if hasattr(t, "genome") and "agent_types" in t.genome:
             # Update the player's beta
             player_types[i].genome["beta"] = beta
-            
+
             # Update the beta on their ToM models
             for j in range(len(t.genome["agent_types"])):
                 if hasattr(t.genome["agent_types"][j], "genome"):
                     player_types[i].genome["agent_types"][j].genome["beta"] = beta
-                    
+
     return player_types
+
 
 def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     """`param_dict`: <dict> with <string> keys that name the parameter and
@@ -165,9 +167,9 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
-        
+
         # Compute the self-payoffs in the direct game
-        if kwargs["game"] == "direct":
+        if "direct" in kwargs["game"]:
             # Delete the unnecessary parameters so that we get a cache hit on `matchup_matrix_per_round`
             combined_kwargs = dict(kwargs, **ps)
             for key in ["analysis_type", "pop_size", "s"]:
@@ -198,12 +200,11 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                         **ps,
                     )
                 )
-                
+
                 # Add the self payoff if we are in the direct game
-                if kwargs["game"] == "direct":
+                if "direct" in kwargs["game"]:
                     records[-1]["selfpayoff"] = payoffs[r - start][1][t_idx][t_idx]
                     records[-1]["wepayoff"] = payoffs[r - start][1][t_idx][-1]
-
 
     return pd.DataFrame(records)
 
@@ -257,11 +258,10 @@ def bc_plot(
 
     fig, ax = plt.subplots(figsize=(3.5, 3))
 
-    sns.pointplot(
-        x="observability", y="rounds", hue="benefit", data=data, ax=ax
-    )
-    plt.xlabel("Probability of observation")
-    plt.ylabel("Expected Interactions")
+    sns.pointplot(x="observability", y="rounds", hue="benefit", data=data, ax=ax)
+    plt.xlabel(r"Prob. of observation ($\omega$)")
+    plt.ylabel("# Interactions")
+    plt.yticks([1,2,3,4])
     sns.despine()
     plt.tight_layout()
 
@@ -284,11 +284,29 @@ def params_heat(
             print("`param_dict` likely has duplicate values")
             raise e
 
-        ax = sns.heatmap(d, **kwargs)
+        ax = sns.heatmap(
+            d,
+            **dict(
+                cbar_kws={
+                    "location": "right",
+                    "label": "Abundance",
+                    "fraction": 0.1,
+                    "ticks": [0, 0.5, 1],
+                    "shrink": 0.6,
+                },
+                **kwargs,
+            ),
+        )
         ax.invert_yaxis()
 
+        # # Change the font size of the label
+        # ax.figure.axes[-1].yaxis.label.set_size(8)
+        # # Make the label on top of the colorbar
+        # ax.figure.axes[-1].set_title('Abundance', size=6)
+
+
         nonlocal original_data, line
-        
+
         if line:
             # Find the first index in d where the value is greater than 0.5
             original_data.groupby([y, x]).max()
@@ -305,10 +323,10 @@ def params_heat(
 
             # Get the index integer of d that matches first
             first = d.index.get_indexer(d.eq(max_proportion).idxmax().reset_index()[0])
-            
+
             # For the ones that never hit the max prop, make it a super higher number to get it off the plot
-            first[~d.eq(max_proportion).max()] = len(d.index)*2
-                        
+            first[~d.eq(max_proportion).max()] = len(d.index) * 2
+
             # Double the first entry to make the first step
             first = [first[0]] + list(first)
             plt.step(
@@ -373,30 +391,6 @@ def make_legend():
 
     return legend
 
-
-@plotter(
-    ssd_v_params,
-    plot_exclusive_args=[
-        "experiment",
-        "data",
-        "legend",
-        "graph_kwargs",
-        "graph_funcs",
-    ],
-)
-def selfpayoff_param_plot(
-    param_dict,
-    player_types,
-    data=[],
-    legend=True,
-    graph_funcs=None,
-    graph_kwargs={},
-    **kwargs
-):
-    assert 'game' == 'direct'
-    
-    
-
 @plotter(
     ssd_v_params,
     plot_exclusive_args=[
@@ -406,7 +400,7 @@ def selfpayoff_param_plot(
         "legend",
         "graph_kwargs",
         "graph_funcs",
-        "var"
+        "var",
     ],
 )
 def limit_param_plot(
@@ -414,7 +408,7 @@ def limit_param_plot(
     player_types,
     data=[],
     stacked=False,
-    var='proportion',
+    var="proportion",
     legend=False,
     graph_funcs=None,
     graph_kwargs={},
@@ -424,15 +418,13 @@ def limit_param_plot(
     assert len(param_dict) == 1
     param = list(param_dict.keys())[0]
     param_values = param_dict[param]
-    
+
     fig, ax = plt.subplots(figsize=(3.5, 3))
 
     if kwargs.get("return_rounds", False) and param != "rounds":
         data = data[data["rounds"] == kwargs["rounds"]]
-        
-    data = data[[param, var, "type"]].pivot(
-        columns="type", index=param, values=var
-    )
+
+    data = data[[param, var, "type"]].pivot(columns="type", index=param, values=var)
 
     type_order = dict(
         list(
@@ -473,7 +465,7 @@ def limit_param_plot(
         if legend:
             make_legend()
 
-        if param == "rounds" and kwargs['game'] == "direct":
+        if param == "rounds" and "direct" in kwargs["game"] :
             ax.set_xticks(range(4, param_values[0], 5))
             ax.set_xticklabels(
                 range(1, param_values[0] + 1)[4::5], rotation="horizontal"
@@ -490,12 +482,12 @@ def limit_param_plot(
         data.plot(ax=ax, legend=False, **graph_kwargs)
         if legend:
             make_legend()
-            
+
     if "xlabel" in graph_kwargs:
         plt.xlabel(graph_kwargs["xlabel"])
 
     elif param in ["rounds", "expected_interactions"]:
-        plt.xlabel("Mean Pairwise Interactions")
+        plt.xlabel("# Pairwise Interactions")
         # plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
 
         # if param == 'expected_interactions':
@@ -513,7 +505,7 @@ def limit_param_plot(
 
     if var == "proportion":
         plt.yticks([0, 0.5, 1])
-        plt.ylabel("Relative abundance")
+        plt.ylabel("Abundance")
     else:
         pass
 

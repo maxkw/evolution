@@ -90,7 +90,7 @@ class Playable(object):
     to recreate it.
     """
 
-    def play(decision, participants, observers=[], tremble=0):
+    def play(decision, participants, observers=[], tremble=np.NaN):
         """
         returns a dict containing
         the decision
@@ -101,13 +101,14 @@ class Playable(object):
 
         NOTE:
         participants are always added to observer list (with no doubling)
+
         """
 
         participant_ids = [participant.world_id for participant in participants]
         decider = participants[0]
 
         intention = decider.decide(decision, participant_ids)
-
+        
         if np.random.rand() < decision.tremble:
             action = np.random.choice(decision.actions)
         else:
@@ -173,7 +174,7 @@ class RandomlyObserved(Playable):
         self.N_players = playable.N_players
         self.playable = playable
 
-    def play(self, participants, observers=[], tremble=0):
+    def play(self, participants, observers=[], tremble=np.NaN):
         if self.observability < 1:
             # Sample from the list of possible observers
             observers = np.random.choice(
@@ -205,6 +206,7 @@ class PubliclyObserved(RandomlyObserved):
         super(PubliclyObserved, self).__init__(1, playable)
         self.name = "PubliclyObserved(%s)" % playable.name
 
+
 class AllNoneObserve(Playable):
     """
     randomly selects a specified percent of the provided observers
@@ -224,7 +226,7 @@ class AllNoneObserve(Playable):
         self.N_players = g.N_players
         return self
 
-    def play(self, participants, observers=[], tremble=0):
+    def play(self, participants, observers=[], tremble=np.NaN):
         if np.random.rand() < self.observability:
             observers = observers
         else:
@@ -267,7 +269,7 @@ class Decision(Playable):
 
     name = _name = "Decision"
 
-    def __init__(self, payoffDict, tremble=0):
+    def __init__(self, payoffDict, tremble):
         actions = list(payoffDict.keys())
         self.N_players = len(list(payoffDict.values())[0])
         self.actions = actions
@@ -284,11 +286,11 @@ def BinaryDictatorDict(endowment=0, cost=COST, benefit=BENEFIT):
     return {"keep": (endowment, 0), "give": (endowment - cost, benefit)}
 
 
-def BinaryDictator(endowment=0, cost=COST, benefit=BENEFIT, tremble=0):
+def BinaryDictator(endowment=0, cost=COST, benefit=BENEFIT, tremble=np.NaN):
     """
     a 2-participant decision
     """
-    decision = Decision(BinaryDictatorDict(endowment, cost, benefit))
+    decision = Decision(BinaryDictatorDict(endowment, cost, benefit), tremble)
     decision.tremble = tremble
     decision.name = decision._name = "BinaryDictator(%s)" % ",".join(
         map(str, [endowment, cost, benefit])
@@ -298,7 +300,7 @@ def BinaryDictator(endowment=0, cost=COST, benefit=BENEFIT, tremble=0):
 
 @literal
 def SocialDictator(
-    endowment=ENDOWMENT, cost=COST, benefit=BENEFIT, intervals=2, tremble=0, **kwargs
+    endowment=ENDOWMENT, cost=COST, benefit=BENEFIT, intervals=2, tremble=np.NaN, **kwargs
 ):
     cost = float(cost)
     benefit = float(benefit)
@@ -384,7 +386,7 @@ class DecisionSeq(Playable):
         """
         return iter(self.play_ordering_pairs)
 
-    def play(self, participants, observers=[], tremble=0):
+    def play(self, participants, observers=[], tremble=np.NaN):
         """
         takes in at least a list of participants whose length is at least
         one number larger than the largest number in an ordering used at
@@ -437,6 +439,7 @@ Symmetric(BinaryDictator()).play(p)
 will play the same number of games for the same p
 """
 
+
 class SymmetricMatchup(object):
     """
     plays the game with every possible permutation of the participants
@@ -450,12 +453,22 @@ class SymmetricMatchup(object):
     def __init__(self, game):
         self.game = game
         self.N_players = game.N_players
+        self.cached_matchups = None
+        self.n_participants = None
 
     def matchups(self, participants):
-        matchups = list(permutations(range(len(participants)), self.game.N_players))
-        np.random.shuffle(matchups)
+        # NOTE: This makes a key assumption that the number of participants will be constant every time this is called otherwise the cache will not be accurate.
+        if self.cached_matchups is None:
+            matchups = list(permutations(range(len(participants)), self.game.N_players))
+            np.random.shuffle(matchups)
+            self.cached_matchups = matchups
+            self.n_participants = len(participants)
+
+        # Make sure the number of particpants is the same as the initial call
+        assert len(participants) == self.n_participants
+
         game = self.game
-        for matchup in matchups:
+        for matchup in self.cached_matchups:
             yield (game, list(matchup))
 
 
@@ -484,7 +497,7 @@ class AnnotatedDS(DecisionSeq):
     def annotate(self, participants, payoff, observations, record):
         raise NotImplementedError
 
-    def play(self, participants, observers=None, tremble=0, notes={}):
+    def play(self, participants, observers=None, tremble=np.NaN, notes={}):
         if observers is None:
             observers = participants
 
@@ -626,7 +639,7 @@ class AnnotatedGame(AnnotatedDS):
         self.game = game
         self.current_round = 0
 
-    def play(self, participants, observers=None, tremble=0, notes={}):
+    def play(self, participants, observers=None, tremble=np.NaN, notes={}):
         if observers is None:
             observers = participants
 
@@ -681,6 +694,7 @@ class AnnotatedGame(AnnotatedDS):
             self.current_round = game_round
             yield game_ordering_pair
 
+
 class RandomizedMatchup(DecisionSeq):
     def __init__(self, rounds, game, deterministic=False, **kwargs):
         self.rounds = rounds
@@ -711,30 +725,31 @@ class RandomizedMatchup(DecisionSeq):
             game = self.game.next_game()
             N_players = game.N_players
             N_participants = N_players - 1
-            
+
             # for each decider count the number of possible others
             # they can still interact with.
-            sums = (counts > 0).sum(axis=1)           
+            sums = (counts > 0).sum(axis=1)
 
             # only pick from those that have sufficient possible
             # interaction partners.
-            decider_pool = indices[sums >= N_participants] 
-    
+            decider_pool = indices[sums >= N_participants]
+
             if len(decider_pool) == 0:
                 break
 
             decider = np.random.choice(decider_pool)
 
             recipient_pool = indices[counts[decider] > 0]
-            
+
             recipients = np.random.choice(recipient_pool, N_participants, replace=False)
 
             for recipient in recipients:
                 counts[decider, recipient] -= 1
                 counts[recipient, decider] -= 1
-                
+
             assert counts.min() >= 0
             yield (game, [decider] + list(recipients))
+
 
 class Dynamic(Playable):
     """
@@ -761,7 +776,7 @@ class Dynamic(Playable):
         self.N_players = g.N_players
         return g
 
-    def play(self, participants, observers=[], tremble=0):
+    def play(self, participants, observers=[], tremble=np.NaN):
         to_play = self.current_game.play
         self.next_game()
         return to_play(participants, observers, tremble)
@@ -769,17 +784,23 @@ class Dynamic(Playable):
 
 @literal
 def RepeatedPrisonersTournament(
-    rounds=ROUNDS, cost=COST, benefit=BENEFIT, tremble=0, **kwargs
+    rounds, cost, benefit, tremble, **kwargs
 ):
     PD = Symmetric(BinaryDictator(cost=cost, benefit=benefit, tremble=tremble))
-
-    PD.tremble = kwargs.get("tremble", 0)
     g = Repeated(rounds, PrivatelyObserved(PD))
-    g.tremble = kwargs.get("tremble", 0)
 
     return g
 
+@literal
+def RepeatedSequentialPrisonersDilemma(
+    rounds, cost, benefit, tremble, **kwargs
+):
+    PD = Symmetric(PrivatelyObserved(BinaryDictator(cost=cost, benefit=benefit, tremble=tremble)))
+    g = Repeated(rounds, PD)
 
+    return g
+
+direct_seq = RepeatedSequentialPrisonersDilemma
 direct = RepeatedPrisonersTournament
 
 
@@ -818,7 +839,7 @@ def game_engine(
     cost=1,
     benefit=10,
     nactions=2,
-    tremble=0,
+    tremble=np.NaN,
     max_players=3,
     **kwargs
 ):
@@ -834,6 +855,7 @@ def game_engine(
         )
     )
     return game
+
 
 if __name__ == "__main__":
     pass

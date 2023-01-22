@@ -83,7 +83,7 @@ def matchup(player_types, game, **kwargs):
     # analysis very efficiently. It should only apply when we aren't
     # doing per_round analysis but are doing IPD. One example of this
     # is the tremble condition for the IPD.
-    if type(g) == type(RepeatedPrisonersTournament()) and kwargs['per_round'] == False:
+    if 'direct' in game and kwargs['per_round'] == False:
         for t, f in zip(player_types, fitness):
             record.append({
                 "player_types": tuple(player_types),
@@ -289,7 +289,7 @@ def plot_beliefs(
     data.believed_type = data.believed_type.apply(name)
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
         ax = axes[actual]
-
+   
         dm = d.groupby("round").mean(numeric_only=True).reset_index()
         dm.plot(
             x="round",
@@ -301,7 +301,7 @@ def plot_beliefs(
             title="vs %s" % name(actual),
             label=name(believed),
             kind="scatter",
-            legend=(actual == type_names[-1]),
+            legend=(actual in type_names[-1]),
             linewidth=2,
             color=color[believed],
         )
@@ -340,7 +340,7 @@ def plot_beliefs(
     sns.despine()
     plt.tight_layout()
 
-@memory.cache
+# @memory.cache
 def matchup_matrix_per_round(player_types, rounds, cog_cost=0, sem=False, **kwargs):
     max_rounds = rounds
     player_combos = MultiArg(combinations_with_replacement(player_types, 2))
