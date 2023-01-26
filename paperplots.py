@@ -1,4 +1,3 @@
-import inspect
 import numpy as np
 import seaborn as sns
 import pandas as pd
@@ -8,6 +7,7 @@ from evolve import limit_param_plot, params_heat, bc_plot
 from experiments import plot_beliefs, population_beliefs, payoff_heatmap
 import matplotlib.pyplot as plt
 import params
+import os
 
 PLOT_DIR = "./plots/"
 WE_BETA = 3
@@ -20,7 +20,7 @@ MIN_TREMBLE = 0.01
 #     3
 # )
 # TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
-TREMBLE_EXP = np.round(np.linspace(0,.6,13),2)
+TREMBLE_EXP = np.round(np.linspace(0,.3,13),3)
 Extort2 = ag.ZDAgent(B=3, C=1, chi=2, phi="midpoint", subtype_name="Extort2")
 
 old_pop = (
@@ -82,7 +82,7 @@ def game_engine():
         benefit=10,
         cost=1,
         nactions=2,
-        plot_dir=PLOT_DIR,
+        plot_dir=os.path.join(PLOT_DIR, "engine"),
         memoized=params.memoized,
         deterministic=True,
         graph_kwargs={"color": color_list(agents)},
@@ -286,8 +286,12 @@ def ipd(game):
     TRIALS = 1000
     # TRIALS = 100
 
+    ToM = ("self",) + (ag.SelfishAgent(beta=WE_BETA), ag.AltruisticAgent(beta=WE_BETA))
+
+
     new_pop = old_pop + (
         ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=("self",) + old_pop),
+        # ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM),
     )
 
     common_params = dict(
@@ -297,7 +301,7 @@ def ipd(game):
         cost=COST,
         pop_size=100,
         analysis_type="limit",
-        plot_dir=PLOT_DIR,
+        plot_dir=os.path.join(PLOT_DIR, 'ipd_' + game + '/'),
         trials=TRIALS,
         stacked=True,
         return_rounds=True,
@@ -550,7 +554,7 @@ def belief():
         opponent_types=(agent,) + everyone,
         believed_types=(agent,) + ToM[1:],
         tremble=MIN_TREMBLE,
-        plot_dir=PLOT_DIR,
+        plot_dir=os.path.join(PLOT_DIR, 'belief/'),
         deterministic=True,
         game="game_engine",
         # Max Players = 2 so we can more easily interpret the results
@@ -589,26 +593,27 @@ def belief():
         **common_params,
     )
 
-    # FSA agents
-    ToM = ("self",) + old_pop
-    agent = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
-    common_params.update(
-        dict(
-            believer=agent,
-            opponent_types=(agent,) + old_pop,
-            believed_types=(agent,) + old_pop,
-            game="direct",
-            colors=color_list((agent,) + old_pop, sort=False),
+    for g in ['direct', 'direct_seq']:
+        # FSA agents
+        ToM = ("self",) + old_pop
+        agent = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
+        common_params.update(
+            dict(
+                believer=agent,
+                opponent_types=(agent,) + old_pop,
+                believed_types=(agent,) + old_pop,
+                game=g,
+                colors=color_list((agent,) + old_pop, sort=False),
+            )
         )
-    )
 
-    plot_beliefs(
-        observability=0,
-        rounds=15,
-        file_name="fsa_belief",
-        xlabel="# Pairwise Interactions",
-        **common_params,
-    )
+        plot_beliefs(
+            observability=0,
+            rounds=15,
+            file_name="%s_belief" % g,
+            xlabel="# Pairwise Interactions",
+            **common_params,
+        )
 
 
 def main():
@@ -650,7 +655,6 @@ def main():
 
     if args.debug:
         import pdb; pdb.set_trace()
-
-
+        
 if __name__ == "__main__":
     main()

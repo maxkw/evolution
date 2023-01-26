@@ -418,11 +418,11 @@ def plotter(
                     )
 
             save_file = plot_dir + file_name + extension
-            if not os.path.exists(plot_dir):
-                os.makedirs(plot_dir)
+            if not os.path.exists(os.path.dirname(save_file)):
+                os.makedirs(os.path.dirname(save_file))
 
             try:
-                plt.savefig(save_file)
+                plt.savefig(save_file)  
             except IOError as e:
                 print(e)
                 print(file_name)

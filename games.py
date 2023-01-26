@@ -12,7 +12,6 @@ import itertools
 
 COST = np.NaN
 BENEFIT = np.NAN
-ENDOWMENT = 0
 ROUNDS = np.NaN
 
 
@@ -104,12 +103,16 @@ class Playable(object):
         participant_ids = [participant.world_id for participant in participants]
         decider = participants[0]
 
-        intention = decider.decide(decision, participant_ids)
-        
+        intention_id = decider.decide(decision, participant_ids)
+
         if np.random.rand() < decision.tremble:
-            action = np.random.choice(decision.actions)
+            # IDs for all possible actions
+            ids = np.arange(len(decision.actions))
+            
+            # Delete the intention so that we choose an unintented action
+            action = decision.actions[np.random.choice(np.delete(ids, intention_id))]
         else:
-            action = intention
+            action = decision.actions[intention_id]
 
         payoffs = copy(decision(action))
 
@@ -279,55 +282,30 @@ class Decision(Playable):
         return array(self.payoffs[action])
 
 
-def BinaryDictatorDict(endowment=0, cost=COST, benefit=BENEFIT):
-    return {"keep": (endowment, 0), "give": (endowment - cost, benefit)}
-
-
-def BinaryDictator(endowment=0, cost=COST, benefit=BENEFIT, tremble=np.NaN):
+def BinaryDictator(cost=COST, benefit=BENEFIT, tremble=np.NaN):
     """
     a 2-participant decision
     """
-    decision = Decision(BinaryDictatorDict(endowment, cost, benefit), tremble)
-    decision.tremble = tremble
-    decision.name = decision._name = "BinaryDictator(%s)" % ",".join(
-        map(str, [endowment, cost, benefit])
+    decision = Decision(
+        {"keep": (0, 0), "give": (-cost, benefit)}, tremble
     )
+    
+    decision.name = decision._name = "BinaryDictator(%s)" % ",".join(
+        map(str, [0, cost, benefit])
+    )
+    
     return decision
-
 
 @literal
-def SocialDictator(
-    endowment=ENDOWMENT, cost=COST, benefit=BENEFIT, intervals=2, tremble=np.NaN, **kwargs
-):
-    cost = float(cost)
-    benefit = float(benefit)
-    max_d = benefit - cost
-    max_r = cost / benefit
-
-    # np.random.uniform(0, cost)
-
-    ratios = np.linspace(0, max_r, intervals)
-    differences = np.linspace(0, max_d, intervals)
-
-    def new_cost(r, d):
-        return d / (1 - r) - d
-
-    def new_benefit(r, d):
-        return d / (1 - r)
-
-    payoffs = [
-        (endowment - new_cost(r, d), new_benefit(r, d))
-        for d, r in zip(differences, ratios)
-    ]
-
-    if intervals == 2:
-        decision = Decision({"keep": payoffs[0], "give": payoffs[1]})
-    else:
-        decision = Decision(OrderedDict((str(p), p) for p in payoffs))
-
-    decision.tremble = tremble
+def TetraActionDictator(cost=1, benefit=1, tremble=np.NaN):
+    cs = np.array([0, .1,  1, 10]) * cost
+    bs = np.array([0, 1.5, 3, 15]) * benefit
+    decision_dict = dict()
+    for c, b in zip(cs, bs):
+        decision_dict["(%.1f, %.1f)" % (c,b)] = (-c, b)
+        
+    decision = Decision(decision_dict, tremble)
     return decision
-
 
 """
 Decision Seqs
@@ -780,22 +758,22 @@ class Dynamic(Playable):
 
 
 @literal
-def RepeatedPrisonersTournament(
-    rounds, cost, benefit, tremble, **kwargs
-):
+def RepeatedPrisonersTournament(rounds, cost, benefit, tremble, **kwargs):
     PD = Symmetric(BinaryDictator(cost=cost, benefit=benefit, tremble=tremble))
     g = Repeated(rounds, PrivatelyObserved(PD))
 
     return g
 
+
 @literal
-def RepeatedSequentialPrisonersDilemma(
-    rounds, cost, benefit, tremble, **kwargs
-):
-    PD = Symmetric(PrivatelyObserved(BinaryDictator(cost=cost, benefit=benefit, tremble=tremble)))
+def RepeatedSequentialPrisonersDilemma(rounds, cost, benefit, tremble, **kwargs):
+    PD = Symmetric(
+        PrivatelyObserved(BinaryDictator(cost=cost, benefit=benefit, tremble=tremble))
+    )
     g = Repeated(rounds, PD)
 
     return g
+
 
 direct_seq = RepeatedSequentialPrisonersDilemma
 direct = RepeatedPrisonersTournament

@@ -261,7 +261,6 @@ def bc_plot(
     sns.pointplot(x="observability", y="rounds", hue="benefit", data=data, ax=ax)
     plt.xlabel(r"Prob. of observation ($\omega$)")
     plt.ylabel("# Interactions")
-    plt.yticks([1,2,3,4])
     sns.despine()
     plt.tight_layout()
 

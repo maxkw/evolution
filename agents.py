@@ -12,12 +12,26 @@ import networkx as nx
 PRETTY_KEYS = {"RA_prior": "prior", "RA_K": "K"}
 
 
-def add_tremble(p, tremble):
+def add_tremble(prob, tremble):
     if tremble == 0:
-        return p
+        return prob
     else:
-        return (1 - tremble) * p + np.full(len(p), tremble/len(p))
+        # # This returns the tremble for when tremble causes a random move not an explicit switch
+        # return (1 - tremble) * prob + np.full(len(prob), tremble/len(prob))
 
+        # # This returns the probability for when tremble causes a switch to something else
+        # new_prob = np.zeros(len(prob))
+        # for i, p in enumerate(prob):
+        #     new_prob[i] = (p * (1 - tremble)) + (tremble / (len(prob) - 1)) * sum(
+        #         np.delete(i)
+        #     )
+        
+        # This is a vectorized version of the above
+        len_prob = len(prob)
+        return (
+            (1 - np.identity(len_prob)) * tremble / (len_prob - 1)
+            + np.identity(len_prob) * (1 - tremble)
+        ).dot(prob)
 
 class AgentType(type):
     def __str__(cls):
@@ -68,7 +82,9 @@ class Agent(object, metaclass=AgentType):
 
         return add_tremble(softmax(Us, self.genome["beta"]), tremble)
 
-    def likelihood_of(self, game, participant_ids, tremble=np.NaN, action=None, **kwargs):
+    def likelihood_of(
+        self, game, participant_ids, tremble=np.NaN, action=None, **kwargs
+    ):
         likelihoods = self.decide_likelihood(game, participant_ids, tremble)
         if action == None:
             return likelihoods
@@ -80,7 +96,7 @@ class Agent(object, metaclass=AgentType):
         # the world, not the agent
         ps = self.decide_likelihood(game, agent_ids, tremble=0)
         action_id = np.squeeze(np.where(np.random.multinomial(1, ps)))
-        return game.actions[action_id]
+        return action_id
 
     def observe_k(self, observations, k, tremble=0):
         raise NotImplementedError
@@ -104,7 +120,7 @@ class PrefabAgent(Agent):
         # self.__name__ = str(a_type) + "(%s)" % ",".join(
         #     ["%s=%s" % (key, val) for key, val in sorted(genome_kwargs.items())]
         # )
-        
+
         self.genome = HashableDict(genome_kwargs)
 
     def __call__(self, genome, world_id=None):
@@ -129,16 +145,19 @@ class PrefabAgent(Agent):
                     for key, val in sorted(genome.items())
                 ]
             )
-        
+
     def __str__(self):
         # TODO: This code is causing a lot of slowness because it gets called on every comparison and look up as part of hashing. Simple ways of caching fail because the cache isn't updated in the right way. The creation and concatenation of strings is the slow part
         try:
             return self._nickname
         except:
             # return "%s(%s)" % (str(self.type), str(sorted(self.genome.items())))
-            return "%s(%s)" % (str(self.type), ",".join(
-                ["%s=%s" % (key, val) for key, val in sorted(self.genome.items())]
-            ))
+            return "%s(%s)" % (
+                str(self.type),
+                ",".join(
+                    ["%s=%s" % (key, val) for key, val in sorted(self.genome.items())]
+                ),
+            )
 
     def __repr__(self):
         # return self.short_name('agent_types')
@@ -695,7 +714,7 @@ class Memory1PDAgent(Agent):
         self.world_id = world_id
 
         self.memory = ConstantDefaultDict(genome["initial"])
-        
+
         p_vec = genome["p_vec"]
         # Check that p_vec is a valid list of probabilities
         if (np.array(p_vec) < 0).any() or (np.array(p_vec) > 1).any():
@@ -710,7 +729,7 @@ class Memory1PDAgent(Agent):
         for obs in observations:
             action = obs["action"]
             participants = obs["participant_ids"]
-            
+
             me = self.world_id
             if me in participants:
                 # Memory is indexed by the other player world id so need to look it up
@@ -718,17 +737,16 @@ class Memory1PDAgent(Agent):
                     other = participants[1]
                 else:
                     other = participants[0]
-                    
+
                 # NOTE: Need to make a list here because the memories are stored as immutable tuples
                 new_memory = list(self.memory[other])
 
                 if me == participants[0]:
-                    new_memory[0] = action                    
+                    new_memory[0] = action
                 else:
-                    new_memory[1] = action                    
+                    new_memory[1] = action
                 self.memory[other] = tuple(new_memory)
-            
-        
+
         # if len(observations) == 2:
         #     obs1, obs2 = observations
         #     deciders = (obs1["participant_ids"][0], obs2["participant_ids"][0])
@@ -741,20 +759,20 @@ class Memory1PDAgent(Agent):
         #             actions = tuple(reversed(actions))
 
         #         self.memory[deciders[1]] = actions
-                
+
         # elif len(observations) == 1:
         #     player = observations["participant_ids"][0]
         #     action = observations["action"]
         #     me = self.world_id
-            
+
         #     if me in observations['participant_ids']:
         #         import pdb; pdb.set_trace()
-                
+
         #         if me == player:
         #             self.memory[player] = action
         #         else:
         #             self.memory[me] = action
-        
+
         # else:
         #     raise Exception("Observations must be length 1 or 2")
 
@@ -773,7 +791,9 @@ class Memory1PDAgent(Agent):
 WSLS = Memory1PDAgent(p_vec=(1, 0, 0, 1), initial=("give", "give"), subtype_name="WSLS")
 
 TFT = Memory1PDAgent(p_vec=(1, 0, 1, 0), initial=("give", "give"), subtype_name="TFT")
-Forgiver = Memory1PDAgent(p_vec=(1, 0, 1, 1), initial=("give", "give"), subtype_name="Forgiver")
+Forgiver = Memory1PDAgent(
+    p_vec=(1, 0, 1, 1), initial=("give", "give"), subtype_name="Forgiver"
+)
 
 AllC = Memory1PDAgent(p_vec=(1, 1, 1, 1), initial=("give", "give"), subtype_name="AllC")
 
