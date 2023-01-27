@@ -2,19 +2,18 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from itertools import product, permutations
+from itertools import product, permutations, combinations
 import agents as ag
-from utils import excluding_keys, softmax
-from experiment_utils import experiment, plotter
+from utils import softmax
+from experiment_utils import plotter
 from experiments import matchup_matrix_per_round
 import params
 from agents import WeAgent
 from steady_state import evo_analysis, simulation
 from steady_state import simulation, matchups_and_populations
-from multiprocessing import Pool
 from tqdm import tqdm
 from copy import deepcopy
-
+from iteround import saferound
 
 def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwargs):
     pop_size = sum(start_pop)
@@ -167,7 +166,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         expected_pop_per_round = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
-
+        
         # Compute the self-payoffs in the direct game
         if "direct" in kwargs["game"]:
             # Delete the unnecessary parameters so that we get a cache hit on `matchup_matrix_per_round`
@@ -177,7 +176,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
 
             payoffs = matchup_matrix_per_round(
                 player_types=player_types, **combined_kwargs
-            )
+            )         
 
         # Only return all of the rounds if return_rounds is True
         if return_rounds:
@@ -189,6 +188,20 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
             start = len(expected_pop_per_round) - 1
 
         for r, pop in enumerate(expected_pop_per_round, start=start):
+            if "direct" in kwargs["game"]:
+                total_payoff = 0
+                rounded_ssd = saferound(pop*kwargs['pop_size'], 0)
+                for i in range(len(pop)):
+                    if rounded_ssd[i] == 0: continue 
+                    
+                    for j in range(len(pop)):
+                        if rounded_ssd[j] == 0: continue
+                        
+                        total_payoff += payoffs[r - start][1][i][j] * rounded_ssd[i] * rounded_ssd[j] / (kwargs['benefit'] - kwargs['cost'])
+                        
+                total_payoff = total_payoff / kwargs['pop_size']**2
+                ps["total_payoff"] = total_payoff
+                    
             for t_idx, (t, p) in enumerate(zip(player_types, pop)):
                 records.append(
                     dict(
@@ -205,8 +218,9 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                 if "direct" in kwargs["game"]:
                     records[-1]["selfpayoff"] = payoffs[r - start][1][t_idx][t_idx]
                     records[-1]["wepayoff"] = payoffs[r - start][1][t_idx][-1]
-
+                    
     return pd.DataFrame(records)
+
 
 
 def ssd_bc(ei_stop, observe_param, delta, player_types, **kwargs):

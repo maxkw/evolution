@@ -27,27 +27,28 @@ def mm_to_limit_mcp(payoff, pop_size):
     """
 
     type_count = len(payoff)
-    liminal_pops = [np.array((i, pop_size - i)) for i in range(1, pop_size)]
-    type_indices_matchups = list(combinations(list(range(type_count)), 2))
 
-    I = np.identity(type_count)
+    type_indices_matchups, liminal_pops = matchups_and_populations(
+        range(type_count), pop_size, "limit"
+    )
 
     mcp_lists = []
     for types in type_indices_matchups:
         payoffs = []
-        type_indices = np.array(
-            [True if i in tuple(types) else False for i in range(type_count)]
-        )
+        type_indices = np.isin(np.arange(type_count), types)
 
         for counts in liminal_pops:
-            pay = np.array(
-                [
-                    np.dot(counts - I[t][type_indices], payoff[t][type_indices])
+            pay = list()
+            for t in types:
+                pay.append(
+                    np.dot(
+                        counts - np.identity(type_count)[t][type_indices],
+                        payoff[t][type_indices],
+                    )
                     / (pop_size - 1)
-                    for t in types
-                ]
-            )
-            payoffs.append(pay)
+                )
+
+            payoffs.append(np.array(pay))
 
         mcp_lists.append(payoffs)
 
@@ -166,9 +167,7 @@ def cp_to_transition(cp, populations, pop_size, mu=None, **kwargs):
 
 
 def complete_payoffs(player_types, rounds, pop_size, **kwargs):
-    return matchup_matrix_per_round(
-        player_types=player_types, rounds=rounds, **kwargs
-    )
+    return matchup_matrix_per_round(player_types=player_types, rounds=rounds, **kwargs)
 
 
 def duels_to_rcp(duels, partitions, **kwargs):
@@ -309,6 +308,7 @@ def avg_payoff_per_type_from_sim(sim_data, player_types, cog_cost, game=None, **
 
     return running_fitness / running_interactions
 
+
 def simulation(player_types, cog_cost=0, *args, **kwargs):
     # types, _ = list(zip(*player_types))
     active_players = [p for p in player_types if p[1] != 0]
@@ -396,7 +396,7 @@ def sim_to_mcp(player_types, pop_size, analysis_type="limit", **kwargs):
         for pop_pair in product(matchups, populations)
     ]
 
-    # TODO: need to turn off memoization here OR group them into a
+    # Need to turn off memoization here OR group them into a
     # single file since this function will make way too many files
     # (one for each parameter). Instead need to cache the output of
     # THIS function.

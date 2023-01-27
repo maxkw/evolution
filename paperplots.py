@@ -15,10 +15,6 @@ WE_BETA = 3
 OTHER_BETA = np.inf
 PRIOR = 0.5
 MIN_TREMBLE = 0.01
-# TREMBLE_RANGE = lambda ticks: np.round(
-#     np.geomspace(MIN_TREMBLE, 0.25, ticks),
-#     3
-# )
 # TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
 TREMBLE_EXP = np.round(np.linspace(0,.3,13),3)
 Extort2 = ag.ZDAgent(B=3, C=1, chi=2, phi="midpoint", subtype_name="Extort2")
@@ -100,7 +96,8 @@ def game_engine():
             tremble=MIN_TREMBLE,
             observability=0,
             legend=True,
-            analysis_type="limit",
+            # analysis_type="limit",
+            analysis_type="complete",
             file_name="game_engine_gamma",
             **common_params,
         )
@@ -114,7 +111,8 @@ def game_engine():
             param_dict={"tremble": TREMBLE_EXP},
             observability=0,
             rounds=max_expected_interactions,
-            analysis_type="limit",
+            # analysis_type="limit",
+            analysis_type="complete",
             file_name="game_engine_tremble",
             **common_params,
         )
@@ -191,7 +189,8 @@ def game_engine():
         params_heat(
             param_dict=param_dict,
             tremble=MIN_TREMBLE,
-            analysis_type="limit",
+            # analysis_type="limit",
+            analysis_type="complete",
             line=True,
             observability=0,
             file_name="game_engine_gamma_tremble",
@@ -286,7 +285,7 @@ def ipd(game):
     TRIALS = 1000
     # TRIALS = 100
 
-    ToM = ("self",) + (ag.SelfishAgent(beta=WE_BETA), ag.AltruisticAgent(beta=WE_BETA))
+    # ToM = ("self",) + (ag.SelfishAgent(beta=WE_BETA), ag.AltruisticAgent(beta=WE_BETA))
 
 
     new_pop = old_pop + (
