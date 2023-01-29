@@ -15,6 +15,8 @@ PRETTY_KEYS = {"RA_prior": "prior", "RA_K": "K"}
 def add_tremble(prob, tremble):
     if tremble == 0:
         return prob
+    elif tremble == np.NaN:
+        raise(ValueError)
     else:
         # # This returns the tremble for when tremble causes a random move not an explicit switch
         # return (1 - tremble) * prob + np.full(len(prob), tremble/len(prob))
@@ -923,12 +925,13 @@ class ModelNode(object):
         if a_type in self._type_to_index:
             return self.belief[a_id][self._type_to_index[a_type]]
         else:
+            raise("Unknown type: %s" % a_type)
             return 0
+            
 
     def utility(self, payoffs, agent_ids):
         t = self._my_type_index
         weights = [1] + [self.models[agent_ids[0]].belief[a][t] for a in agent_ids[1:]]
-
         return np.dot(payoffs, weights)
 
     def decide_likelihood(self, game, agents, tremble=np.NaN):

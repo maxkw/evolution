@@ -1,13 +1,12 @@
 import numpy as np
 import seaborn as sns
-import pandas as pd
-from itertools import product
 import agents as ag
 from evolve import limit_param_plot, params_heat, bc_plot
 from experiments import plot_beliefs, population_beliefs, payoff_heatmap
-import matplotlib.pyplot as plt
+from scenarios import scene_plot, make_observations_from_scenario
 import params
 import os
+
 
 PLOT_DIR = "./plots/"
 WE_BETA = 3
@@ -78,7 +77,7 @@ def game_engine():
         benefit=10,
         cost=1,
         nactions=2,
-        plot_dir=os.path.join(PLOT_DIR, "engine"),
+        plot_dir=os.path.join(PLOT_DIR, "engine/"),
         memoized=params.memoized,
         deterministic=True,
         graph_kwargs={"color": color_list(agents)},
@@ -480,11 +479,10 @@ def agent():
     ToM = ("self",) + (ag.AltruisticAgent(beta=WE_BETA), ag.SelfishAgent(beta=WE_BETA))
     agents = (ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM),) + opponents
     
-    
     observer = ag.WeAgent(prior=PRIOR, beta=WE_BETA, agent_types=ToM)
+    
     common_params = dict(
-        player_types=agents,
-        agent_types=ToM,
+        observer=observer,
         plot_dir=PLOT_DIR,
         trials=1,
         color=color_list(agents, sort=False),
@@ -493,7 +491,6 @@ def agent():
     game_params = dict(tremble=MIN_TREMBLE, benefit=3, cost=1)
 
     # SCENARIO PLOTS
-    from scenarios import scene_plot, make_observations_from_scenario
 
     scenarios = [
         ('Alice', [["AB"], "C"]),
@@ -513,34 +510,29 @@ def agent():
             obs = make_observations_from_scenario(s, **game_params)
             
         scene_plot(
-            observer=observer,
             scenarios=[obs],
             xlabel="$P(U_{" + xlabel + "})$",
             file_name="scene_reciprocal_{}_{}".format(s[1], xlabel),
             **common_params,
         )
 
-    # # FORGIVENESS AND REPUTATION
-    # from scenarios import forgive_plot
-    # forgive_plot(
-    #     p = 'belief',
-    #     file_name = 'forgive_belief',
-    #     label = 'Belief',
-    #     **common_params
-    # )
+    # FORGIVENESS AND REPUTATION
+    from scenarios import forgive_plot
+    forgive_plot(
+        p = 'belief',
+        game_params = game_params,
+        file_name = 'forgive_belief',
+        label = 'Belief',
+        **common_params
+    )
 
-    # forgive_plot(
-    #     p = 'decision',
-    #     file_name = 'forgive_act',
-    #     label = 'Probability of Cooperate',
-    #     **common_params
-    # )
-
-    # from scenarios import n_action_plot
-    # n_action_plot(
-    #     file_name = 'n_action_info',
-    #     **common_params
-    # )
+    forgive_plot(
+        p = 'decision',
+        game_params = game_params,
+        file_name = 'forgive_act',
+        label = 'Probability of Cooperate',
+        **common_params
+    )
 
 
 def belief():
