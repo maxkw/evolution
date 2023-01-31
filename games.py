@@ -108,7 +108,7 @@ class Playable(object):
         if np.random.rand() < decision.tremble:
             # IDs for all possible actions
             ids = np.arange(len(decision.actions))
-            
+
             # Delete the intention so that we choose an unintented action
             action = decision.actions[np.random.choice(np.delete(ids, intention_id))]
         else:
@@ -187,8 +187,10 @@ class RandomlyObserved(Playable):
             participants, observers, tremble
         )
 
+        # print('ACT', observations)
         for observer in set(list(observers) + list(participants)):
             # Check if the observer implements observe
+            # print("observing", observer)
             if hasattr(observer, "observe"):
                 observer.observe(observations)
 
@@ -220,6 +222,7 @@ class AllNoneObserve(Playable):
         self.observability = observability
         self.N_players = playable.N_players
         self.playable = playable
+        self.observation_error = kwargs.get("observation_error", 0)
 
     def next_game(self):
         g = self.playable.next_game()
@@ -242,8 +245,21 @@ class AllNoneObserve(Playable):
         observer_indices = frozenset(list(id_to_observer.keys()))
 
         for observer_index in observer_indices:
-            if hasattr(id_to_observer[observer_index], "observe"):
-                id_to_observer[observer_index].observe(observations)
+            if not hasattr(id_to_observer[observer_index], "observe"):
+                continue
+
+            tmp_obs = copy(observations)
+            if self.observation_error > 0:
+                for i, obs in enumerate(tmp_obs):
+                    if np.random.rand() < self.observation_error:
+                        tmp_obs[i]["action"] = np.random.choice(
+                            np.delete(
+                                obs["game"].actions, tmp_obs[i]["action"]
+                            )
+                        )
+                        tmp_obs[i]["payoffs"] = obs["game"].payoffs[tmp_obs[i]["action"]]
+
+            id_to_observer[observer_index].observe(tmp_obs)
 
         return payoffs, observations, notes
 
@@ -286,26 +302,27 @@ def BinaryDictator(cost=COST, benefit=BENEFIT, tremble=np.NaN):
     """
     a 2-participant decision
     """
-    decision = Decision(
-        {"keep": (0, 0), "give": (-cost, benefit)}, tremble
-    )
-    
+    decision = Decision({"keep": (0, 0), "give": (-cost, benefit)}, tremble)
+
     decision.name = decision._name = "BinaryDictator(%s)" % ",".join(
         map(str, [0, cost, benefit])
     )
-    
+
     return decision
+
 
 @literal
 def TetraActionDictator(cost=1, benefit=1, tremble=np.NaN):
-    cs = np.array([0, .1,  1, 10]) * cost
+    """Show that there is a wider band for cooperation in this kind of game. Show that in a single generation that they do a raising the stakes like strategy"""
+    cs = np.array([0, 0.1, 1, 10]) * cost
     bs = np.array([0, 1.5, 3, 15]) * benefit
     decision_dict = dict()
     for c, b in zip(cs, bs):
-        decision_dict["(%.1f, %.1f)" % (c,b)] = (-c, b)
-        
+        decision_dict["(%.1f, %.1f)" % (c, b)] = (-c, b)
+
     decision = Decision(decision_dict, tremble)
     return decision
+
 
 """
 Decision Seqs
@@ -824,6 +841,22 @@ def game_engine(
         lambda: engine_gen(nactions, max_players, benefit, cost, tremble)
     )
     dictator.name = "dynamic"
+    game = AnnotatedGame(
+        RandomizedMatchup(
+            rounds, AllNoneObserve(observability, dictator, **kwargs), **kwargs
+        )
+    )
+    return game
+
+
+@literal
+def PublicDonationGame(
+    rounds, observability, cost=1, benefit=10, tremble=np.NaN, **kwargs
+):
+    # dictator = Dynamic(lambda: BinaryDictator(cost=cost, benefit=benefit, tremble=tremble))
+    dictator = BinaryDictator(cost=cost, benefit=benefit, tremble=tremble)
+    dictator.name = "donation"
+
     game = AnnotatedGame(
         RandomizedMatchup(
             rounds, AllNoneObserve(observability, dictator, **kwargs), **kwargs

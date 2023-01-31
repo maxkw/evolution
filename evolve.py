@@ -163,20 +163,23 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
         if "beta" in ps:
             edit_beta(player_types, ps["beta"])
 
-        expected_pop_per_round = evo_analysis(
+        expected_pop_per_round, payoffs = evo_analysis(
             player_types=player_types, **dict(kwargs, **ps)
         )
         
-        # Compute the self-payoffs in the direct game
-        if "direct" in kwargs["game"]:
-            # Delete the unnecessary parameters so that we get a cache hit on `matchup_matrix_per_round`
-            combined_kwargs = dict(kwargs, **ps)
-            for key in ["analysis_type", "pop_size", "s"]:
-                del combined_kwargs[key]
+        # # Compute the self-payoffs in the direct game
+        # if "direct" in kwargs["game"] and kwargs["analysis_type"] == "limit":
+        #     # Delete the unnecessary parameters so that we get a cache hit on `matchup_matrix_per_round`
+        #     combined_kwargs = dict(kwargs, **ps)
+        #     for key in ["analysis_type", "pop_size", "s"]:
+        #         del combined_kwargs[key]
 
-            payoffs = matchup_matrix_per_round(
-                player_types=player_types, **combined_kwargs
-            )         
+        #     payoffs = matchup_matrix_per_round(
+        #         player_types=player_types, **combined_kwargs
+        #     )
+        # elif kwargs["analysis_type"] == "complete":
+        #     pass
+        
 
         # Only return all of the rounds if return_rounds is True
         if return_rounds:
@@ -188,6 +191,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
             start = len(expected_pop_per_round) - 1
 
         for r, pop in enumerate(expected_pop_per_round, start=start):
+            # Compute the total payoff for the rounded steady state distribution
             if "direct" in kwargs["game"]:
                 total_payoff = 0
                 rounded_ssd = saferound(pop*kwargs['pop_size'], 0)
@@ -197,10 +201,13 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                     for j in range(len(pop)):
                         if rounded_ssd[j] == 0: continue
                         
-                        total_payoff += payoffs[r - start][1][i][j] * rounded_ssd[i] * rounded_ssd[j] / (kwargs['benefit'] - kwargs['cost'])
+                        total_payoff += payoffs[r - start][1][i][j] * rounded_ssd[i] * rounded_ssd[j] 
                         
                 total_payoff = total_payoff / kwargs['pop_size']**2
                 ps["total_payoff"] = total_payoff
+            else:
+                ps["total_payoff"] = payoffs
+
                     
             for t_idx, (t, p) in enumerate(zip(player_types, pop)):
                 records.append(
@@ -233,7 +240,7 @@ def ssd_bc(ei_stop, observe_param, delta, player_types, **kwargs):
         for o in tqdm(observe_param, disable=params.disable_tqdm):
             while ei <= ei_stop:
                 ps = dict(observability=o, rounds=ei, benefit=b, cost=c)
-                expected_pop = evo_analysis(
+                expected_pop, _ = evo_analysis(
                     player_types=player_types, **dict(kwargs, **ps)
                 )
                 # There is only one round so just pop it out.
@@ -519,8 +526,9 @@ def limit_param_plot(
     if var == "proportion":
         plt.yticks([0, 0.5, 1])
         plt.ylabel("Abundance")
-    else:
-        pass
+    elif var == "total_payoff":
+        plt.ylim([0, kwargs['benefit']-kwargs['cost']])
+        plt.ylabel("Average Payoff")
 
     if graph_funcs is not None:
         graph_funcs(ax)

@@ -731,7 +731,7 @@ class Memory1PDAgent(Agent):
         for obs in observations:
             action = obs["action"]
             participants = obs["participant_ids"]
-
+                
             me = self.world_id
             if me in participants:
                 # Memory is indexed by the other player world id so need to look it up
@@ -747,36 +747,8 @@ class Memory1PDAgent(Agent):
                     new_memory[0] = action
                 else:
                     new_memory[1] = action
+
                 self.memory[other] = tuple(new_memory)
-
-        # if len(observations) == 2:
-        #     obs1, obs2 = observations
-        #     deciders = (obs1["participant_ids"][0], obs2["participant_ids"][0])
-        #     actions = (obs1["action"], obs2["action"])
-        #     me = self.world_id
-
-        #     if me in deciders:
-        #         if me == deciders[1]:
-        #             deciders = tuple(reversed(deciders))
-        #             actions = tuple(reversed(actions))
-
-        #         self.memory[deciders[1]] = actions
-
-        # elif len(observations) == 1:
-        #     player = observations["participant_ids"][0]
-        #     action = observations["action"]
-        #     me = self.world_id
-
-        #     if me in observations['participant_ids']:
-        #         import pdb; pdb.set_trace()
-
-        #         if me == player:
-        #             self.memory[player] = action
-        #         else:
-        #             self.memory[me] = action
-
-        # else:
-        #     raise Exception("Observations must be length 1 or 2")
 
     def decide_likelihood(self, game, agents=None, tremble=np.NaN):
         me, other = agents
@@ -984,9 +956,9 @@ class ModelNode(object):
                 debug = True
 
             self.belief[decider_id] = normalized(self.belief[decider_id])
-
-        for model in self.other_models.values():
-            model.observe(observations)
+            
+        for p in observers:
+            self.other_models[p].observe(observations)
 
         return debug
 
@@ -1125,10 +1097,9 @@ class JoinLatticeModel(object):
         )
         for s in observer_subsets:
             debug = self.model[s].observe(observations)
+           
             if debug:
-                import pdb
-
-                pdb.set_trace()
+                import pdb; pdb.set_trace()
 
         return new_top
 

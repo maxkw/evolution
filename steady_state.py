@@ -11,6 +11,8 @@ from copy import copy
 from joblib import Parallel, delayed
 import params
 from tqdm import tqdm
+from iteround import saferound
+
 
 ###
 # Limit
@@ -61,8 +63,9 @@ def ana_to_limit_rmcp(player_types, pop_size, rounds, **kwargs):
     payoffs = matchup_matrix_per_round(
         player_types=player_types, rounds=rounds, **kwargs
     )
+    
     rmcp = np.array([mm_to_limit_mcp(payoff, pop_size) for r, payoff in payoffs])
-    return rmcp
+    return rmcp, payoffs
 
 
 def mcp_to_invasion(mcp, type_count):
@@ -107,16 +110,17 @@ def mcp_to_invasion(mcp, type_count):
 
 def limit_analysis(player_types, s, direct=False, **kwargs):
     if direct:
-        rmcp = ana_to_limit_rmcp(player_types, **kwargs)
+        rmcp, payoffs = ana_to_limit_rmcp(player_types, **kwargs)
     else:
+        assert kwargs['game'].N_players == 2
         rmcp = sim_to_mcp(player_types, analysis_type="limit", **kwargs)
 
     ssds = []
     e_rmcp = np.exp(s * rmcp)
 
-    # This is for the case that it is calculated per_round so need to
-    # compute steady state for each round independently.
     if len(e_rmcp.shape) == 4:
+        # This is for the case that it is calculated per_round so need to
+        # compute steady state for each round independently.
         for mcp in e_rmcp:
             ssd = steady_state(mcp_to_invasion(mcp, len(player_types)))
             ssds.append(ssd)
@@ -124,7 +128,7 @@ def limit_analysis(player_types, s, direct=False, **kwargs):
     else:
         ssds.append(steady_state(mcp_to_invasion(e_rmcp, len(player_types))))
 
-    return np.array(ssds)
+    return np.array(ssds), payoffs
 
 
 ###
@@ -166,8 +170,8 @@ def cp_to_transition(cp, populations, pop_size, mu=None, **kwargs):
     return transition
 
 
-def complete_payoffs(player_types, rounds, pop_size, **kwargs):
-    return matchup_matrix_per_round(player_types=player_types, rounds=rounds, **kwargs)
+# def complete_payoffs(player_types, rounds, pop_size, **kwargs):
+#     return matchup_matrix_per_round(player_types=player_types, rounds=rounds, **kwargs)
 
 
 def duels_to_rcp(duels, partitions, **kwargs):
@@ -197,8 +201,8 @@ def complete_analysis(player_types, s, direct=False, mu=None, **kwargs):
     if direct:
         assert 0
         # Broken since removed `rounds` as part of the analysis pipeline
-        duels = complete_payoffs(player_types, **kwargs)
-        rcp = duels_to_rcp(duels, populations, **kwargs)
+        # duels = complete_payoffs(player_types, **kwargs)
+        # rcp = duels_to_rcp(duels, populations, **kwargs)
 
     else:
         mcp = sim_to_mcp(player_types, analysis_type="complete", **kwargs)
@@ -206,9 +210,9 @@ def complete_analysis(player_types, s, direct=False, mu=None, **kwargs):
         # agent types are in play
         cp = mcp[0]
 
-    # softmax_cp = complete_softmax(cp,populations,s)
-
     softmax_cp = np.zeros_like(cp)
+
+    # For populations that don't have players of a certain type their cp will be NaN so we need to mask those out
     active_players = np.isnan(cp) == False
     for p in range(len(populations)):
         softmax_cp[p][active_players[p]] = softmax(cp[p][active_players[p]], s)
@@ -217,6 +221,15 @@ def complete_analysis(player_types, s, direct=False, mu=None, **kwargs):
 
     # Steady state prevalence of each node
     ssd = steady_state(transition)
+    
+    total_payoff = 0
+    # Get the expected payoff for each population
+    for i in range(len(populations)):
+        for j in range(len(player_types)):
+            if active_players[i][j]:
+                total_payoff += ssd[i] * cp[i][j] * populations[i][j]
+    
+    total_payoff = total_payoff / pop_size 
 
     # Expected population composition
     pop_sum = np.zeros(len(player_types))
@@ -224,7 +237,8 @@ def complete_analysis(player_types, s, direct=False, mu=None, **kwargs):
         pop_sum += p * np.array(pop)
 
     expected_pop = pop_sum / pop_size
-    return [expected_pop]
+
+    return [expected_pop], total_payoff
 
 
 ###
@@ -282,7 +296,6 @@ def avg_payoff_per_type_from_sim(sim_data, player_types, cog_cost, game=None, **
 
     running_fitness = np.zeros(len(types))
     running_interactions = np.zeros(len(types))
-
     means = sim_data.groupby("type")[["interactions", "fitness"]].mean()
 
     for t, c in player_types:
@@ -296,15 +309,9 @@ def avg_payoff_per_type_from_sim(sim_data, player_types, cog_cost, game=None, **
             continue
 
         t = str(t)
-        if "WeAgent" in str(t):
-            ccost = cog_cost
-        else:
-            ccost = 0
 
         running_interactions[t_id] = means.loc[t, "interactions"]
-        running_fitness[t_id] = (
-            means.loc[t, "fitness"] - ccost * running_interactions[t_id]
-        )
+        running_fitness[t_id] = (means.loc[t, "fitness"])
 
     return running_fitness / running_interactions
 
@@ -313,15 +320,15 @@ def simulation(player_types, cog_cost=0, *args, **kwargs):
     # types, _ = list(zip(*player_types))
     active_players = [p for p in player_types if p[1] != 0]
 
-    # Only one active player. No reason to run any sims.
-    if len(active_players) == 1:
-        fitness = list()
-        for p, c in player_types:
-            if c == 0:
-                fitness.append(np.nan)
-            else:
-                fitness.append(1)
-        return np.array(fitness)
+    # # Only one active player. No reason to run any sims.
+    # if len(active_players) == 1:
+    #     fitness = list()
+    #     for p, c in player_types:
+    #         if c == 0:
+    #             fitness.append(np.nan)
+    #         else:
+    #             fitness.append(1)
+    #     return np.array(fitness)
 
     sim_data = matchup(player_types=active_players, *args, **kwargs)
 
@@ -356,7 +363,6 @@ def matchups_and_populations(player_types, pop_size, analysis_type):
         # in the complete analysis there is only a single matchup, which is everyone
         matchups = [player_types]
         populations = agent_pop_simplex(pop_size, type_count)
-
     return matchups, populations
 
 
@@ -435,10 +441,10 @@ def evo_analysis(player_types, analysis_type="limit", direct=True, *args, **kwar
         direct = False
 
     if analysis_type == "complete":
-        ssds = complete_analysis(
+        ssds, payoffs = complete_analysis(
             player_types=player_types, direct=direct, *args, **kwargs
         )
     elif analysis_type == "limit":
-        ssds = limit_analysis(player_types=player_types, direct=direct, *args, **kwargs)
+        ssds, payoffs = limit_analysis(player_types=player_types, direct=direct, *args, **kwargs)
 
-    return np.array(ssds)
+    return np.array(ssds), payoffs

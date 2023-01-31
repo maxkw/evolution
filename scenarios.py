@@ -1,7 +1,7 @@
-import scipy as sp
+import pandas as pd
 from collections import Counter, OrderedDict
 import seaborn as sns
-from experiment_utils import multi_call, experiment, plotter, MultiArg
+from experiment_utils import experiment, plotter, save_fig
 import numpy as np
 from params import default_genome
 from agents import AltruisticAgent, SelfishAgent, WeAgent
@@ -14,11 +14,13 @@ def lookup_agent(a):
     a = str(a)
     if "WeAgent" in a or "self" in a:
         return "Reciprocal"
-    if "AltruisticAgent" in a:
+    elif "AltruisticAgent" in a:
         return "Altruistic"
-    if "SelfishAgent" in a:
+    elif "SelfishAgent" in a:
         return "Selfish"
-    raise "String not defined for agent %s"
+    else:
+        return a
+        # raise "String not defined for agent %s"
 
 
 agent_to_label = {
@@ -125,37 +127,13 @@ def make_observations_from_scenario(scenario, **kwargs):
 
     return observations
 
-
-def false_belief_scenarios():
-    game = BinaryDictator()
-    scenario_dict = OrderedDict()
-
-    # Make a false belief scenario
-    scenario_dict["false"] = [
-        [(game, "CB", "BO", "keep")],
-        [(game, "BC", "ABCO", "keep")],
-        [(game, "AB", "O", "keep")],
-    ]
-
-    # Make a true belief scenario
-    scenario_dict["true"] = [
-        [(game, "CB", "ABCO", "keep")],
-        [(game, "BC", "ABCO", "keep")],
-        [(game, "AB", "O", "keep")],
-    ]
-
-    return scenario_dict
-
-
-@experiment(memoize=False)
-def first_impressions(game_params, **kwargs):
+def forgive_plot(p, game_params, scenarios, label="", **kwargs):
     game = BinaryDictator(**game_params)
     og = default_genome(agent_type=kwargs["observer"], **kwargs["observer"].genome)
     record = []
 
-    trials = ["Prior", "D", "CD", "CCD", "CCCD", "CCCCD"]
     obs_dict = {"game": game, "observer_ids": "ABO"}
-    for trial in trials:
+    for trial in scenarios:
         
         observer = og["type"](og, "O")
         
@@ -184,7 +162,7 @@ def first_impressions(game_params, **kwargs):
                             **obs_dict
                         },
                         {
-                            "action": "keep",
+                            "action": "give",
                             "participant_ids": "BA",
                             **obs_dict
                         },                    
@@ -201,11 +179,8 @@ def first_impressions(game_params, **kwargs):
             }
         )
 
-    return record
-
-
-@plotter(first_impressions, plot_exclusive_args=["data", "color"])
-def forgive_plot(p, data=[], label=""):
+    # Plot Data
+    data = pd.DataFrame(record)
     fplot = sns.catplot(
         data=data,
         y="cooperations",
@@ -232,4 +207,36 @@ def forgive_plot(p, data=[], label=""):
     #     fplot.set(yticklabels=[])
 
     plt.tight_layout()
+    save_fig(**kwargs)
 
+def decision_plot(game_params, betas = None, **kwargs):
+    game = BinaryDictator(**game_params)
+
+    
+    if betas is None:
+        betas = [kwargs["observer"].genome['beta']]
+        
+    record = []
+    ticks = 100
+    # Could also add a beta flag here
+    
+    for b in betas: 
+        kwargs["observer"].genome['beta'] = b
+        og = default_genome(agent_type=kwargs["observer"], **kwargs["observer"].genome)
+        agent = og['type'](og, 'A')
+        tindx = agent._type_to_index[og["type"]]
+        
+        for i in np.linspace(0,1,ticks):
+            agent.models['A'].belief['B'][tindx] = i
+            record.append({
+                "belief": i,
+                "decision": agent.decide_likelihood(game, "AB", 0)[1],
+                'beta': b,
+            })
+        
+    data = pd.DataFrame(record)
+    data = data.pivot(index='belief', columns='beta', values='decision')
+    fig, ax = plt.subplots(figsize=(3.5, 3))
+    data.plot(ax=ax)
+    sns.despine()
+    save_fig(**kwargs)

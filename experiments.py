@@ -117,10 +117,9 @@ def matchup(player_types, game, **kwargs):
                     "decisions": decisions[a_id],
                     "fitness": f,
             })
-            
+
         return record
-    
-    
+
     for event in history:
         try:
             assert len(player_types) == len(ids) and len(player_types) == len(
@@ -201,7 +200,7 @@ def beliefs(believer, opponent_types, believed_types, **kwargs):
             unpack_beliefs=True,
             **kwargs
         )
-        
+
         if believer == opponent:
             dfs.append(data[data["id"] == 0])
         else:
@@ -306,16 +305,20 @@ def plot_beliefs(
             color=color[believed],
         )
 
-
+    # Plot the traces
     # NOTE: this for-loop should not be combined with the above
     # because it will screw up the legend.
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
+        if believed != actual:
+            continue
+        
         ax = axes[actual]
         for trial, t in d.groupby(("trial")):
             if trial >= traces:
                 break
 
             t = t.groupby("round").mean(numeric_only=True).reset_index()
+
             t.plot(
                 x="round",
                 y="value",

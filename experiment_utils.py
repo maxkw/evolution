@@ -293,6 +293,23 @@ def multi_call(unpack=False, **kwargs):
 
     return wrapper
 
+def save_fig(plot_dir, file_name, extension=".pdf", close=True, **kwargs):
+    save_file = plot_dir + file_name + extension
+    if not os.path.exists(os.path.dirname(save_file)):
+        os.makedirs(os.path.dirname(save_file))
+
+    try:
+        plt.savefig(save_file)  
+    except IOError as e:
+        print(e)
+        print(file_name)
+        new_file_name = input("Automatic Filename Too Long. Enter new one:")
+        save_file = plot_dir + new_file_name + extension
+        plt.savefig(save_file)
+
+    if close:
+        plt.close()
+
 
 def plotter(
     experiment,
@@ -339,7 +356,6 @@ def plotter(
             plot_dir = kwargs.pop("plot_dir", default_plot_dir)
             extension = kwargs.pop("extension", default_extension)
             file_name = kwargs.pop("file_name", default_file_name)
-            plot_trials = kwargs.pop("plot_trials", False)
             close = kwargs.pop("close", True)
 
             # if not plot_name:
@@ -400,38 +416,7 @@ def plotter(
             if not file_name:
                 file_name = call_data["make_call_str"](call_args)
 
-            if plot_trials:
-                trial_plot_dir = plot_dir + file_name + "/"
-                for t, d in data.groupby("trial"):
-                    call(
-                        *args,
-                        **dict(
-                            kwargs,
-                            **dict(
-                                data=d,
-                                plot_dir=trial_plot_dir,
-                                file_name=str(int(t)),
-                                extension=extension,
-                                plot_trials=False,
-                            )
-                        )
-                    )
-
-            save_file = plot_dir + file_name + extension
-            if not os.path.exists(os.path.dirname(save_file)):
-                os.makedirs(os.path.dirname(save_file))
-
-            try:
-                plt.savefig(save_file)  
-            except IOError as e:
-                print(e)
-                print(file_name)
-                new_file_name = input("Automatic Filename Too Long. Enter new one:")
-                save_file = plot_dir + new_file_name + extension
-                plt.savefig(save_file)
-
-            if close:
-                plt.close()
+            save_fig(plot_dir, file_name, extension, close)
 
             return ret
 
