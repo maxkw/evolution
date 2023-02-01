@@ -268,9 +268,9 @@ def steady_state(matrix):
 
             if negative_vec(vec):
                 steady_states.append((val, np.absolute(vec)))
+            # for each element must be either greater OR close to 0
             elif all(np.logical_or(np.isclose(vec, 0), vec >= 0)):
                 steady_states.append((val, vec))
-            # for each element must be either greater OR close to 0
 
     try:
         [steady_states] = steady_states

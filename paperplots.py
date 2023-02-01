@@ -11,14 +11,14 @@ import os
 
 
 PLOT_DIR = "./plots/"
-WE_BETA = 3
+WE_BETA = np.inf
 # NOTE: Setting OTHER_BETA=inf makes tremble=0 blow up
 OTHER_BETA = np.inf
 PRIOR = 0.5
 # TREMBLE_EXP = [.0, .01, .02, .04, .08, .16, .32, .64]
-TREMBLE_EXP = np.round(np.linspace(0,.3,13),3)
-MIN_TREMBLE = TREMBLE_EXP[1]
-# MIN_TREMBLE = .01
+TREMBLE_EXP = np.round(np.linspace(0.025, 0.4, 16),3)
+MIN_TREMBLE = TREMBLE_EXP[0]
+# MIN_TREMBLE = .005
 Extort2 = ag.ZDAgent(B=3, C=1, chi=2, phi="midpoint", subtype_name="Extort2")
 
 old_pop = (
@@ -63,7 +63,7 @@ def color_list(agent_list, sort=True):
 
 def game_engine():
     # 100 was good enough for the search_bc plot
-    TRIALS = 200
+    TRIALS = 50
     heat_ticks = 5
 
     opponents = (ag.SelfishAgent(beta=OTHER_BETA), ag.AltruisticAgent(beta=OTHER_BETA))
@@ -161,18 +161,18 @@ def game_engine():
     def observe_tremble_plot():
         print('Running perception errors')
         limit_param_plot(
-            param_dict={"observation_error": TREMBLE_EXP},
+            param_dict={"observation_error": np.append(0,TREMBLE_EXP)},
             observability=1,
-            tremble=0,
+            tremble=MIN_TREMBLE,
             rounds=1,
             analysis_type="complete",
             file_name="percepterror",
             **common_params,
         )
         limit_param_plot(
-            param_dict={"observation_error": TREMBLE_EXP},
+            param_dict={"observation_error": np.append(0,TREMBLE_EXP)},
             observability=1,
-            tremble=0,
+            tremble=MIN_TREMBLE,
             rounds=1,
             analysis_type="complete",
             file_name="percepterror_payoff",
@@ -283,11 +283,10 @@ def game_engine():
             file_name="bc_plot",
             **common_params)
 
-    # beta_plot()
+    observe_tremble_plot()
     gamma_plot()
     tremble_plot()
     observe_plot()
-    observe_tremble_plot()
     heat_map_gamma_omega()
     heat_map_gamma_tremble()
     heat_map_omega_tremble()
@@ -319,10 +318,9 @@ def game_engine():
 
 def ipd(game):
     BENEFIT = 3
-    
     COST = 1
     # 10000 puts SEM around 0.001-0.002
-    TRIALS = 1000
+    TRIALS = 100
     # TRIALS = 100
 
     # ToM = ("self",) + (ag.SelfishAgent(beta=WE_BETA), ag.AltruisticAgent(beta=WE_BETA))
@@ -335,7 +333,8 @@ def ipd(game):
 
     common_params = dict(
         game=game,
-        s=1,
+        s=1/(BENEFIT-COST-1),
+        # s=1,
         benefit=BENEFIT,
         cost=COST,
         pop_size=100,
@@ -348,24 +347,12 @@ def ipd(game):
         memoized=params.memoized,  
     )
     
-    n_rounds = 25
+    n_rounds = 50
 
     payoff_params = common_params.copy()
     payoff_params.update(
         stacked=False,
     )
-    # MIN_TREMBLE =0
-    print('Running Payoff Heatmap')
-    for r in [5, 
-              n_rounds]:
-        payoff_heatmap(
-            rounds=r,
-            player_types=new_pop,
-            tremble=MIN_TREMBLE,
-            sem=False,
-            file_name=("payoffs_rounds_{}".format(r)),
-            **common_params
-        )    
     
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
         print("Running Expected Rounds with", label)
@@ -374,7 +361,7 @@ def ipd(game):
             tremble=MIN_TREMBLE,
             player_types=player_types,
             legend=True,
-            file_name="rounds_%s_%s" % (game, label),
+            file_name="rounds_%s" % (label),
             graph_kwargs={"color": color_list(player_types),
                         "xlabel": "# Pairwise Interactions"},
             **common_params,
@@ -386,7 +373,7 @@ def ipd(game):
             rounds=n_rounds,
             tremble=MIN_TREMBLE,
             player_types=player_types,
-            file_name="popsize_%s_%s" % (game, label),
+            file_name="popsize_%s" % (label),
             graph_kwargs={"color": color_list(player_types),
                         "xlabel": "Population Size"},
             **common_params,
@@ -397,21 +384,22 @@ def ipd(game):
             param_dict=dict(tremble=TREMBLE_EXP),
             rounds=n_rounds,
             player_types=player_types,
-            file_name="tremble_%s_%s" % (game, label),
+            file_name="tremble_%s" % (label),
             graph_kwargs={"color": color_list(player_types)},
             **common_params,
         )
         
-        # print("Running Benefit with", label)
-        # limit_param_plot(
-        #     param_dict=dict(benefit=[1.1,1.5,2,2.5,3,6]),
-        #     rounds=n_rounds,
-        #     tremble=MIN_TREMBLE,
-        #     player_types=player_types,
-        #     file_name="benefit_%s_%s" % (game, label),
-        #     graph_kwargs={"color": color_list(player_types)},
-        #     **common_params,
-        # )
+        print("Running Benefit with", label)
+        limit_param_plot(
+            param_dict=dict(benefit=np.linspace(1.5, 9, 6)),
+            rounds=n_rounds,
+            tremble=MIN_TREMBLE,
+            player_types=player_types,
+            file_name="benefit_%s" % (label),
+            graph_kwargs={"color": color_list(player_types),
+                          "xlabel": "benefit/cost"},
+            **common_params,
+        )
         
     for label, player_types in zip(["wRA", "woRA"], [new_pop, old_pop]):
         print("Running Expected Rounds with", label)
@@ -421,7 +409,7 @@ def ipd(game):
             var='total_payoff',
             player_types=player_types,
             legend=False,
-            file_name="rounds_totalpayoff_%s_%s" % (game, label),
+            file_name="totalpayoff_rounds_%s" % (label),
             graph_kwargs={"color": color_list(player_types),
                         "xlabel": "# Pairwise Interactions"},
             **payoff_params,
@@ -434,7 +422,7 @@ def ipd(game):
             var='total_payoff',
             legend=False,
             player_types=player_types,
-            file_name="tremble_totalpayoff_%s_%s" % (game, label),
+            file_name="totalpayoff_tremble_%s" % (label),
             graph_kwargs={"color": color_list(player_types)},
             **payoff_params,
         ) 
@@ -444,7 +432,7 @@ def ipd(game):
         param_dict=dict(rounds=[n_rounds]),
         tremble=MIN_TREMBLE,
         player_types=new_pop,
-        file_name="%s_rounds_wepay" % game,
+        file_name="wepay_rounds",
         var='wepayoff',
         graph_kwargs={"color": color_list(new_pop),
                       "xlabel": "# Pairwise Interactions"},
@@ -454,7 +442,7 @@ def ipd(game):
         param_dict=dict(tremble=TREMBLE_EXP),
         rounds=n_rounds,
         player_types=new_pop,
-        file_name="%s_tremble_selfpay" % game,
+        file_name="selfpay_tremble",
         graph_kwargs={"color": color_list(new_pop)},
         var='selfpayoff',
         **payoff_params,
@@ -464,7 +452,7 @@ def ipd(game):
         rounds=n_rounds,
         tremble=MIN_TREMBLE,
         player_types=new_pop,
-        file_name="%s_beta_wepay" % game,
+        file_name="wepay_beta",
         graph_kwargs={"color": color_list(new_pop)},
         var='wepayoff',
         **payoff_params
@@ -485,7 +473,7 @@ def ipd(game):
         param_dict=dict(cog_cost=cog_cost_params),
         tremble=MIN_TREMBLE,
         rounds=n_rounds,
-        file_name="%s_cogcosts" % game,
+        file_name="cogcosts",
         player_types=new_pop,
         graph_funcs=cog_cost_graph,
         graph_kwargs={"color": color_list(new_pop)},
@@ -503,7 +491,19 @@ def ipd(game):
     #                   "xlabel": r"Softmax ($\beta$)"},
     #     **common_params,        
     # )         
-    
+
+    print('Running Payoff Heatmap')
+    for r in [5, 
+              n_rounds]:
+        payoff_heatmap(
+            rounds=r,
+            player_types=new_pop,
+            tremble=MIN_TREMBLE,
+            sem=False,
+            file_name=("payoffs_rounds_{}".format(r)),
+            **common_params
+        )   
+        
     def beta_heat_map():
         print('Running Beat Heat Map')
         heat_graph_kwargs = dict(
@@ -521,7 +521,7 @@ def ipd(game):
             param_dict=param_dict,
             player_types=new_pop,
             tremble=MIN_TREMBLE,
-            file_name="%s_heat_beta" % game,
+            file_name="heat_beta",
             line = True,
             graph_kwargs=heat_graph_kwargs,
             **common_params
@@ -555,7 +555,7 @@ def ipd(game):
                 xlabel = r"B",
                 ylabel = '# Pairwise Interactions',
                 xy = ("benefit", "rounds"),
-                onlyRA = True)
+                onlyRA = False)
         
         param_dict = dict(
             benefit=[3,5,7,9],
@@ -571,9 +571,9 @@ def ipd(game):
             graph_kwargs=heat_graph_kwargs,
             **excluding_keys(common_params, "benefit")
         )
-        
+    
     def benefit_beta_map():
-        print('Running benefit Heat Map')
+        print('Running benefit beta Map')
         heat_graph_kwargs = dict(
                 xlabel = r"B",
                 ylabel = 'Beta',
@@ -581,10 +581,10 @@ def ipd(game):
                 onlyRA = True)
         
         param_dict = dict(
-            benefit=[1.5,3,4,5,6],
-            beta=[1,2,3],
+            benefit=[2,3,4,5],
+            beta=[1,2,3,np.Inf],
         )
-        
+
         params_heat(
             param_dict=param_dict,
             rounds=n_rounds,
@@ -593,13 +593,14 @@ def ipd(game):
             file_name="heat_benefit_beta",
             line = True,
             graph_kwargs=heat_graph_kwargs,
-            **excluding_keys(common_params, "benefit")
+            return_rounds=False,
+            **excluding_keys(common_params, "benefit", "return_rounds")
         )        
-            
+        
+    # benefit_beta_map()        
     benefit_heat_map()        
     tremble_heat_map()
-    beta_heat_map()    
-    benefit_beta_map()
+    # beta_heat_map()    
   
 
 def agent():
@@ -687,10 +688,9 @@ def belief():
         game="game_engine",
         # Max Players = 2 so we can more easily interpret the results
         max_players=2,
-        benefit=3,
         cost=1,
-        traces=5,
-        trials=100,
+        traces=10,
+        trials=1000,
         memoized=params.memoized,
         colors=color_list((agent,) + everyone, sort=False),
     )
@@ -705,7 +705,8 @@ def belief():
         # Below computes makes it so the number of interactions are
         # equivalent in both cases. 
         rounds=int(sum(population) * (sum(population) - 1) / 2 / 3),
-        xlabbel="# Observations",
+        xlabel="# Observations",
+        benefit=10,
         file_name="intra_gen_belief_private",
         **common_params,
     )
@@ -718,6 +719,7 @@ def belief():
         population=population,
         rounds=1,
         observability=1,
+        benefit=10,
         file_name="intra_gen_belief_public",
         xlabel = "# Obersevations",
         **common_params,
@@ -740,6 +742,7 @@ def belief():
 
         plot_beliefs(
             observability=0,
+            benefit=3,
             rounds=15,
             file_name="%s_belief" % g,
             xlabel="# Pairwise Interactions",
@@ -770,7 +773,7 @@ def main():
 
     if args.ipd:
         ipd('direct')
-        ipd('direct_seq')
+        ipd('direct_seq') 
 
     if args.agent:
         agent()
