@@ -5,7 +5,6 @@ from tqdm import tqdm
 from experiment_utils import multi_call, experiment, plotter, MultiArg
 import numpy as np
 from params import default_genome, AGENT_NAME, memoized
-from world import World
 import agents as ag
 from agents import (
     WeAgent,
@@ -66,18 +65,25 @@ def matchup(player_types, game, **kwargs):
         player_types.extend([t] * p)
 
     genomes = [default_genome(agent_type=t, **params) for t in player_types]
-    world = World(params, genomes)
-    fitness, history = world.run()
+    
+    agents = []
+    for world_id, genome in enumerate(genomes):
+        agent = genome['type'](genome, world_id)
+        agents.append(agent)
+    
+    agents = np.array(agents)
+
+    fitness, _, history = params['games'].play(agents, agents, tremble=params['tremble'])
 
     beliefs = []
-    for agent in world.agents:
+    for agent in agents:
         try:
             beliefs.append(agent.belief)
         except:
             beliefs.append(None)
 
     record = []
-    ids = [a.world_id for a in world.agents]
+    ids = [a.world_id for a in agents]
 
     # This is the special case for doing "direct" i.e., IPD style
     # analysis very efficiently. It should only apply when we aren't
