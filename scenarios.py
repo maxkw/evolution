@@ -52,6 +52,12 @@ def scenarios(scenarios, **kwargs):
 
     return record
 
+def solo_legend(labels, colors):
+    fig = plt.figure()
+    fig_legend = plt.figure(figsize=(2, 1.25))
+    ax = fig.add_subplot(111)
+    bars = ax.bar(range(4), range(4), color=colors, label=labels)
+    fig_legend.legend(bars.get_children(), labels, loc='center', frameon=False)    
 
 @plotter(scenarios, plot_exclusive_args=["data", "color", "graph_kwargs"])
 def scene_plot(

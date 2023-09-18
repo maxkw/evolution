@@ -29,9 +29,7 @@ from utils import memory
 
 @multi_call(unordered=["player_types", "agent_types"])
 @experiment(memoize=memoized)
-def matchup(player_types, game, **kwargs):
-    # np.random.seed(kwargs["trial"])
-    
+def matchup(player_types, game, **kwargs):    
     believed_types = kwargs.get("believed_types", None)
 
     try:
@@ -231,9 +229,9 @@ def population_beliefs(believer, opponent_types, believed_types, population, **k
     return data
 
 
-@plotter(beliefs, plot_exclusive_args=["data", "colors", "traces"])
+@plotter(beliefs, plot_exclusive_args=["data", "colors", "traces", "show_legend"])
 def plot_beliefs(
-    believer, opponent_types, believed_types, traces=50, colors=None, data=[], **kwargs
+    believer, opponent_types, believed_types, traces=50, colors=None, data=[], show_legend=True, **kwargs
 ):
 
     if kwargs["observability"] != 0 and kwargs["observability"] != 1:
@@ -286,27 +284,30 @@ def plot_beliefs(
         return str(t_n)
 
     short_names = list(map(name, type_names))
-    fig, axes = plt.subplots(figsize=(8*len(short_names)/3, 3))
-    axes = {t: plt.subplot(1, len(short_names), short_names.index(t) + 1) for t in short_names}
+    # fig, axes = plt.subplots(figsize=(8*len(short_names)/3, 3), sharex=True, sharey=True)
+    # axes = {t: plt.subplot(1, len(short_names), short_names.index(t) + 1) for t in short_names}
+    fig, axes = plt.subplots(1, len(short_names), figsize=(8*len(short_names)/3, 3))
+    axes = {t: axes[i] for i, t in enumerate(short_names)}
     color = {t: c for t, c in zip(short_names, colors)}
 
     data.actual_type = data.actual_type.apply(name)
     data.believed_type = data.believed_type.apply(name)
+
     for (believed, actual), d in data.groupby(["believed_type", "actual_type"]):
         ax = axes[actual]
-   
         dm = d.groupby("round").mean(numeric_only=True).reset_index()
+
         dm.plot(
             x="round",
             y="value",
             ax=ax,
             ylim=(-0.05, 1.05),
-            yticks=[0,.25,.5,.75,1],
-            xlim=(0, d["round"].max()),
+            yticks=[0, .5, 1],
+            xlim=(0, round(d["round"].max(),-1)+.5) ,
             title="vs %s" % name(actual),
             label=name(believed),
             kind="scatter",
-            legend=(actual in type_names[-1]),
+            legend=(show_legend and actual in type_names[-1]),
             linewidth=2,
             color=color[believed],
         )

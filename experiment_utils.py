@@ -1,7 +1,7 @@
 import os.path
 import pandas as pd
 from itertools import product
-from inspect import getargspec
+from inspect import getfullargspec
 from collections import OrderedDict
 import numpy as np
 from copy import copy, deepcopy
@@ -28,11 +28,11 @@ def fun_call_labeler(method, args, kwargs, intolerant=True):
     """
 
     try:
-        arg_names, varargs, keywords, default_values = method.__getargspec__
+        arg_names, varargs, keywords, default_values, kwonlyargs, kwonlydefaults, annotations = method.__getargspec__
     except:
-        arg_names, varargs, keywords, default_values = (
+        arg_names, varargs, keywords, default_values, kwonlyargs, kwonlydefaults, annotations = (
             method.__getargspec__
-        ) = getargspec(method)
+        ) = getfullargspec(method)
     given_values = args
 
     # the dict is first populated with the default values if there are any
@@ -121,7 +121,7 @@ def copy_function_identity(parent, decorator=None):
         try:
             inheritor.__getargspec__ = parent.__getargspec__
         except:
-            inheritor.__getargspec__ = getargspec(parent)
+            inheritor.__getargspec__ = getfullargspec(parent)
         if decorator:
             inheritor._decorator = decorator
         return inheritor
@@ -321,7 +321,7 @@ def plotter(
 ):
     def wrapper(plot_fun):
         try:
-            assert "data" in getargspec(plot_fun)[0]
+            assert "data" in getfullargspec(plot_fun)[0]
         except:
             print("wrapped function must have a 'data' argument")
             raise

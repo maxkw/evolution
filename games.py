@@ -5,7 +5,7 @@ from numpy import array
 from copy import copy, deepcopy
 import numpy as np
 from experiment_utils import fun_call_labeler
-from inspect import getargspec
+from inspect import getfullargspec
 
 # import random
 import itertools
@@ -29,7 +29,7 @@ def literal(constructor):
         return ret
 
     call.__name__ = constructor.__name__
-    call.__getargspec__ = getargspec(constructor)
+    call.__getargspec__ = getfullargspec(constructor)
     return call
 
 
@@ -312,10 +312,10 @@ def BinaryDictator(cost=COST, benefit=BENEFIT, tremble=np.NaN):
 
 
 @literal
-def TetraActionDictator(cost=1, benefit=1, tremble=np.NaN):
+def TetraActionDictator(cost=1, benefit=10, tremble=np.NaN):
     """Show that there is a wider band for cooperation in this kind of game. Show that in a single generation that they do a raising the stakes like strategy"""
     cs = np.array([0, 0.1, 1, 10]) * cost
-    bs = np.array([0, 1.5, 3, 15]) * benefit
+    bs = np.array([0, .15, .3, 1.9]) * benefit
     decision_dict = dict()
     for c, b in zip(cs, bs):
         decision_dict["(%.1f, %.1f)" % (c, b)] = (-c, b)

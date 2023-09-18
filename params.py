@@ -1,7 +1,7 @@
 import seaborn as sns
 
 sns.set_style('ticks')
-sns.set_context('paper', font_scale=1)
+sns.set_context('paper', font_scale=1.5)
 
 n_jobs = 8
 disable_tqdm = False

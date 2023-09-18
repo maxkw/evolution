@@ -15,6 +15,18 @@ from tqdm import tqdm
 from copy import deepcopy
 from iteround import saferound
 
+plot_exclusive_args=[
+        "experiment",
+        "data",
+        "stacked",
+        "legend",
+        "graph_kwargs",
+        "graph_funcs",
+        "var",
+        "add_payoff",
+        "xy"
+    ]
+
 def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwargs):
     pop_size = sum(start_pop)
     type_count = len(player_types)
@@ -116,7 +128,7 @@ def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwa
         **graph_kwargs,
     )
 
-    make_legend()
+    make_legend(ax)
     plt.xlabel("Generation")
 
     plt.ylabel("Count")
@@ -204,10 +216,18 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                         total_payoff += payoffs[r - start][1][i][j] * rounded_ssd[i] * rounded_ssd[j] 
                         
                 total_payoff = total_payoff / kwargs['pop_size']**2
-                ps["total_payoff"] = total_payoff
+                ps["total_payoff"] = total_payoff 
+                
+                # Normalize total_payoff by the benefit and cost, only do this for direct games
+                if 'benefit' in ps and ps["benefit"]>1 or 'benefit' in kwargs and kwargs['benefit']>1:
+                    if 'benefit' in ps:
+                        ps["total_payoff"] = ps["total_payoff"] /  (ps['benefit'] - kwargs['cost'])
+                    else:
+                        ps["total_payoff"] = ps["total_payoff"] / (kwargs['benefit'] - kwargs['cost'])   
+                                 
             else:
+                # These will look like they are diveded by 2 since the game engine is not symmetric so each "round" is only one player interacting with another
                 ps["total_payoff"] = payoffs
-
                     
             for t_idx, (t, p) in enumerate(zip(player_types, pop)):
                 records.append(
@@ -271,7 +291,7 @@ def ssd_bc(ei_stop, observe_param, delta, player_types, **kwargs):
     return pd.DataFrame(records)
 
 
-@plotter(ssd_bc)
+@plotter(ssd_bc, plot_exclusive_args=plot_exclusive_args)
 def bc_plot(
     ei_stop, observe_param, delta, player_types, data=[], graph_kwargs={}, **kwargs
 ):
@@ -280,13 +300,14 @@ def bc_plot(
     fig, ax = plt.subplots(figsize=(3.5, 3))
 
     sns.pointplot(x="observability", y="rounds", hue="benefit", data=data, ax=ax)
-    plt.xlabel(r"Prob. of observation ($\omega$)")
-    plt.ylabel("# Interactions")
+    ax.set_xlabel(r"Prob. observation ($\omega$)")
+    ax.set_ylabel("# Interactions")
+    ax.set_yticks(range(1,6))
     sns.despine()
     plt.tight_layout()
 
 
-@plotter(ssd_v_params)
+@plotter(ssd_v_params, plot_exclusive_args=plot_exclusive_args)
 def params_heat(
     param_dict, player_types, line=False, data=[], graph_kwargs={}, **kwargs
 ):
@@ -318,6 +339,15 @@ def params_heat(
             ),
         )
         ax.invert_yaxis()
+        
+        if x == "tremble":
+            param_values = data[x].unique()
+            if True or len(data[x].unique()) > 10:
+                ax.set_xticks(np.arange(.5, len(param_values), 2))
+                ax.set_xticklabels(param_values[0::2], rotation=45)
+                
+        if y == "rounds" and data[y].max() > 25:
+            ax.set_ylim([0,25])
 
         # # Change the font size of the label
         # ax.figure.axes[-1].yaxis.label.set_size(8)
@@ -393,14 +423,15 @@ def params_heat(
     plt.xlabel(graph_kwargs["xlabel"])
     plt.ylabel(graph_kwargs["ylabel"])
     plt.yticks(rotation=0)
-    plt.xticks(rotation=0)
+    # plt.xticks(rotation=0)
+
     plt.tight_layout()
 
 
-def make_legend():
+def make_legend(ax, loc='best'):
     from params import AGENT_NAME
 
-    legend = plt.legend(frameon=True, framealpha=1)
+    legend = ax.legend(frameon=True, framealpha=1, loc=loc)
     for i, texts in enumerate(legend.get_texts()):
         if "WeAgent" in texts.get_text():
             texts.set_text(AGENT_NAME)
@@ -413,15 +444,33 @@ def make_legend():
 
 @plotter(
     ssd_v_params,
-    plot_exclusive_args=[
-        "experiment",
-        "data",
-        "stacked",
-        "legend",
-        "graph_kwargs",
-        "graph_funcs",
-        "var",
-    ],
+    plot_exclusive_args=plot_exclusive_args,
+)
+def payoff_plot(param_dict,
+    player_types,
+    var,
+    xy,
+    data=[],
+    legend=True,
+    graph_funcs=None,
+    graph_kwargs={},
+    **kwargs
+):
+    fig, ax = plt.subplots(figsize=(3.5, 3))
+
+    sns.lineplot(data=data, 
+                 x=xy[0], 
+                 y=var, 
+                 hue=xy[1],
+                 ax=ax)   
+    
+    ax.set(**graph_kwargs)
+    sns.despine()
+    plt.tight_layout()
+
+@plotter(
+    ssd_v_params,
+    plot_exclusive_args=plot_exclusive_args,
 )
 def limit_param_plot(
     param_dict,
@@ -429,6 +478,7 @@ def limit_param_plot(
     data=[],
     stacked=False,
     var="proportion",
+    add_payoff = False,
     legend=False,
     graph_funcs=None,
     graph_kwargs={},
@@ -443,7 +493,8 @@ def limit_param_plot(
 
     if kwargs.get("return_rounds", False) and param != "rounds":
         data = data[data["rounds"] == kwargs["rounds"]]
-
+        
+    payoff_data = data.copy()        
     data = data[[param, var, "type"]].pivot(columns="type", index=param, values=var)
 
     type_order = dict(
@@ -482,8 +533,6 @@ def limit_param_plot(
             linewidth=0,
             **graph_kwargs,
         )
-        if legend:
-            make_legend()
 
         if param == "rounds" and "direct" in kwargs["game"] :
             ax.set_xticks(range(4, param_values[0], 5))
@@ -492,47 +541,62 @@ def limit_param_plot(
             )
 
         elif param == "tremble":
-            ax.set_xticks(range(0, len(param_values), 2))
-            ax.set_xticklabels(param_values[::2], rotation="horizontal")
+            ax.set_xticks(range(3, len(param_values), 4))
+            ax.set_xticklabels(param_values[3::4], rotation="horizontal")
         else:
             ax.set_xticks(range(0, len(param_values), 2))
             ax.set_xticklabels(param_values[::2], rotation="horizontal")
 
     else:
         data.plot(ax=ax, legend=False, **graph_kwargs)
-        if legend:
-            make_legend()
+            
+    if var=='proportion' and add_payoff:
+        payoff_data = payoff_data[[param, 'total_payoff', "type"]].pivot(columns="type", index=param, values='total_payoff')
+        payoff_data.reindex(sorted(payoff_data.columns, key=lambda t: type_order[t]), axis=1)
+        
+        twin = ax.twinx()
+        twin.plot(range(len(payoff_data.index)), payoff_data.iloc[:,0], color='black', linestyle='--', marker='.', label='payoff')
+        ymax = np.ceil(payoff_data.max().iloc[0])
+        twin.set_ylim([0, ymax])
+        twin.set_yticks([0, ymax/2, ymax])
+        if 'direct' in kwargs['game']:
+            twin.set_ylabel('% Cooperate')
+        else:
+            twin.set_ylabel('Payoff')
 
     if "xlabel" in graph_kwargs:
-        plt.xlabel(graph_kwargs["xlabel"])
+        ax.set_xlabel(graph_kwargs["xlabel"])
 
     elif param in ["rounds", "expected_interactions"]:
-        plt.xlabel("# Pairwise Interactions")
-        # plt.xlabel("Expected Interactions\n" r"$1/(1-\gamma)$")
-
-        # if param == 'expected_interactions':
-        # plt.xticks(range(1,11))
+        ax.set_xlabel("# Interactions")
 
     elif param == "observability":
         # plt.xlabel("Probability of observation\n" r"$\omega$")
-        plt.xlabel(r"Prob. of observation ($\omega$)")
+        ax.set_xlabel(r"Prob. observation ($\omega$)")
 
     elif param == "tremble":
-        plt.xlabel(r"Prob. of action error ($\epsilon$)")
+        ax.set_xlabel(r"Prob. action error ($\epsilon$)")
 
+    elif param == "observation_error":
+        ax.set_xlabel(r"Prob. observation error")
     else:
-        plt.xlabel(param)
+        ax.set_xlabel(param)
 
     if var == "proportion":
-        plt.yticks([0, 0.5, 1])
-        plt.ylabel("Abundance")
+        ax.set_yticks([0, 0.5, 1])
+        ax.set_ylabel("Abundance")
     elif var == "total_payoff":
-        plt.ylim([0, kwargs['benefit']-kwargs['cost']])
-        plt.ylabel("Average Payoff")
+        ax.set_ylim([0, kwargs['benefit']-kwargs['cost']])
+        ax.set_ylabel("Average Payoff")
 
     if graph_funcs is not None:
         graph_funcs(ax)
-
+        
+    if legend:
+        if legend == True:
+            legend = 'best'
+        make_legend(ax, legend)
+        
     sns.despine()
     plt.tight_layout()
 

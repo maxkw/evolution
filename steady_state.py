@@ -112,8 +112,9 @@ def limit_analysis(player_types, s, direct=False, **kwargs):
     if direct:
         rmcp, payoffs = ana_to_limit_rmcp(player_types, **kwargs)
     else:
-        assert kwargs['game'].N_players == 2
+        # assert kwargs['game'].N_players == 2
         rmcp = sim_to_mcp(player_types, analysis_type="limit", **kwargs)
+        payoffs = None
 
     ssds = []
     e_rmcp = np.exp(s * rmcp)
