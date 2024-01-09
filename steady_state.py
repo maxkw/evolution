@@ -55,6 +55,7 @@ def mm_to_limit_mcp(payoff, pop_size):
         mcp_lists.append(payoffs)
 
     mcp_matrix = np.array(mcp_lists)
+    
     return mcp_matrix
 
 
@@ -92,6 +93,7 @@ def mcp_to_invasion(mcp, type_count):
         ba = list(reversed(np.reciprocal(ratios)))
 
         trans_fn = lambda seq: 1 / ((type_count - 1) * (1 + np.sum(np.cumprod(seq))))
+        
         transition[a, b] = trans_fn(ab)
         transition[b, a] = trans_fn(ba)
 
@@ -238,6 +240,9 @@ def complete_analysis(player_types, s, direct=False, mu=None, **kwargs):
         pop_sum += p * np.array(pop)
 
     expected_pop = pop_sum / pop_size
+    
+    import pdb; pdb.set_trace()
+    
 
     return [expected_pop], total_payoff
 

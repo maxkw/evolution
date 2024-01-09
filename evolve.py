@@ -152,6 +152,12 @@ def edit_beta(player_types, beta):
 
     return player_types
 
+def multipop_ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
+    dfs = []
+    for types in player_types:
+        dfs.append(ssd_v_params(param_dict, types, return_rounds, **kwargs))
+        
+    return dfs        
 
 def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
     """`param_dict`: <dict> with <string> keys that name the parameter and
@@ -219,7 +225,7 @@ def ssd_v_params(param_dict, player_types, return_rounds=False, **kwargs):
                 ps["total_payoff"] = total_payoff 
                 
                 # Normalize total_payoff by the benefit and cost, only do this for direct games
-                if 'benefit' in ps and ps["benefit"]>1 or 'benefit' in kwargs and kwargs['benefit']>1:
+                if 'benefit' in ps and ps["benefit"]>kwargs['cost'] or 'benefit' in kwargs and kwargs['benefit']>kwargs['cost']:
                     if 'benefit' in ps:
                         ps["total_payoff"] = ps["total_payoff"] /  (ps['benefit'] - kwargs['cost'])
                     else:
@@ -301,15 +307,136 @@ def bc_plot(
 
     sns.pointplot(x="observability", y="rounds", hue="benefit", data=data, ax=ax)
     ax.set_xlabel(r"Prob. observation ($\omega$)")
-    ax.set_ylabel("# Interactions")
+    ax.set_ylabel("Game length")
     ax.set_yticks(range(1,6))
     sns.despine()
     plt.tight_layout()
 
+@plotter(multipop_ssd_v_params, plot_exclusive_args=plot_exclusive_args)
+def region_plot(
+    param_dict, player_types, line=False, data=[], graph_kwargs={}, **kwargs
+):
+    # The strategies that cooperate with each other. TODO: bump this to paperplots
+    cooperators = ('AllC', 'GTFT', 'WSLS', 'TFT', 'Forgiver', 'WeAgent')
+    
+    x = data[0][graph_kwargs['xy'][0]].unique()
+    ymax = max(max(data[0][graph_kwargs['xy'][1]]), max(data[1][graph_kwargs['xy'][1]]))
+    ymin =  min(min(data[0][graph_kwargs['xy'][1]]), min(data[1][graph_kwargs['xy'][1]]))
+    for i in range(len(player_types)):
+        # Drop the non-cooperators
+        data[i] = data[i].loc[data[i]['type'].str.contains('|'.join(cooperators))]        
+        
+        # Sum the cooperators
+        data[i] = data[i].groupby(list(graph_kwargs['xy'])).sum().reset_index()
+
+        # Pivot into a table. Threshold on .5
+        data[i] = data[i].pivot(index=graph_kwargs['xy'][1], columns=graph_kwargs['xy'][0], values='proportion') > .5
+         
+        # Find the columns where the value is never True
+        never = ~data[i].iloc[-1]
+        
+        # Find the last index where the value is not greater than 0.5 (because there is some oscillation)
+        idx = (~data[i].loc[::-1]).idxmax()
+        idx[never] = 0
+        data[i] = data[i].index[idx].to_numpy()
+        
+        # For the ones that never hit the max prop, make it a super higher number to get it off the plot
+        data[i][never] = ymax * 2
+        
+    fig, ax = plt.subplots(figsize=(3.5, 3))
+
+    ax.fill_between(x, ymax * np.ones(len(data[0])), data[0], color=graph_kwargs['colors'][0], step='pre')
+    
+    # This is the WeAgent area so the color is hardcoded
+    ax.fill_between(x, data[0], data[1], color=graph_kwargs['colors'][1], step='pre')
+    
+    # This is the AllD area so the color is also hardcoded
+    ax.fill_between(x, data[1], np.zeros(len(data[1])), color=graph_kwargs['colors'][2],step='pre')
+    ax.set_ylim([ymin, ymax])
+    ax.set_xlim([min(x),max(x)])
+    
+    plt.xlabel(graph_kwargs["xlabel"])
+    plt.ylabel(graph_kwargs["ylabel"])
+
+    sns.despine()
+    plt.tight_layout()
+
+@plotter(ssd_v_params, plot_exclusive_args=plot_exclusive_args)
+def params_dom_heat(
+        param_dict, player_types, data=[], graph_kwargs={}, **kwargs
+):
+    fig, ax = plt.subplots(figsize=(3.5, 3))
+    x = graph_kwargs["xy"][0]
+    y = graph_kwargs["xy"][1]
+    xs = data[x].unique()
+    ys = data[y].unique()
+    player_strings = sorted(list(data['type'].unique()), key=str)
+    vmap = {i: player_strings[i] for i in range(len(player_strings))}
+    n = len(vmap)
+    
+    heat = np.zeros((len(ys), len(xs)))
+    
+    for (i, j) in product(range(len(ys)), range(len(xs))):
+        max_proportion = data[(data[y] == ys[i]) & (data[x] == xs[j])]["proportion"].max()
+        dominant_type = data[(data[y] == ys[i]) & (data[x] == xs[j]) & (data["proportion"] == max_proportion)]["type"].iloc[0]
+        # Clean up this numerical instability where Extort2 and AllD should be the same with 1 round. 
+        if ys[i] == 1 and 'Extort2' in dominant_type:
+            dominant_type = 'AllD'
+            
+        dominant_index = player_strings.index(dominant_type)
+
+        # print(ys[i], xs[j], max_proportion, dominant_type, dominant_index)
+        heat[i, j] = dominant_index
+    
+    # Fill downward from the first AllD (deals with ties)
+    first_indx = heat.shape[0]-np.argmax(np.flipud(heat)==1, axis=0)
+    for i in range(heat.shape[1]):
+        heat[:first_indx[i], i] = 1    
+    
+    sns.heatmap(heat, cmap=graph_kwargs['color'], ax=ax, linewidths=0.1,vmin=0, vmax=len(player_strings)-1, square=False,
+                cbar=False, 
+                )
+    ax.invert_yaxis()
+    colors = ax.collections[0].get_facecolors()
+    ax.collections[0].set_edgecolors(colors)
+    
+    # # Add the colorbar
+    # colorbar = ax.collections[0].colorbar
+    # # The list comprehension calculates the positions to place the labels to be evenly distributed across the colorbar
+    # r = colorbar.vmax - colorbar.vmin
+    # colorbar.set_ticks([colorbar.vmin + 0.5 * r / (n) + r * i / (n) for i in range(n)])
+    # colorbar.set_ticklabels(list(vmap.values()))    
+    
+    rotation = 0
+    if x == "tremble":
+        param_values = data[x].unique()
+        
+        # This is a hacky switch where less than 10 are the engine experiments and greater than 10 are the ipd experiments
+        if len(param_values) < 10:
+            ax.set_xticks(np.arange(.5, len(param_values), 2))
+            ax.set_xticklabels(param_values[0::2], rotation=rotation)
+        else:
+            ax.set_xticks(np.arange(3.5, len(param_values), 4))
+            ax.set_xticklabels(param_values[3::4], rotation=rotation)   
+            
+    else:
+        param_values = data[x].unique()
+        ax.set_xticks(np.arange(.5, len(param_values), 5))
+        ax.set_xticklabels(param_values[0::5], rotation=rotation)             
+            
+    if y == "rounds" and data[y].max() >= 25:
+        ax.set_ylim([0,25])
+        ax.set_yticks(np.arange(.5, 25, 4))
+        ax.set_yticklabels(np.arange(1,26,4), rotation=0)    
+    
+    plt.xlabel(graph_kwargs["xlabel"])
+    plt.ylabel(graph_kwargs["ylabel"])
+    
+    plt.tight_layout()        
 
 @plotter(ssd_v_params, plot_exclusive_args=plot_exclusive_args)
 def params_heat(
-    param_dict, player_types, line=False, data=[], graph_kwargs={}, **kwargs
+    param_dict, player_types, data=[], graph_kwargs={}, **kwargs
 ):
     original_data = data.copy()
 
@@ -328,13 +455,6 @@ def params_heat(
         ax = sns.heatmap(
             d,
             **dict(
-                cbar_kws={
-                    "location": "right",
-                    "label": "Abundance",
-                    "fraction": 0.1,
-                    "ticks": [0, 0.5, 1],
-                    "shrink": 0.6,
-                },
                 **kwargs,
             ),
         )
@@ -342,12 +462,19 @@ def params_heat(
         
         if x == "tremble":
             param_values = data[x].unique()
-            if True or len(data[x].unique()) > 10:
+            
+            # This is a hacky switch where less than 10 are the engine experiments and greater than 10 are the ipd experiments
+            if len(param_values) < 10:
                 ax.set_xticks(np.arange(.5, len(param_values), 2))
                 ax.set_xticklabels(param_values[0::2], rotation=45)
+            else:
+                ax.set_xticks(np.arange(3.5, len(param_values), 4))
+                ax.set_xticklabels(param_values[3::4], rotation=45)
                 
-        if y == "rounds" and data[y].max() > 25:
+        if y == "rounds" and data[y].max() >= 25:
             ax.set_ylim([0,25])
+            ax.set_yticks(np.arange(.5, 25, 4))
+            ax.set_yticklabels(np.arange(1,26,4))
 
         # # Change the font size of the label
         # ax.figure.axes[-1].yaxis.label.set_size(8)
@@ -355,11 +482,12 @@ def params_heat(
         # ax.figure.axes[-1].set_title('Abundance', size=6)
 
 
-        nonlocal original_data, line
+        nonlocal original_data
 
-        if line:
+        # Draw the line. 
+        if proportion == "proportion":
             # Find the first index in d where the value is greater than 0.5
-            original_data.groupby([y, x]).max()
+            # original_data.groupby([y, x]).max()
 
             # The type with the highest proportion had this much proportion
             max_proportion = (
@@ -369,10 +497,10 @@ def params_heat(
             )
 
             # The first y where the proportion is equal to the max proportion
-            first = d.eq(max_proportion).idxmax().reset_index()[0]
+            first = (d>.5).idxmax().reset_index()[0]
 
             # Get the index integer of d that matches first
-            first = d.index.get_indexer(d.eq(max_proportion).idxmax().reset_index()[0])
+            first = d.index.get_indexer(first)
 
             # For the ones that never hit the max prop, make it a super higher number to get it off the plot
             first[~d.eq(max_proportion).max()] = len(d.index) * 2
@@ -387,25 +515,49 @@ def params_heat(
             )
 
     assert len(param_dict) == 2
-
+            
     graph_params = dict(
         cbar=True,
         square=True,
-        vmin=0,
-        vmax=1,
         linewidths=0.5,
         xticklabels=2,
         yticklabels=2,
+        cbar_kws={
+            "location": "right",
+            "label": "Abundance",
+            "fraction": 0.1,
+            "ticks": [0, 0.5, 1],
+            "shrink": 0.6,
+        },        
     )
+
+    if graph_kwargs['var'] == 'proportion':
+        graph_params['vmin'] = 0
+        graph_params['vmax'] = 1
+        graph_params['cmap'] = plt.cm.Blues
+        graph_params['cbar_kws'].update({
+            "label": "Abundance",
+            "ticks": [0, 0.5, 1],
+        }),                
+    elif graph_kwargs['var'] == 'total_payoff':
+        graph_params['cmap'] = plt.cm.gray_r
+        # graph_params['vmin'] = np.floor(data['total_payoff'].min())
+        # graph_params['vmax'] = np.ceil(data['total_payoff'].max())        
+        graph_params['cbar_kws'].update({
+            "label": "Payoff",
+            "ticks": [np.ceil(data['total_payoff'].min()*10)/10, np.floor(data['total_payoff'].max()*10)/10],
+        }),     
+    else:
+        raise Exception('Invalid var')
+        
 
     if graph_kwargs["onlyRA"]:
         fig, ax = plt.subplots(figsize=(3.5, 3))
         draw_heatmap(
             graph_kwargs["xy"][0],
             graph_kwargs["xy"][1],
-            "proportion",
+            graph_kwargs['var'],
             data=data[data["type"].str.contains("WeAgent")],
-            cmap=plt.cm.Blues,
             **graph_params,
         )
 
@@ -415,8 +567,7 @@ def params_heat(
             draw_heatmap,
             graph_kwargs["xy"][0],
             graph_kwargs["xy"][1],
-            "proportion",
-            cmap=plt.cm.gray_r,
+            graph_kwargs["var"],
             **graph_params,
         )
 
@@ -426,7 +577,6 @@ def params_heat(
     # plt.xticks(rotation=0)
 
     plt.tight_layout()
-
 
 def make_legend(ax, loc='best'):
     from params import AGENT_NAME
@@ -449,20 +599,17 @@ def make_legend(ax, loc='best'):
 def payoff_plot(param_dict,
     player_types,
     var,
-    xy,
     data=[],
-    legend=True,
-    graph_funcs=None,
     graph_kwargs={},
     **kwargs
 ):
     fig, ax = plt.subplots(figsize=(3.5, 3))
 
     sns.lineplot(data=data, 
-                 x=xy[0], 
+                 x=list(param_dict.keys())[0], 
                  y=var, 
-                 hue=xy[1],
-                 ax=ax)   
+                 ax=ax,
+                 color='black', marker='o')   
     
     ax.set(**graph_kwargs)
     sns.despine()
@@ -534,22 +681,28 @@ def limit_param_plot(
             **graph_kwargs,
         )
 
-        if param == "rounds" and "direct" in kwargs["game"] :
-            ax.set_xticks(range(4, param_values[0], 5))
+        if param == "rounds" and "direct" in kwargs["game"]:
+            ax.set_xticks(range(4, param_values[0], 10))
             ax.set_xticklabels(
-                range(1, param_values[0] + 1)[4::5], rotation="horizontal"
+                range(1, param_values[0] + 1)[4::10], rotation="horizontal"
             )
 
         elif param == "tremble":
             ax.set_xticks(range(3, len(param_values), 4))
             ax.set_xticklabels(param_values[3::4], rotation="horizontal")
+            
+        elif param == 'benefit':
+            ax.set_xticks(range(0, len(param_values), 4))
+            ax.set_xticklabels(param_values[0::4], rotation="horizontal")
+
         else:
             ax.set_xticks(range(0, len(param_values), 2))
             ax.set_xticklabels(param_values[::2], rotation="horizontal")
 
     else:
         data.plot(ax=ax, legend=False, **graph_kwargs)
-            
+        
+    # Adding the payoff / cooperation % to the plot    
     if var=='proportion' and add_payoff:
         payoff_data = payoff_data[[param, 'total_payoff', "type"]].pivot(columns="type", index=param, values='total_payoff')
         payoff_data.reindex(sorted(payoff_data.columns, key=lambda t: type_order[t]), axis=1)
@@ -568,7 +721,7 @@ def limit_param_plot(
         ax.set_xlabel(graph_kwargs["xlabel"])
 
     elif param in ["rounds", "expected_interactions"]:
-        ax.set_xlabel("# Interactions")
+        ax.set_xlabel("Game length")
 
     elif param == "observability":
         # plt.xlabel("Probability of observation\n" r"$\omega$")

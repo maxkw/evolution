@@ -344,7 +344,7 @@ def plot_beliefs(
         elif "population" in kwargs:
             ax.set_xlabel("# Observations")
         else:
-            ax.set_xlabel("# Interactions")
+            ax.set_xlabel("Interaction #")
 
     axes[AGENT_NAME].set_ylabel("$P(U)$")
     sns.despine()

@@ -74,6 +74,8 @@ def scene_plot(
         data=data,
         y="type",
         x="belief",
+        hue="type",
+        legend=False,
         col="scenario",
         kind="bar",
         orient="h",
