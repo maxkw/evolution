@@ -718,7 +718,7 @@ def belief():
         show_legend=False,
         game="game_engine",
         # Max Players = 2 so we can more easily interpret the results
-        max_players=3,
+        max_players=2,
         cost=1,
         traces=20,
         trials=1000,
