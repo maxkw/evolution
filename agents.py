@@ -221,6 +221,31 @@ class AltruisticAgent(Agent):
         weights = [1] * len(agent_ids)
         return np.dot(weights, payoffs)
 
+class FSAgent(Agent):
+    def __init__(self, genome, world_id=None):
+        super(FSAgent, self).__init__(genome, world_id)
+        self.w_dia = .5
+        self.w_aia = .25
+        self.memory = ConstantDefaultDict(0)
+
+    def utility(self, payoffs, agent_ids):
+        weights = [1 if agent_id == self.world_id else 0 for agent_id in agent_ids]
+
+        self_id = agent_ids.index(self.world_id)
+        self_payoff = payoffs[self_id]
+        
+        dia = sum(max(self_payoff - np.array(payoffs),0)) / len(agent_ids) 
+        aia = sum(max(np.array(payoffs) - self_payoff,0)) / len(agent_ids) 
+        
+        return self_payoff - self.alpha * dia - self.beta * aia
+
+    def observe(self, observations):
+        for obs in observations:
+            action = obs["action"]
+            participants = obs["participant_ids"]
+            
+            import pdb; pdb.set_trace()
+            
 
 class ConstantDefaultDict(dict):
     def __init__(self, val):
@@ -568,7 +593,7 @@ class ConstantDefaultDict(dict):
 #             ("give", "give"),
 #             ("give", "keep"),
 #             ("keep", "give"),
-#             ("keep", "keep"),
+#             ("keep", "give"),
 #         ]
 
 #         self.reaction = {
@@ -699,7 +724,6 @@ class ConstantDefaultDict(dict):
 #         t._nickname = n
 #     return dict(list(zip(names, types)))
 
-
 class Memory1PDAgent(Agent):
     def __init__(self, genome, world_id=None):
         # genome['p_vec'] is a length 4 tuple where each element is
@@ -715,7 +739,7 @@ class Memory1PDAgent(Agent):
         self.genome = genome
         self.world_id = world_id
 
-        self.memory = ConstantDefaultDict(genome["initial"])
+        self.memory = ConstantDefaultDict((genome["initial"], None))
 
         p_vec = genome["p_vec"]
         # Check that p_vec is a valid list of probabilities
@@ -753,32 +777,93 @@ class Memory1PDAgent(Agent):
     def decide_likelihood(self, game, agents=None, tremble=np.NaN):
         me, other = agents
         assert me == self.world_id
+        
+        # If there is a none, the opponent has never moved so just play the intial
+        if None in self.memory[other]:
+            return add_tremble(
+                np.array(
+                    [self.genome['initial']==action for action in game.actions]
+                ),
+                tremble,
+            )
+        else:
+            return add_tremble(
+                np.array(
+                    [self.reaction[self.memory[other]][action] for action in game.actions]
+                ),
+                tremble,
+            )
 
-        return add_tremble(
-            np.array(
-                [self.reaction[self.memory[other]][action] for action in game.actions]
-            ),
-            tremble,
-        )
 
+# Sink-state C strategies 
+AllC = Memory1PDAgent(p_vec=(1, 1, 1, 1), initial="give", subtype_name="AllC")
+ParadoxicGrateful = Memory1PDAgent(p_vec=(1, 1, 0, 1), initial="keep", subtype_name="Paradoxic Grateful")
+Grateful = Memory1PDAgent(p_vec=(1, 1, 1, 0), initial="keep", subtype_name="Grateful")
+SuspiciousAllC = Memory1PDAgent(p_vec=(1, 1, 1, 1), initial="keep", subtype_name="Suspicious AllC")
 
-WSLS = Memory1PDAgent(p_vec=(1, 0, 0, 1), initial=("give", "give"), subtype_name="WSLS")
+# Sink-state D strategies
+Grim = Memory1PDAgent(p_vec=(1, 0, 0, 0), initial="give", subtype_name="Grim")
+ParadoxicGrim = Memory1PDAgent(p_vec=(0, 1, 0, 0), initial="give", subtype_name="Paradoxic Grim")
+HopefulAllD = Memory1PDAgent(p_vec=(0, 0, 0, 0), initial="give", subtype_name="Hopeful AllD")
+AllD = Memory1PDAgent(p_vec=(0, 0, 0, 0), initial="keep", subtype_name="AllD")
 
-TFT = Memory1PDAgent(p_vec=(1, 0, 1, 0), initial=("give", "give"), subtype_name="TFT")
-Forgiver = Memory1PDAgent(
-    p_vec=(1, 0, 1, 1), initial=("give", "give"), subtype_name="Forgiver"
-)
+# Suspicious dynamic strategies 
+S2 = Memory1PDAgent(p_vec=(0, 0, 0, 1), initial="keep", subtype_name="S2")
+SuspiciousParadoxic = Memory1PDAgent(p_vec=(0, 1, 0, 1), initial="keep", subtype_name="Suspicious Paradoxic")
+SuspiciousWSLS = Memory1PDAgent(p_vec=(1, 0, 0, 1), initial="keep", subtype_name="Suspicious WSLS")
+S6 = Memory1PDAgent(p_vec=(0, 0, 1, 0), initial="keep", subtype_name="S6")
+S7 = Memory1PDAgent(p_vec=(0, 1, 1, 0), initial="keep", subtype_name="S7")
+SuspiciousTFT = Memory1PDAgent(p_vec=(1, 0, 1, 0), initial="keep", subtype_name="Suspicious TFT")
+SuspiciousAlternator = Memory1PDAgent(p_vec=(0, 0, 1, 1), initial="keep", subtype_name="Suspicious Alternator")
+S11 = Memory1PDAgent(p_vec=(0, 1, 1, 1), initial="keep", subtype_name="S11")
+SuspiciousForgiver = Memory1PDAgent(p_vec=(1, 0, 1, 1), initial="keep", subtype_name="Suspicious Forgiver")
+                    
 
-AllC = Memory1PDAgent(p_vec=(1, 1, 1, 1), initial=("give", "give"), subtype_name="AllC")
+# Hopeful Dynamic Strategies 
+Forgiver = Memory1PDAgent(p_vec=(1, 0, 1, 1), initial="give",subtype_name="Forgiver")
+TFT = Memory1PDAgent(p_vec=(1, 0, 1, 0), initial="give", subtype_name="TFT")
+WSLS = Memory1PDAgent(p_vec=(1, 0, 0, 1), initial="give", subtype_name="WSLS")
+S18 = Memory1PDAgent(p_vec=(0, 1, 1, 1), initial="give", subtype_name="S18")
+S19 = Memory1PDAgent(p_vec=(0, 1, 1, 0), initial="give", subtype_name="S19")
+Paradoxic = Memory1PDAgent(p_vec=(0, 1, 0, 1), initial="give", subtype_name="Paradoxic")
+Alternator = Memory1PDAgent(p_vec=(0, 0, 1, 1), initial="give", subtype_name="Alternator")
+S23 = Memory1PDAgent(p_vec=(0, 0, 1, 0), initial="give", subtype_name="S23")
+S24 = Memory1PDAgent(p_vec=(0, 0, 0, 1), initial="give", subtype_name="S24")
 
-AllD = Memory1PDAgent(p_vec=(0, 0, 0, 0), initial=("give", "give"), subtype_name="AllD")
-
+all_automata = [
+    AllD,
+    S2,
+    SuspiciousParadoxic,
+    SuspiciousWSLS,
+    ParadoxicGrateful,
+    S6,
+    S7,
+    SuspiciousTFT,
+    Grateful,
+    SuspiciousAlternator,
+    S11,
+    SuspiciousForgiver,
+    SuspiciousAllC,
+    Forgiver,
+    TFT,
+    WSLS,
+    Grim,
+    S18,
+    S19,
+    Paradoxic,
+    ParadoxicGrim,
+    Alternator,
+    S23,
+    S24,
+    HopefulAllD,
+    AllC,      
+]
 
 # benefit = 3.; cost = 1.
 # q = min(1 - (benefit - (benefit - cost)) / (benefit - cost - -cost), (benefit - cost - 0) / (benefit - 0))
 # print q
 GTFT = Memory1PDAgent(
-    p_vec=(1, 0.66, 1, 0.66), initial=("give", "give"), subtype_name="GTFT"
+    p_vec=(1, 0.66, 1, 0.66), initial="give", subtype_name="GTFT"
 )
 
 
@@ -802,7 +887,7 @@ def ZDAgent(B, C, chi=3, phi="midpoint", subtype_name="ZD"):
     )
 
     return Memory1PDAgent(
-        p_vec=p_vec, initial=("keep", "keep"), subtype_name=subtype_name
+        p_vec=p_vec, initial="keep", subtype_name=subtype_name
     )
 
 
@@ -919,7 +1004,6 @@ class ModelNode(object):
     def observe(self, observations):
         agent_types = self.genome["agent_types"]
         self.new_likelihoods = ConstantDefaultDict(np.zeros_like(self.pop_prior))
-        debug = False
 
         for observation in observations:
             game, participants, observers, action = [
@@ -938,7 +1022,7 @@ class ModelNode(object):
                     model = self
                 else:
                     model = self.other_models[decider_id][agent_type]
-
+                
                 likelihood.append(
                     model.decide_likelihood(game, participants, game.tremble)[
                         action_index
@@ -952,15 +1036,11 @@ class ModelNode(object):
             self.likelihood[decider_id] += new_likelihood
 
             self.belief[decider_id] = np.exp(prior + self.likelihood[decider_id])
-            if np.isnan(normalized(self.belief[decider_id])).any():
-                debug = True
-
             self.belief[decider_id] = normalized(self.belief[decider_id])
             
         for p in observers:
             self.other_models[p].observe(observations)
 
-        return debug
 
 
 class JoinLatticeModel(object):
@@ -1070,7 +1150,6 @@ class JoinLatticeModel(object):
             new_top = True
 
         for s in new_sets:
-            ###THIS CAN BE OPTIMIZED
             self.make_path_to(s)
 
         return new_top
@@ -1081,26 +1160,21 @@ class JoinLatticeModel(object):
         then have all subsets of observers observe
         """
         observers = set(frozenset(o["observer_ids"]) for o in observations)
-
-        # this must be a list, because 'any' will short-circuit as it expands an iterator
-        # new_top = any([insert(s) for s in observers if s not in sets])
-
+        
         new_top = False
         for s in observers:
             if s not in self.sets:
+                # Can't short circuit this since actually need to call insert_new_set for all s
                 new_top = new_top or self.insert_new_set(s)
-                # new_top = True
 
-        # observer_sets = sorted(set().union(self.subsets[o] for o in observers), key = len)
         observer_subsets = sorted(
             set().union(*[self.subsets[o] for o in observers]), key=len
         )
-        for s in observer_subsets:
-            debug = self.model[s].observe(observations)
-           
-            if debug:
-                import pdb; pdb.set_trace()
 
+        # Call observe for *all* subsets. Subsets that include a player who is not an observer will be passed over based on code in .observe
+        for s in observer_subsets:
+            self.model[s].observe(observations)
+            
         return new_top
 
     def draw_hasse(self, my_id, ids):
@@ -1183,8 +1257,8 @@ class WeAgent(Agent):
 
     def __init__(self, genome, world_id):
         self.world_id = world_id
-        self.shared_model = self.lattice = lattice = JoinLatticeModel(genome)
-        self.me = me = lattice.model[lattice.top]
+        self.lattice = JoinLatticeModel(genome)
+        self.me = me = self.lattice.model[self.lattice.top]
         self.belief = me.belief
         self.pop_prior = me.pop_prior
         self.likelihood = me.likelihood
@@ -1207,7 +1281,7 @@ class WeAgent(Agent):
         observations = list(
             o for o in observations if self.world_id in o["observer_ids"]
         )
-        lattice = self.shared_model
+        lattice = self.lattice
         if lattice.observe(observations):
             self.me = me = lattice.model[lattice.top]
             self.belief = me.belief
