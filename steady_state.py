@@ -41,6 +41,7 @@ def mm_to_limit_mcp(payoff, pop_size):
 
         for counts in liminal_pops:
             pay = list()
+
             for t in types:
                 pay.append(
                     np.dot(
@@ -51,9 +52,7 @@ def mm_to_limit_mcp(payoff, pop_size):
                 )
 
             payoffs.append(np.array(pay))
-
         mcp_lists.append(payoffs)
-
     mcp_matrix = np.array(mcp_lists)
     
     return mcp_matrix
@@ -241,9 +240,6 @@ def complete_analysis(player_types, s, direct=False, mu=None, **kwargs):
 
     expected_pop = pop_sum / pop_size
     
-    import pdb; pdb.set_trace()
-    
-
     return [expected_pop], total_payoff
 
 
