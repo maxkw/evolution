@@ -27,116 +27,6 @@ plot_exclusive_args=[
         "xy"
     ]
 
-def complete_sim_live(player_types, start_pop, s=1, mu=0.000001, seed=0, **kwargs):
-    pop_size = sum(start_pop)
-    type_count = len(player_types)
-    I = np.identity(type_count)
-    pop = np.array(start_pop)
-    assert type_count == len(pop)
-
-    matchups, populations = matchups_and_populations(player_types, pop_size, "complete")
-    matchup_pop_dicts = [
-        dict(player_types=list(zip(*pop_pair)), **kwargs)
-        for pop_pair in product(matchups, populations)
-    ]
-
-    payoffs = Parallel(n_jobs=params.n_jobs)(
-        delayed(simulation)(**pop_dict)
-        for pop_dict in tqdm(matchup_pop_dicts, disable=params.disable_tqdm)
-    )
-
-    type_to_index = dict(list(map(reversed, enumerate(sorted(player_types)))))
-    original_order = np.array([type_to_index[t] for t in player_types])
-
-    def sim(pop):
-        f = simulation(list(zip(player_types, pop)), **kwargs)[-1]
-
-        non_players = np.array(pop) == 0
-
-        player_payoffs = f[non_players == False]
-        f[non_players == False] = softmax(player_payoffs, s)
-        f[non_players] = 0
-
-        return f
-
-    np.random.seed(seed)
-    while True:
-        yield pop
-
-        fitnesses = sim(pop)
-        actions = [(b, d) for b, d in permutations(range(type_count), 2) if pop[d] != 0]
-        probs = []
-        for b, d in actions:
-            death_odds = pop[d] / pop_size
-            birth_odds = (1 - mu) * fitnesses[b] + mu * (1 / type_count)
-            prob = death_odds * birth_odds
-            probs.append(prob)
-
-        # The probability of not changing the population at all.
-        actions.append((0, 0))
-        probs.append(1 - np.sum(probs))
-
-        probs = np.array(probs)
-        action_index = np.random.choice(len(probs), 1, p=probs)[0]
-        (b, d) = actions[action_index]
-        pop = list(map(int, pop + I[b] - I[d]))
-
-
-def complete_agent_simulation(
-    generations, player_types, start_pop, s, seed=0, trials=100, **kwargs
-):
-    populations = complete_sim_live(
-        player_types, start_pop, s, seed=seed, trials=trials, **kwargs
-    )
-    record = []
-
-    # Populations is an infinite iterator so need to combine it with a
-    # finite iterator which sets the number of generations to look at.
-    for n, pop in zip(range(generations), populations):
-        for t, p in zip(player_types, pop):
-            record.append(
-                {"generation": n, "type": t.short_name("agent_types"), "population": p}
-            )
-
-    return pd.DataFrame(record)
-
-
-@plotter(
-    complete_agent_simulation, plot_exclusive_args=["data", "graph_kwargs", "stacked"]
-)
-def complete_sim_plot(generations, player_types, data=[], graph_kwargs={}, **kwargs):
-    data["population"] = data["population"].astype(int)
-    data = data[["generation", "population", "type"]].pivot(
-        columns="type", index="generation", values="population"
-    )
-    type_order = dict(
-        list(
-            map(
-                reversed, enumerate([t.short_name("agent_types") for t in player_types])
-            )
-        )
-    )
-    data.reindex(sorted(data.columns, key=lambda t: type_order[t]), axis=1)
-
-    fig, ax = plt.subplots(figsize=(3.5, 3))
-    data.plot(
-        ax=ax,
-        legend=False,
-        ylim=[0, sum(kwargs["start_pop"])],
-        xlim=[0, generations],
-        lw=0.5,
-        **graph_kwargs,
-    )
-
-    make_legend(ax)
-    plt.xlabel("Generation")
-
-    plt.ylabel("Count")
-    sns.despine()
-
-    plt.tight_layout()
-
-
 def edit_beta(player_types, beta):
     # Change the beta of each player that has a beta
     for i, t in enumerate(player_types):
@@ -312,54 +202,6 @@ def bc_plot(
     sns.despine()
     plt.tight_layout()
 
-@plotter(multipop_ssd_v_params, plot_exclusive_args=plot_exclusive_args)
-def region_plot(
-    param_dict, player_types, line=False, data=[], graph_kwargs={}, **kwargs
-):
-    # The strategies that cooperate with each other. TODO: bump this to paperplots
-    cooperators = ('AllC', 'GTFT', 'WSLS', 'TFT', 'Forgiver', 'WeAgent')
-    
-    x = data[0][graph_kwargs['xy'][0]].unique()
-    ymax = max(max(data[0][graph_kwargs['xy'][1]]), max(data[1][graph_kwargs['xy'][1]]))
-    ymin =  min(min(data[0][graph_kwargs['xy'][1]]), min(data[1][graph_kwargs['xy'][1]]))
-    for i in range(len(player_types)):
-        # Drop the non-cooperators
-        data[i] = data[i].loc[data[i]['type'].str.contains('|'.join(cooperators))]        
-        
-        # Sum the cooperators
-        data[i] = data[i].groupby(list(graph_kwargs['xy'])).sum().reset_index()
-
-        # Pivot into a table. Threshold on .5
-        data[i] = data[i].pivot(index=graph_kwargs['xy'][1], columns=graph_kwargs['xy'][0], values='proportion') > .5
-         
-        # Find the columns where the value is never True
-        never = ~data[i].iloc[-1]
-        
-        # Find the last index where the value is not greater than 0.5 (because there is some oscillation)
-        idx = (~data[i].loc[::-1]).idxmax()
-        idx[never] = 0
-        data[i] = data[i].index[idx].to_numpy()
-        
-        # For the ones that never hit the max prop, make it a super higher number to get it off the plot
-        data[i][never] = ymax * 2
-        
-    fig, ax = plt.subplots(figsize=(3.5, 3))
-
-    ax.fill_between(x, ymax * np.ones(len(data[0])), data[0], color=graph_kwargs['colors'][0], step='pre')
-    
-    # This is the WeAgent area so the color is hardcoded
-    ax.fill_between(x, data[0], data[1], color=graph_kwargs['colors'][1], step='pre')
-    
-    # This is the AllD area so the color is also hardcoded
-    ax.fill_between(x, data[1], np.zeros(len(data[1])), color=graph_kwargs['colors'][2],step='pre')
-    ax.set_ylim([ymin, ymax])
-    ax.set_xlim([min(x),max(x)])
-    
-    plt.xlabel(graph_kwargs["xlabel"])
-    plt.ylabel(graph_kwargs["ylabel"])
-
-    sns.despine()
-    plt.tight_layout()
 
 @plotter(ssd_v_params, plot_exclusive_args=plot_exclusive_args)
 def params_dom_heat(
@@ -641,7 +483,6 @@ def limit_param_plot(
     if kwargs.get("return_rounds", False) and param != "rounds":
         data = data[data["rounds"] == kwargs["rounds"]]
         
-    payoff_data = data.copy()        
     data = data[[param, var, "type"]].pivot(columns="type", index=param, values=var)
 
     type_order = dict(
