@@ -1,18 +1,9 @@
-from collections import Counter, defaultdict
-from itertools import product, permutations, combinations, filterfalse
-from utils import normalized, softmax, excluding_keys
-from math import factorial
+from itertools import product, permutations, combinations
+from utils import normalized, softmax
 import numpy as np
-from functools import partial
-from utils import memory, softmax
-from multiprocessing import Pool
 from experiments import matchup, matchup_matrix_per_round
-from copy import copy
 from joblib import Parallel, delayed
 import params
-from tqdm import tqdm
-from iteround import saferound
-
 
 ###
 # Limit
@@ -139,7 +130,7 @@ def limit_analysis(player_types, s, direct=False, **kwargs):
 
 
 def cp_to_transition(cp, populations, pop_size, mu=None, **kwargs):
-    if mu == None:
+    if mu is None:
         mu = 0.001
 
     testing = np.array(cp)

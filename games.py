@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from utils import flip
 from itertools import combinations, cycle, permutations
 from numpy import array
 from copy import copy, deepcopy
@@ -693,7 +692,7 @@ class RandomizedMatchup(DecisionSeq):
         self.game = game
         self.deterministic = deterministic
 
-        if self.deterministic == True:
+        if self.deterministic:
             assert isinstance(self.rounds, int)
 
         self.name = self._name = (

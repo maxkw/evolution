@@ -87,7 +87,7 @@ def matchup(player_types, game, **kwargs):
     # analysis very efficiently. It should only apply when we aren't
     # doing per_round analysis but are doing IPD. One example of this
     # is the tremble condition for the IPD.
-    if 'direct' in game and kwargs['per_round'] == False:
+    if 'direct' in game and not kwargs['per_round']:
         for t, f in zip(player_types, fitness):
             record.append({
                 "player_types": tuple(player_types),
@@ -101,7 +101,7 @@ def matchup(player_types, game, **kwargs):
     # values" of fitness over types and don't care about rounds. The
     # key things we need are the total number of interactions per type
     # and the total fitness per type. 
-    elif kwargs['per_round'] == False:
+    elif not kwargs['per_round']:
         # We have the summed fitnesses per type but need the summed
         # interactions and decisions per type which requires iterating
         # through the event log.
@@ -351,7 +351,7 @@ def plot_beliefs(
     plt.tight_layout()
 
 @memory.cache
-def matchup_matrix_per_round(player_types, rounds, cog_cost=0, sem=False, **kwargs):
+def matchup_matrix_per_round(player_types, rounds, sem=False, **kwargs):
     max_rounds = rounds
     player_combos = MultiArg(combinations_with_replacement(player_types, 2))
     all_data = matchup(player_combos, rounds=max_rounds, **kwargs)
@@ -389,18 +389,13 @@ def matchup_matrix_per_round(player_types, rounds, cog_cost=0, sem=False, **kwar
                 player, opponent = players
                 p, o = tuple(index[t] for t in players)
 
-                if "WeAgent" in str(player):
-                    c = cog_cost
-                else:
-                    c = 0
-
                 if per_round:
-                    payoffs[p, o] += means[(combination, player, r)] - c
+                    payoffs[p, o] += means[(combination, player, r)] 
                     payoffs_var[p, o] += var_mean[(combination, player, r)]
                         
                 else:
                     try:
-                        payoffs[p, o] = means[(combination, player)] - c * max_rounds
+                        payoffs[p, o] = means[(combination, player)] 
                         payoffs_var[p, o] = sem_mean[(combination, player)]
                     except:
                         import pdb; pdb.set_trace()

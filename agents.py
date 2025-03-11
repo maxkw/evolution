@@ -4,10 +4,9 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 from utils import excluding_keys, normalized, softmax
 from copy import copy, deepcopy
-from utils import HashableDict, _issubclass
-from itertools import chain, product, combinations
+from utils import HashableDict
+from itertools import chain, combinations
 import networkx as nx
-
 
 PRETTY_KEYS = {"RA_prior": "prior", "RA_K": "K"}
 
@@ -88,7 +87,7 @@ class Agent(object, metaclass=AgentType):
         self, game, participant_ids, tremble=np.NaN, action=None, **kwargs
     ):
         likelihoods = self.decide_likelihood(game, participant_ids, tremble)
-        if action == None:
+        if action is None:
             return likelihoods
         else:
             return likelihoods[game.actions.index(action)]
@@ -224,28 +223,27 @@ class AltruisticAgent(Agent):
 class FSAgent(Agent):
     def __init__(self, genome, world_id=None):
         super(FSAgent, self).__init__(genome, world_id)
-        self.w_dia = .5
-        self.w_aia = .25
-        self.memory = ConstantDefaultDict(0)
+        self.w_dia = genome['w_dia']
+        self.w_aia = genome['w_aia']
+        self.payoff_memory = ConstantDefaultDict(0)
 
     def utility(self, payoffs, agent_ids):
-        weights = [1 if agent_id == self.world_id else 0 for agent_id in agent_ids]
-
+        agent_ids = list(agent_ids)
         self_id = agent_ids.index(self.world_id)
-        self_payoff = payoffs[self_id]
+        cum_payoffs = [self.payoff_memory[ai]+payoffs[i] for i, ai in enumerate(agent_ids)]
+        self_payoff = cum_payoffs[self_id]
         
-        dia = sum(max(self_payoff - np.array(payoffs),0)) / len(agent_ids) 
-        aia = sum(max(np.array(payoffs) - self_payoff,0)) / len(agent_ids) 
+        aia = sum(np.fmax(self_payoff - np.array(cum_payoffs), np.zeros(len(payoffs))))  / (len(agent_ids) - 1)
         
-        return self_payoff - self.alpha * dia - self.beta * aia
+        dia = sum(np.fmax(np.array(cum_payoffs) - self_payoff, np.zeros(len(payoffs)))) / (len(agent_ids) - 1)
+
+        return sum(cum_payoffs) - self.w_dia * dia - self.w_aia * aia 
 
     def observe(self, observations):
         for obs in observations:
-            action = obs["action"]
-            participants = obs["participant_ids"]
-            
-            import pdb; pdb.set_trace()
-            
+            for p, agent_id in zip(obs['payoffs'], obs['participant_ids']):
+                self.payoff_memory[agent_id] += p
+                
 
 class ConstantDefaultDict(dict):
     def __init__(self, val):
@@ -750,6 +748,27 @@ class Memory1PDAgent(Agent):
             a: {"give": p, "keep": 1 - p} for a, p in zip(joint_actions, p_vec)
         }
 
+    def partner_or_rival(self, B, C):
+        R = B - C
+        T = B
+        S = -C
+        P = 0
+        p = self.genome["p_vec"]
+        if (self.genome["initial"] == "give" and
+            ((T-R) * p[3] - (R-P) * (1-p[1]) + (T-R)) < 0 and 
+            ((T-R) * p[2] - (R-S) * (1-p[1]) + (T-R)) < 0):
+            
+            return "partner"
+        else:
+            return "rival"
+        
+    def nice_or_not(self):
+        if (self.genome['initial'] == 'give' and 
+            self.genome["p_vec"][0] == 1):
+            return "nice"
+        else:
+            return "not nice"
+
     def observe(self, observations):
         assert len(observations) <= 2
         for obs in observations:
@@ -830,7 +849,7 @@ Alternator = Memory1PDAgent(p_vec=(0, 0, 1, 1), initial="give", subtype_name="Al
 S23 = Memory1PDAgent(p_vec=(0, 0, 1, 0), initial="give", subtype_name="S23")
 S24 = Memory1PDAgent(p_vec=(0, 0, 0, 1), initial="give", subtype_name="S24")
 
-all_automata = [
+all_automata = (
     AllD,
     S2,
     SuspiciousParadoxic,
@@ -857,7 +876,7 @@ all_automata = [
     S24,
     HopefulAllD,
     AllC,      
-]
+)
 
 # benefit = 3.; cost = 1.
 # q = min(1 - (benefit - (benefit - cost)) / (benefit - cost - -cost), (benefit - cost - 0) / (benefit - 0))

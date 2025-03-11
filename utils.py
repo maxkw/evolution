@@ -47,7 +47,6 @@ def softmax(vector, beta):
         e_x = np.array(vector) == max(vector)
         return e_x / e_x.sum()
     else:
-        # e_x = np.exp(beta * (np.array(vector)-max(vector)))
         return sp.special.softmax(beta*vector)
 
 def sample_softmax(utility, beta):

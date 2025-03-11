@@ -67,6 +67,12 @@ def fun_call_labeler(method, args, kwargs, intolerant=True):
         if k not in defined_args
     )
     known_args = OrderedDict(list(defined_args.items()) + list(undefined_args.items()))
+    
+    # If the method is a joblib memory object, we need to get the original function    
+    from joblib.memory import NotMemorizedFunc
+    if isinstance(method, NotMemorizedFunc):
+        method = method.func
+        
     call_data = {
         "args": known_args,
         "defined_args": defined_args,
